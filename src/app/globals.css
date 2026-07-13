@@ -65,8 +65,93 @@ body {
   padding-left: 16px;
 }
 
+.teamsPreview {
+  overflow: hidden;
+  background: #f6f7fb;
+}
+
+.teamsHeader {
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.teamsMessage {
+  background: #ffffff;
+  padding: 14px;
+  flex: 1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.teamsReplyPending {
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  padding: 12px 14px;
+  flex: 1;
+}
+
+.teamsComposer {
+  border: 1px solid #d7dce3;
+  background: #ffffff;
+  padding: 12px 14px;
+}
+
+.operationStepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.operationStep {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.operationStep.done {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.operationStep.current {
+  color: #0f4c81;
+  background: #ffffff;
+  border-color: #74c0fc;
+  box-shadow: 0 0 0 3px rgba(34, 139, 230, 0.12);
+}
+
+.operationStep.todo {
+  color: #475569;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.operationStepIcon {
+  flex: none;
+}
+
 @media (max-width: 768px) {
   .content {
     padding: 16px;
+  }
+
+  .teamsHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .operationStepper {
+    grid-template-columns: 1fr;
   }
 }

@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   AppShell,
+  Avatar,
   Badge,
   Box,
   Button,
   Card,
-  Divider,
   Flex,
   Group,
   NavLink,
@@ -36,12 +36,14 @@ import {
 } from "./OffMaiDashboard.config";
 
 const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
-  awaiting_tech: { label: "รอทีมตอบใน Teams", color: "yellow" },
+  awaiting_tech: { label: "รอทีม Tech Support ตอบกลับ", color: "yellow" },
   awaiting_confirmation: { label: "รอยืนยัน AI แนะนำ", color: "blue" },
   resolved: { label: "ปิดเคสแล้ว", color: "green" },
   sent: { label: "ส่งคำตอบแล้ว", color: "green" },
   sla_breach: { label: "เกิน SLA", color: "red" },
 };
+
+const WAITING_TECH_STATUS = "รอทีม Tech Support ตอบกลับ";
 
 function confidenceColor(value: number) {
   if (value >= 90) return "green";
@@ -74,6 +76,36 @@ function MetricCard({
         </Box>
       </Group>
     </Card>
+  );
+}
+
+function OperationStepper() {
+  const steps = [
+    { label: "ส่งเคสเข้า Microsoft Teams แล้ว", state: "done" },
+    { label: WAITING_TECH_STATUS, state: "current" },
+    { label: "AI วิเคราะห์คำตอบจากทีม", state: "todo" },
+    { label: "ส่งคำตอบกลับลูกค้า", state: "todo" },
+  ] as const;
+
+  return (
+    <Box className="operationStepper">
+      {steps.map((step, index) => (
+        <Box className={`operationStep ${step.state}`} key={step.label}>
+          <ThemeIcon
+            className="operationStepIcon"
+            color={step.state === "done" ? "green" : step.state === "current" ? "blue" : "gray"}
+            radius="xl"
+            size={34}
+            variant={step.state === "todo" ? "light" : "filled"}
+          >
+            {step.state === "done" ? <AppIcon name="check" size={16} /> : index + 1}
+          </ThemeIcon>
+          <Text fw={step.state === "current" ? 800 : 600} size="sm">
+            {step.label}
+          </Text>
+        </Box>
+      ))}
+    </Box>
   );
 }
 
@@ -159,6 +191,8 @@ function CaseInbox() {
 }
 
 function CaseDetail({ item }: { item: SupportCase }) {
+  const statusLabel = item.status === "awaiting_tech" ? WAITING_TECH_STATUS : statusMeta[item.status].label;
+
   return (
     <Stack gap="lg">
       <Group justify="space-between">
@@ -169,9 +203,14 @@ function CaseDetail({ item }: { item: SupportCase }) {
           <Text c="dimmed">line_user_id: {item.lineUserId} · ส่งเมื่อ {item.createdAt}</Text>
         </Box>
         <Badge color={statusMeta[item.status].color} size="lg" variant="light">
-          {statusMeta[item.status].label}
+          {statusLabel}
         </Badge>
       </Group>
+
+      <Alert color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
+        ระบบส่งเคสนี้ไปยัง Microsoft Teams แล้ว ตอนนี้กำลังรอทีม Tech Support ตอบกลับ
+        คุณยังไม่ต้องดำเนินการเพิ่มเติมในหน้านี้
+      </Alert>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card padding="lg" radius="md" withBorder>
@@ -187,43 +226,189 @@ function CaseDetail({ item }: { item: SupportCase }) {
           <Title mb="sm" order={3}>
             2) ผลวิเคราะห์โดย AI
           </Title>
-          <Group mb="md">
-            <Badge color="blue" variant="light">
-              {item.category}
-            </Badge>
-            <Badge color={confidenceColor(item.aiConfidence)} variant="light">
-              {item.aiConfidence}%
-            </Badge>
-          </Group>
-          <Text className="compactText">{item.summary}</Text>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
+            <Box>
+              <Text c="dimmed" fw={700} size="sm">
+                หมวดหมู่
+              </Text>
+              <Badge color="blue" mt={6} variant="light">
+                {item.category}
+              </Badge>
+            </Box>
+            <Box>
+              <Text c="dimmed" fw={700} size="sm">
+                ความมั่นใจของ AI
+              </Text>
+              <Badge color={confidenceColor(item.aiConfidence)} mt={6} variant="light">
+                {item.aiConfidence}%
+              </Badge>
+            </Box>
+          </SimpleGrid>
+          <Text c="dimmed" fw={700} size="sm">
+            สรุปผลวิเคราะห์
+          </Text>
+          <Text className="compactText" mt={6}>
+            {item.summary}
+          </Text>
+          <Text c="dimmed" mt="sm" size="xs">
+            ผลวิเคราะห์นี้เป็นการประเมินเบื้องต้นจาก AI ยังไม่ใช่การยืนยันสาเหตุที่แน่นอน
+          </Text>
         </Card>
       </SimpleGrid>
 
       <Card padding="lg" radius="md" withBorder>
-        <Title mb="md" order={3}>
-          3) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams
-        </Title>
-        <Stack className="timelineLine" gap="sm">
-          {item.teamsThread.map((entry) => (
-            <Paper bg="blue.0" key={entry} p="sm" radius="md">
-              <Text size="sm">{entry}</Text>
+        <Group align="flex-start" justify="space-between" mb="md">
+          <Box>
+            <Title order={3}>3) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
+            <Text c="dimmed" size="sm">
+              แสดงสิ่งที่ระบบส่งเข้า Teams และสถานะหลังทีมส่งคำตอบกลับ
+            </Text>
+          </Box>
+          <Badge color="green" variant="light">
+            เชื่อมต่อ Webhook แล้ว
+          </Badge>
+        </Group>
+
+        <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
+          <Paper className="teamsPreview" radius="lg" withBorder>
+            <Box className="teamsHeader">
+              <Group gap="sm">
+                <Avatar color="violet" radius="md" size={36}>
+                  TS
+                </Avatar>
+                <Box>
+                  <Text fw={800}>Tech Support Channel</Text>
+                  <Text c="dimmed" size="xs">
+                    เธรด: {item.id} · Off Mai Assistant
+                  </Text>
+                </Box>
+              </Group>
+              <Badge color={statusMeta[item.status].color} variant="light">
+                {statusLabel}
+              </Badge>
+            </Box>
+
+            <Stack gap="md" p="md">
+              <Box>
+                <Title order={4}>ตัวอย่างการ์ดเคสที่ส่งไป Microsoft Teams</Title>
+                <Text c="dimmed" size="sm">
+                  ปุ่มในการ์ดนี้เป็น preview จาก Microsoft Teams ต้องดำเนินการใน Microsoft Teams เท่านั้น
+                </Text>
+                <Text c="dimmed" mt={4} size="xs">
+                  เปิดเคสใน Teams = เปิดรายละเอียดเคส, รับเคส = ให้เจ้าหน้าที่รับผิดชอบเคส,
+                  ขอข้อมูลเพิ่ม = ขอให้ทีมถามข้อมูลจากลูกค้าเพิ่ม
+                </Text>
+              </Box>
+              <Group align="flex-start" gap="sm" wrap="nowrap">
+                <Avatar color="blue" radius="xl" size={34}>
+                  AI
+                </Avatar>
+                <Paper className="teamsMessage" radius="md" withBorder>
+                  <Group justify="space-between" mb="xs">
+                    <Text fw={800}>Off Mai Assistant</Text>
+                    <Text c="dimmed" size="xs">
+                      {item.createdAt}
+                    </Text>
+                  </Group>
+                  <Text fw={700} mb="xs">
+                    การ์ดเคสใหม่: {item.id}
+                  </Text>
+                  <Paper bg="gray.0" p="sm" radius="md">
+                    <Stack gap={6}>
+                      <Group justify="space-between">
+                        <Text c="dimmed" size="sm">
+                          ลูกค้า
+                        </Text>
+                        <Text fw={700} size="sm">
+                          {item.customerName}
+                        </Text>
+                      </Group>
+                      <Group justify="space-between">
+                        <Text c="dimmed" size="sm">
+                          หมวดหมู่
+                        </Text>
+                        <Badge color="blue" variant="light">
+                          {item.category}
+                        </Badge>
+                      </Group>
+                      <Group justify="space-between">
+                        <Text c="dimmed" size="sm">
+                          ความมั่นใจของ AI
+                        </Text>
+                        <Badge color={confidenceColor(item.aiConfidence)} variant="light">
+                          {item.aiConfidence}%
+                        </Badge>
+                      </Group>
+                    </Stack>
+                  </Paper>
+                  <Text className="compactText" mt="sm" size="sm">
+                    ข้อความลูกค้า: {item.originalText}
+                  </Text>
+                  <Text className="compactText" mt="xs" size="sm">
+                    ผลวิเคราะห์โดย AI: {item.summary}
+                  </Text>
+                  <Group mt="md">
+                    <Button size="xs" variant="light">
+                      เปิดเคสใน Teams
+                    </Button>
+                    <Button size="xs" variant="light">
+                      รับเคส
+                    </Button>
+                    <Button color="gray" size="xs" variant="light">
+                      ขอข้อมูลเพิ่ม
+                    </Button>
+                  </Group>
+                </Paper>
+              </Group>
+
+              <Group align="flex-start" gap="sm" wrap="nowrap">
+                <Avatar color="gray" radius="xl" size={34}>
+                  SP
+                </Avatar>
+                <Paper className="teamsReplyPending" radius="md">
+                  <Text fw={700} size="sm">
+                    {WAITING_TECH_STATUS}
+                  </Text>
+                  <Text c="dimmed" size="sm">
+                    เมื่อทีมส่งคำตอบในเธรดนี้ ระบบจะรับผ่าน Teams webhook แล้วส่งต่อให้ AI วิเคราะห์วิธีแก้
+                  </Text>
+                </Paper>
+              </Group>
+
+              <Paper className="teamsComposer" radius="md">
+                <Text c="dimmed" size="sm">
+                  การตอบต้องทำใน Microsoft Teams เพื่อให้ระบบติดตามเธรดได้ถูกต้อง
+                </Text>
+              </Paper>
+            </Stack>
+          </Paper>
+
+          <Stack gap="md">
+            <Paper bg="blue.0" p="md" radius="md">
+              <Group gap="sm" mb="xs">
+                <ThemeIcon color="blue" radius="xl" variant="light">
+                  <AppIcon name="message" />
+                </ThemeIcon>
+                <Text fw={800}>สถานะการดำเนินงาน</Text>
+              </Group>
+              <OperationStepper />
             </Paper>
-          ))}
-        </Stack>
-        <Divider my="md" />
-        <SimpleGrid cols={{ base: 1, md: 2 }}>
-          <Box>
-            <Text c="dimmed" fw={700} size="sm">
-              วิธีแก้ที่สกัดได้
-            </Text>
-            <Text>{item.supportSolution ?? "รอทีม Tech Support ตอบกลับ"}</Text>
-          </Box>
-          <Box>
-            <Text c="dimmed" fw={700} size="sm">
-              ข้อความที่ส่งให้ลูกค้า
-            </Text>
-            <Text>{item.customerReply ?? "ยังไม่ส่งข้อความกลับลูกค้า"}</Text>
-          </Box>
+
+            <SimpleGrid cols={{ base: 1, md: 2 }}>
+              <Paper bg="gray.0" p="md" radius="md">
+                <Text c="dimmed" fw={700} size="sm">
+                  วิธีแก้ที่สกัดได้
+                </Text>
+                <Text>{item.status === "awaiting_tech" ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ" : item.supportSolution}</Text>
+              </Paper>
+              <Paper bg="gray.0" p="md" radius="md">
+                <Text c="dimmed" fw={700} size="sm">
+                  ข้อความที่จะส่งให้ลูกค้า
+                </Text>
+                <Text>{item.status === "awaiting_tech" ? "ยังไม่สร้างข้อความตอบกลับ" : item.customerReply}</Text>
+              </Paper>
+            </SimpleGrid>
+          </Stack>
         </SimpleGrid>
       </Card>
     </Stack>
