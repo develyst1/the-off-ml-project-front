@@ -1,0 +1,72 @@
+:root {
+  color-scheme: light;
+  --app-bg: #f5f7fb;
+  --panel-border: #e5e7eb;
+  --muted: #64748b;
+  --ink: #172033;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--app-bg);
+  color: var(--ink);
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.appShell {
+  min-height: 100vh;
+  background: var(--app-bg);
+}
+
+.sidebar {
+  border-right: 1px solid var(--panel-border);
+  background: #ffffff;
+}
+
+.header {
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.content {
+  padding: 24px;
+}
+
+.metricCard {
+  height: 100%;
+}
+
+.compactText {
+  line-height: 1.45;
+}
+
+.tableCellText {
+  max-width: 420px;
+  white-space: normal;
+}
+
+.emergencyPanel {
+  border: 1px solid #ffc9c9;
+  background: #fff5f5;
+}
+
+.timelineLine {
+  border-left: 2px solid #dbeafe;
+  padding-left: 16px;
+}
+
+@media (max-width: 768px) {
+  .content {
+    padding: 16px;
+  }
+}
