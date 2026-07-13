@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   AppShell,
@@ -54,16 +54,34 @@ function confidenceColor(value: number) {
 function MetricCard({
   icon,
   label,
+  onClick,
   value,
   color,
 }: {
   icon: IconName;
   label: string;
+  onClick?: () => void;
   value: string;
   color: string;
 }) {
   return (
-    <Card className="metricCard" padding="lg" radius="md" withBorder>
+    <Card
+      className="metricCard"
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (!onClick) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      padding="lg"
+      radius="md"
+      role={onClick ? "button" : undefined}
+      style={onClick ? { cursor: "pointer" } : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      withBorder
+    >
       <Group gap="md" wrap="nowrap">
         <ThemeIcon color={color} radius="md" size={42} variant="light">
           <AppIcon name={icon} />
@@ -109,14 +127,20 @@ function OperationStepper() {
   );
 }
 
-function CaseInbox() {
+function CaseInbox({
+  onOpenCase,
+  onOpenConfidence,
+}: {
+  onOpenCase: (item: SupportCase) => void;
+  onOpenConfidence: () => void;
+}) {
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        <MetricCard color="blue" icon="inbox" label="รอทีมตอบ" value="7" />
-        <MetricCard color="yellow" icon="brain" label="รอยืนยัน AI แนะนำ" value="3" />
-        <MetricCard color="green" icon="check" label="ปิดเคสแล้วเดือนนี้" value="128" />
-        <MetricCard color="red" icon="alert" label="เกิน SLA" value="1" />
+        <MetricCard color="blue" icon="inbox" label="รอทีมตอบ" onClick={() => onOpenCase(supportCases[0])} value="7" />
+        <MetricCard color="yellow" icon="brain" label="รอยืนยัน AI แนะนำ" onClick={onOpenConfidence} value="3" />
+        <MetricCard color="green" icon="check" label="ปิดเคสแล้วเดือนนี้" onClick={() => onOpenCase(supportCases[2])} value="128" />
+        <MetricCard color="red" icon="alert" label="เกิน SLA" onClick={() => onOpenCase(supportCases[3])} value="1" />
       </SimpleGrid>
 
       <Card padding="lg" radius="md" withBorder>
@@ -176,7 +200,7 @@ function CaseInbox() {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Button size="xs" variant="light">
+                    <Button onClick={() => onOpenCase(item)} size="xs" variant="light">
                       เปิดเคส
                     </Button>
                   </Table.Td>
@@ -192,6 +216,7 @@ function CaseInbox() {
 
 function CaseDetail({ item }: { item: SupportCase }) {
   const statusLabel = item.status === "awaiting_tech" ? WAITING_TECH_STATUS : statusMeta[item.status].label;
+  const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
 
   return (
     <Stack gap="lg">
@@ -348,13 +373,13 @@ function CaseDetail({ item }: { item: SupportCase }) {
                     ผลวิเคราะห์โดย AI: {item.summary}
                   </Text>
                   <Group mt="md">
-                    <Button size="xs" variant="light">
+                    <Button onClick={() => setTeamsAction(`เปิดรายละเอียด ${item.id} ใน Microsoft Teams แล้ว`)} size="xs" variant="light">
                       เปิดเคสใน Teams
                     </Button>
-                    <Button size="xs" variant="light">
+                    <Button onClick={() => setTeamsAction(`รับเคส ${item.id} ให้ Tech Support แล้ว`)} size="xs" variant="light">
                       รับเคส
                     </Button>
-                    <Button color="gray" size="xs" variant="light">
+                    <Button color="gray" onClick={() => setTeamsAction(`ส่งคำขอข้อมูลเพิ่มเติมสำหรับ ${item.id} แล้ว`)} size="xs" variant="light">
                       ขอข้อมูลเพิ่ม
                     </Button>
                   </Group>
@@ -376,7 +401,10 @@ function CaseDetail({ item }: { item: SupportCase }) {
               </Group>
 
               <Paper className="teamsComposer" radius="md">
-                <Text c="dimmed" size="sm">
+                <Text fw={700} size="sm">
+                  {teamsAction}
+                </Text>
+                <Text c="dimmed" mt={4} size="sm">
                   การตอบต้องทำใน Microsoft Teams เพื่อให้ระบบติดตามเธรดได้ถูกต้อง
                 </Text>
               </Paper>
@@ -416,6 +444,12 @@ function CaseDetail({ item }: { item: SupportCase }) {
 }
 
 function ConfidenceReview() {
+  const [reviewedSuggestions, setReviewedSuggestions] = useState<Record<string, "approved" | "rejected">>({});
+
+  const reviewSuggestion = (id: string, result: "approved" | "rejected") => {
+    setReviewedSuggestions((current) => ({ ...current, [id]: result }));
+  };
+
   return (
     <Stack gap="lg">
       <Alert color="blue" icon={<AppIcon name="brain" />} radius="md" variant="light">
@@ -429,7 +463,14 @@ function ConfidenceReview() {
               <Title order={3}>{item.caseId} · {item.customerName}</Title>
               <Text c="dimmed" mt={4}>{item.originalText}</Text>
             </Box>
-            <Badge color="blue" variant="light">{item.category}</Badge>
+            <Group gap="xs">
+              {reviewedSuggestions[item.id] ? (
+                <Badge color={reviewedSuggestions[item.id] === "approved" ? "green" : "red"} variant="light">
+                  {reviewedSuggestions[item.id] === "approved" ? "ยืนยันแล้ว" : "ปฏิเสธแล้ว"}
+                </Badge>
+              ) : null}
+              <Badge color="blue" variant="light">{item.category}</Badge>
+            </Group>
           </Group>
           <SimpleGrid cols={{ base: 1, md: 2 }} mt="md">
             <Paper bg="gray.0" p="md" radius="md">
@@ -455,8 +496,12 @@ function ConfidenceReview() {
             </Stack>
           </SimpleGrid>
           <Group justify="flex-end" mt="md">
-            <Button color="red" variant="light">ไม่ใช่</Button>
-            <Button>ใช่ ใช้วิธีนี้</Button>
+            <Button color="red" onClick={() => reviewSuggestion(item.id, "rejected")} variant="light">
+              ไม่ใช่
+            </Button>
+            <Button onClick={() => reviewSuggestion(item.id, "approved")}>
+              ใช่ ใช้วิธีนี้
+            </Button>
           </Group>
         </Card>
       ))}
@@ -515,11 +560,20 @@ function AnalyticsDashboard() {
 
 function AutomationSettings() {
   const [enabled, setEnabled] = useState(true);
+  const [automationNotice, setAutomationNotice] = useState("Auto-answer พร้อมทำงานตาม guardrail ที่กำหนด");
+
+  const stopAutomationNow = () => {
+    setEnabled(false);
+    setAutomationNotice("ปิด auto-answer ทันทีแล้ว เคสใหม่จะกลับเข้าคิวทีม Tech Support");
+  };
 
   return (
     <Stack gap="lg">
       <Alert color="yellow" icon={<AppIcon name="settings" />} radius="md" variant="light">
         Auto-answer ทำงานได้เฉพาะเมื่อผ่านความมั่นใจ 2 ชั้น และทุกคำตอบต้องแจ้งทีมใน MS Teams เสมอ
+      </Alert>
+      <Alert color={enabled ? "blue" : "red"} radius="md" variant="light">
+        {automationNotice}
       </Alert>
 
       <Card padding="lg" radius="md" withBorder>
@@ -533,7 +587,15 @@ function AutomationSettings() {
           <Switch
             checked={enabled}
             label={enabled ? "เปิดใช้งาน" : "ปิดใช้งาน"}
-            onChange={(event) => setEnabled(event.currentTarget.checked)}
+            onChange={(event) => {
+              const nextEnabled = event.currentTarget.checked;
+              setEnabled(nextEnabled);
+              setAutomationNotice(
+                nextEnabled
+                  ? "เปิด auto-answer แล้ว ระบบจะทำงานเฉพาะเคสที่ผ่าน confidence 2 ชั้น"
+                  : "ปิด auto-answer แล้ว เคสใหม่จะกลับเข้าคิวทีม Tech Support",
+              );
+            }}
             size="md"
           />
         </Group>
@@ -555,7 +617,7 @@ function AutomationSettings() {
                 ปิดทันทีและส่งเคสใหม่ทั้งหมดกลับเข้าคิวทีม Tech Support
               </Text>
             </Box>
-            <Button color="red" leftSection={<AppIcon name="stop" />}>
+            <Button color="red" leftSection={<AppIcon name="stop" />} onClick={stopAutomationNow}>
               ปิดทันที
             </Button>
           </Flex>
@@ -623,7 +685,16 @@ function AutomationSettings() {
 
 export default function OffMaiDashboardContent() {
   const [activeTab, setActiveTab] = useState<string | null>("inbox");
-  const selectedCase = useMemo(() => supportCases[0], []);
+  const [selectedCase, setSelectedCase] = useState<SupportCase>(supportCases[0]);
+
+  const handleOpenCase = (item: SupportCase) => {
+    setSelectedCase(item);
+    setActiveTab("detail");
+  };
+
+  const handleOpenConfidence = () => {
+    setActiveTab("confidence");
+  };
 
   return (
     <AppShell
@@ -676,9 +747,9 @@ export default function OffMaiDashboardContent() {
 
       <AppShell.Main>
         <Box className="content">
-          <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
+            <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
             <Tabs.Panel value="inbox">
-              <CaseInbox />
+              <CaseInbox onOpenCase={handleOpenCase} onOpenConfidence={handleOpenConfidence} />
             </Tabs.Panel>
             <Tabs.Panel value="detail">
               <CaseDetail item={selectedCase} />
@@ -698,3 +769,6 @@ export default function OffMaiDashboardContent() {
     </AppShell>
   );
 }
+
+
+
