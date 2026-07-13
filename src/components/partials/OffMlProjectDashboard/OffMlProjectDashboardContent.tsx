@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   AppShell,
@@ -26,24 +26,58 @@ import {
 } from "@mantine/core";
 import { AppIcon } from "@/components/common";
 import type { IconName } from "@/components/common/AppIcon";
-import type { CaseStatus, SupportCase } from "@/types/app/offMai";
 import {
-  OFF_MAI_TABS,
-  autoAnswerLogs,
-  autoAnswerSolutions,
-  confidenceSuggestions,
-  supportCases,
-} from "./OffMaiDashboard.config";
+  getAnalyticsSummary,
+  getAutoAnswerLogs,
+  getAutoAnswerSolutions,
+  getAutomationSettings,
+  getCase,
+  getCases,
+  getConfidenceSuggestions,
+  reviewConfidenceSuggestion,
+  updateAutomationSettings,
+  updateCaseStatus,
+} from "@/services/offMlProject.service";
+import type {
+  AnalyticsSummary,
+  AutoAnswerLog,
+  AutoAnswerSolution,
+  AutomationSettings,
+  CaseStatus,
+  ConfidenceSuggestion,
+  SupportCase,
+} from "@/types/app/offMlProject";
+import { OFF_ML_PROJECT_TABS } from "./OffMlProjectDashboard.config";
 
 const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
+  new: { label: "เคสใหม่", color: "gray" },
+  analyzing: { label: "AI กำลังวิเคราะห์", color: "blue" },
   awaiting_tech: { label: "รอทีม Tech Support ตอบกลับ", color: "yellow" },
+  tech_replied: { label: "ทีม Tech Support ตอบแล้ว", color: "blue" },
+  analyzing_solution: { label: "AI กำลังวิเคราะห์คำตอบ", color: "blue" },
   awaiting_confirmation: { label: "รอยืนยัน AI แนะนำ", color: "blue" },
   resolved: { label: "ปิดเคสแล้ว", color: "green" },
+  sent_to_customer: { label: "ส่งคำตอบแล้ว", color: "green" },
+  closed: { label: "ปิดเคสแล้ว", color: "green" },
   sent: { label: "ส่งคำตอบแล้ว", color: "green" },
   sla_breach: { label: "เกิน SLA", color: "red" },
 };
 
 const WAITING_TECH_STATUS = "รอทีม Tech Support ตอบกลับ";
+
+const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
+  total: 0,
+  solvedFromExistingSolutionPct: 0,
+  overSla: 0,
+  readyForAutoAnswer: 0,
+  categories: [],
+  confidenceDistribution: [
+    { label: "0-59%", value: 0 },
+    { label: "60-89%", value: 0 },
+    { label: "90-97%", value: 0 },
+    { label: "98-100%", value: 0 },
+  ],
+};
 
 function confidenceColor(value: number) {
   if (value >= 90) return "green";
@@ -128,20 +162,48 @@ function OperationStepper() {
 }
 
 function CaseInbox({
+  cases,
+  error,
+  isLoading,
   onOpenCase,
   onOpenConfidence,
+  onRefresh,
 }: {
+  cases: SupportCase[];
+  error?: string;
+  isLoading: boolean;
   onOpenCase: (item: SupportCase) => void;
   onOpenConfidence: () => void;
+  onRefresh: () => void;
 }) {
+  const awaitingTechCase = cases.find((item) => item.status === "awaiting_tech") ?? cases[0];
+  const awaitingConfirmationCase = cases.find((item) => item.status === "awaiting_confirmation");
+  const resolvedCase = cases.find((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status));
+  const slaCase = cases.find((item) => item.status === "sla_breach");
+  const waitingCount = cases.filter((item) => item.status === "awaiting_tech").length;
+  const confirmationCount = cases.filter((item) => item.status === "awaiting_confirmation").length;
+  const closedCount = cases.filter((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status)).length;
+  const slaCount = cases.filter((item) => item.status === "sla_breach").length;
+
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        <MetricCard color="blue" icon="inbox" label="รอทีมตอบ" onClick={() => onOpenCase(supportCases[0])} value="7" />
-        <MetricCard color="yellow" icon="brain" label="รอยืนยัน AI แนะนำ" onClick={onOpenConfidence} value="3" />
-        <MetricCard color="green" icon="check" label="ปิดเคสแล้วเดือนนี้" onClick={() => onOpenCase(supportCases[2])} value="128" />
-        <MetricCard color="red" icon="alert" label="เกิน SLA" onClick={() => onOpenCase(supportCases[3])} value="1" />
+        <MetricCard color="blue" icon="inbox" label="รอทีมตอบ" onClick={awaitingTechCase ? () => onOpenCase(awaitingTechCase) : undefined} value={String(waitingCount)} />
+        <MetricCard color="yellow" icon="brain" label="รอยืนยัน AI แนะนำ" onClick={awaitingConfirmationCase ? () => onOpenCase(awaitingConfirmationCase) : onOpenConfidence} value={String(confirmationCount)} />
+        <MetricCard color="green" icon="check" label="ปิดเคสแล้วเดือนนี้" onClick={resolvedCase ? () => onOpenCase(resolvedCase) : undefined} value={String(closedCount)} />
+        <MetricCard color="red" icon="alert" label="เกิน SLA" onClick={slaCase ? () => onOpenCase(slaCase) : undefined} value={String(slaCount)} />
       </SimpleGrid>
+
+      {error ? (
+        <Alert color="red" radius="md" title="เชื่อมต่อ backend ไม่สำเร็จ" variant="light">
+          <Group justify="space-between">
+            <Text>{error}</Text>
+            <Button onClick={onRefresh} size="xs" variant="light">
+              โหลดใหม่
+            </Button>
+          </Group>
+        </Alert>
+      ) : null}
 
       <Card padding="lg" radius="md" withBorder>
         <Group justify="space-between" mb="md">
@@ -152,7 +214,7 @@ function CaseInbox({
             </Text>
           </Box>
           <Badge color="gray" variant="light">
-            SCR-001
+            {isLoading ? "กำลังโหลดจาก Backend" : "SCR-001"}
           </Badge>
         </Group>
 
@@ -169,7 +231,7 @@ function CaseInbox({
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {supportCases.map((item) => (
+              {cases.map((item) => (
                 <Table.Tr key={item.id}>
                   <Table.Td>
                     <Text fw={700}>{item.customerName}</Text>
@@ -209,14 +271,40 @@ function CaseInbox({
             </Table.Tbody>
           </Table>
         </ScrollArea>
+        {!isLoading && cases.length === 0 ? (
+          <Paper bg="gray.0" mt="md" p="lg" radius="md">
+            <Text fw={700}>ยังไม่มีเคสจาก backend</Text>
+            <Text c="dimmed" size="sm">
+              เมื่อมีข้อมูลจาก POST /webhooks/line รายการเคสจะแสดงในตารางนี้
+            </Text>
+          </Paper>
+        ) : null}
       </Card>
     </Stack>
   );
 }
 
-function CaseDetail({ item }: { item: SupportCase }) {
-  const statusLabel = item.status === "awaiting_tech" ? WAITING_TECH_STATUS : statusMeta[item.status].label;
+function CaseDetail({
+  item,
+  onStatusChange,
+}: {
+  item: SupportCase | null;
+  onStatusChange: (status: CaseStatus) => Promise<void>;
+}) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
+
+  if (!item) {
+    return (
+      <Card padding="lg" radius="md" withBorder>
+        <Title order={3}>ยังไม่ได้เลือกเคส</Title>
+        <Text c="dimmed" mt="xs">
+          เลือกเคสจาก Case Inbox เพื่อดูรายละเอียดจาก backend
+        </Text>
+      </Card>
+    );
+  }
+
+  const statusLabel = item.status === "awaiting_tech" ? WAITING_TECH_STATUS : statusMeta[item.status].label;
 
   return (
     <Stack gap="lg">
@@ -304,7 +392,7 @@ function CaseDetail({ item }: { item: SupportCase }) {
                 <Box>
                   <Text fw={800}>Tech Support Channel</Text>
                   <Text c="dimmed" size="xs">
-                    เธรด: {item.id} · Off Mai Assistant
+                    เธรด: {item.id} · Off ML Project
                   </Text>
                 </Box>
               </Group>
@@ -330,7 +418,7 @@ function CaseDetail({ item }: { item: SupportCase }) {
                 </Avatar>
                 <Paper className="teamsMessage" radius="md" withBorder>
                   <Group justify="space-between" mb="xs">
-                    <Text fw={800}>Off Mai Assistant</Text>
+                    <Text fw={800}>Off ML Project</Text>
                     <Text c="dimmed" size="xs">
                       {item.createdAt}
                     </Text>
@@ -376,7 +464,14 @@ function CaseDetail({ item }: { item: SupportCase }) {
                     <Button onClick={() => setTeamsAction(`เปิดรายละเอียด ${item.id} ใน Microsoft Teams แล้ว`)} size="xs" variant="light">
                       เปิดเคสใน Teams
                     </Button>
-                    <Button onClick={() => setTeamsAction(`รับเคส ${item.id} ให้ Tech Support แล้ว`)} size="xs" variant="light">
+                    <Button
+                      onClick={async () => {
+                        await onStatusChange("tech_replied");
+                        setTeamsAction(`รับเคส ${item.id} ให้ Tech Support แล้ว`);
+                      }}
+                      size="xs"
+                      variant="light"
+                    >
                       รับเคส
                     </Button>
                     <Button color="gray" onClick={() => setTeamsAction(`ส่งคำขอข้อมูลเพิ่มเติมสำหรับ ${item.id} แล้ว`)} size="xs" variant="light">
@@ -443,11 +538,20 @@ function CaseDetail({ item }: { item: SupportCase }) {
   );
 }
 
-function ConfidenceReview() {
+function ConfidenceReview({
+  isLoading,
+  onReview,
+  suggestions,
+}: {
+  isLoading: boolean;
+  onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected") => Promise<void>;
+  suggestions: ConfidenceSuggestion[];
+}) {
   const [reviewedSuggestions, setReviewedSuggestions] = useState<Record<string, "approved" | "rejected">>({});
 
-  const reviewSuggestion = (id: string, result: "approved" | "rejected") => {
-    setReviewedSuggestions((current) => ({ ...current, [id]: result }));
+  const reviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
+    await onReview(item, result);
+    setReviewedSuggestions((current) => ({ ...current, [item.id]: result }));
   };
 
   return (
@@ -456,7 +560,15 @@ function ConfidenceReview() {
         ทีม Tech Support ใช้หน้านี้ตอบว่าเคสที่ AI แนะนำตรงกับ solution เดิมหรือไม่
         เพื่อเพิ่ม/ลดความมั่นใจในการเข้าใจเคสและการแยกแยะเคส
       </Alert>
-      {confidenceSuggestions.map((item) => (
+      {!isLoading && suggestions.length === 0 ? (
+        <Card padding="lg" radius="md" withBorder>
+          <Title order={3}>ยังไม่มีรายการให้ยืนยันจาก backend</Title>
+          <Text c="dimmed" mt="xs">
+            เมื่อ backend พบเคสที่ต้องยืนยัน solution รายการจะแสดงที่นี่
+          </Text>
+        </Card>
+      ) : null}
+      {suggestions.map((item) => (
         <Card key={item.id} padding="lg" radius="md" withBorder>
           <Group align="flex-start" justify="space-between">
             <Box>
@@ -496,10 +608,10 @@ function ConfidenceReview() {
             </Stack>
           </SimpleGrid>
           <Group justify="flex-end" mt="md">
-            <Button color="red" onClick={() => reviewSuggestion(item.id, "rejected")} variant="light">
+            <Button color="red" onClick={() => void reviewSuggestion(item, "rejected")} variant="light">
               ไม่ใช่
             </Button>
-            <Button onClick={() => reviewSuggestion(item.id, "approved")}>
+            <Button onClick={() => void reviewSuggestion(item, "approved")}>
               ใช่ ใช้วิธีนี้
             </Button>
           </Group>
@@ -509,47 +621,42 @@ function ConfidenceReview() {
   );
 }
 
-function AnalyticsDashboard() {
+function AnalyticsDashboard({
+  summary,
+}: {
+  summary: AnalyticsSummary;
+}) {
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, md: 4 }}>
-        <MetricCard color="blue" icon="inbox" label="เคสทั้งหมดเดือนนี้" value="452" />
-        <MetricCard color="green" icon="brain" label="แก้ได้จาก solution เดิม" value="61%" />
-        <MetricCard color="red" icon="alert" label="เกิน SLA" value="8" />
-        <MetricCard color="violet" icon="chart" label="พร้อม auto-answer" value="2" />
+        <MetricCard color="blue" icon="inbox" label="เคสทั้งหมดเดือนนี้" value={String(summary.total)} />
+        <MetricCard color="green" icon="brain" label="แก้ได้จาก solution เดิม" value={`${summary.solvedFromExistingSolutionPct}%`} />
+        <MetricCard color="red" icon="alert" label="เกิน SLA" value={String(summary.overSla)} />
+        <MetricCard color="violet" icon="chart" label="พร้อม auto-answer" value={String(summary.readyForAutoAnswer)} />
       </SimpleGrid>
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>หมวดหมู่เคสที่พบบ่อย</Title>
-          {[
-            ["How-to", 38],
-            ["Data Mismatch", 28],
-            ["Login/Access", 21],
-            ["Performance", 13],
-          ].map(([label, value]) => (
-            <Box key={label as string} mb="md">
+          {summary.categories.map(({ label, value }) => (
+            <Box key={label} mb="md">
               <Group justify="space-between">
                 <Text>{label}</Text>
                 <Text fw={700}>{value}%</Text>
               </Group>
-              <Progress value={value as number} />
+              <Progress value={value} />
             </Box>
           ))}
+          {summary.categories.length === 0 ? <Text c="dimmed">ยังไม่มีข้อมูล category จาก backend</Text> : null}
         </Card>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>Confidence distribution</Title>
-          {[
-            ["0-59%", 18, "red"],
-            ["60-89%", 31, "yellow"],
-            ["90-97%", 29, "blue"],
-            ["98-100%", 22, "green"],
-          ].map(([label, value, color]) => (
-            <Box key={label as string} mb="md">
+          {summary.confidenceDistribution.map(({ label, value }) => (
+            <Box key={label} mb="md">
               <Group justify="space-between">
                 <Text>{label}</Text>
                 <Text fw={700}>{value}%</Text>
               </Group>
-              <Progress color={color as string} value={value as number} />
+              <Progress color={label === "0-59%" ? "red" : label === "60-89%" ? "yellow" : label === "90-97%" ? "blue" : "green"} value={value} />
             </Box>
           ))}
         </Card>
@@ -558,12 +665,22 @@ function AnalyticsDashboard() {
   );
 }
 
-function AutomationSettings() {
-  const [enabled, setEnabled] = useState(true);
+function AutomationSettings({
+  logs,
+  onUpdateSettings,
+  settings,
+  solutions,
+}: {
+  logs: AutoAnswerLog[];
+  onUpdateSettings: (input: { emergencyDisable?: boolean; enabled?: boolean }) => Promise<void>;
+  settings: AutomationSettings | null;
+  solutions: AutoAnswerSolution[];
+}) {
+  const enabled = settings?.enabled ?? false;
   const [automationNotice, setAutomationNotice] = useState("Auto-answer พร้อมทำงานตาม guardrail ที่กำหนด");
 
-  const stopAutomationNow = () => {
-    setEnabled(false);
+  const stopAutomationNow = async () => {
+    await onUpdateSettings({ emergencyDisable: true });
     setAutomationNotice("ปิด auto-answer ทันทีแล้ว เคสใหม่จะกลับเข้าคิวทีม Tech Support");
   };
 
@@ -589,7 +706,7 @@ function AutomationSettings() {
             label={enabled ? "เปิดใช้งาน" : "ปิดใช้งาน"}
             onChange={(event) => {
               const nextEnabled = event.currentTarget.checked;
-              setEnabled(nextEnabled);
+              void onUpdateSettings({ enabled: nextEnabled });
               setAutomationNotice(
                 nextEnabled
                   ? "เปิด auto-answer แล้ว ระบบจะทำงานเฉพาะเคสที่ผ่าน confidence 2 ชั้น"
@@ -602,11 +719,11 @@ function AutomationSettings() {
         <SimpleGrid cols={{ base: 1, md: 2 }} mt="lg">
           <Paper bg="gray.0" p="md" radius="md">
             <Text c="dimmed" fw={700} size="sm">เข้าใจเคสถูกต้อง</Text>
-            <Title order={2}>98%</Title>
+            <Title order={2}>{settings?.caseUnderstandingThreshold ?? 98}%</Title>
           </Paper>
           <Paper bg="gray.0" p="md" radius="md">
             <Text c="dimmed" fw={700} size="sm">แยกเคส/เลือก solution ถูกต้อง</Text>
-            <Title order={2}>98%</Title>
+            <Title order={2}>{settings?.caseDiscriminationThreshold ?? 98}%</Title>
           </Paper>
         </SimpleGrid>
         <Paper className="emergencyPanel" mt="lg" p="md" radius="md">
@@ -617,7 +734,7 @@ function AutomationSettings() {
                 ปิดทันทีและส่งเคสใหม่ทั้งหมดกลับเข้าคิวทีม Tech Support
               </Text>
             </Box>
-            <Button color="red" leftSection={<AppIcon name="stop" />} onClick={stopAutomationNow}>
+            <Button color="red" leftSection={<AppIcon name="stop" />} onClick={() => void stopAutomationNow()}>
               ปิดทันที
             </Button>
           </Flex>
@@ -637,7 +754,7 @@ function AutomationSettings() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {autoAnswerSolutions.map((item) => (
+            {solutions.map((item) => (
               <Table.Tr key={item.id}>
                 <Table.Td>{item.category}</Table.Td>
                 <Table.Td>{item.caseUnderstandingConfidence}%</Table.Td>
@@ -648,6 +765,11 @@ function AutomationSettings() {
             ))}
           </Table.Tbody>
         </Table>
+        {solutions.length === 0 ? (
+          <Text c="dimmed" mt="md">
+            ยังไม่มี solution ที่ผ่าน guardrail จาก backend
+          </Text>
+        ) : null}
       </Card>
 
       <Card padding="lg" radius="md" withBorder>
@@ -663,7 +785,7 @@ function AutomationSettings() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {autoAnswerLogs.map((item) => (
+            {logs.map((item) => (
               <Table.Tr key={item.id}>
                 <Table.Td>{item.time}</Table.Td>
                 <Table.Td>{item.customer}</Table.Td>
@@ -678,22 +800,142 @@ function AutomationSettings() {
             ))}
           </Table.Tbody>
         </Table>
+        {logs.length === 0 ? (
+          <Text c="dimmed" mt="md">
+            ยังไม่มี auto-answer notification log จาก backend
+          </Text>
+        ) : null}
       </Card>
     </Stack>
   );
 }
 
-export default function OffMaiDashboardContent() {
+export default function OffMlProjectDashboardContent() {
   const [activeTab, setActiveTab] = useState<string | null>("inbox");
-  const [selectedCase, setSelectedCase] = useState<SupportCase>(supportCases[0]);
+  const [cases, setCases] = useState<SupportCase[]>([]);
+  const [selectedCase, setSelectedCase] = useState<SupportCase | null>(null);
+  const [isLoadingCases, setIsLoadingCases] = useState(true);
+  const [caseError, setCaseError] = useState<string>();
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary>(EMPTY_ANALYTICS_SUMMARY);
+  const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
+  const [autoAnswerLogsState, setAutoAnswerLogsState] = useState<AutoAnswerLog[]>([]);
+  const [autoAnswerSolutionsState, setAutoAnswerSolutionsState] = useState<AutoAnswerSolution[]>([]);
+  const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
+  const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
 
-  const handleOpenCase = (item: SupportCase) => {
+  const loadCases = async () => {
+    setIsLoadingCases(true);
+    setCaseError(undefined);
+
+    try {
+      const nextCases = await getCases();
+      setCases(nextCases);
+      setSelectedCase((current) => {
+        if (!nextCases.length) return null;
+        if (!current) return nextCases[0];
+        return nextCases.find((item) => item.id === current.id) ?? nextCases[0];
+      });
+    } catch (error) {
+      setCaseError(error instanceof Error ? error.message : "โหลดข้อมูลเคสจาก backend ไม่สำเร็จ");
+    } finally {
+      setIsLoadingCases(false);
+    }
+  };
+
+  const loadDashboardData = async () => {
+    setIsLoadingDashboardData(true);
+
+    try {
+      const [suggestions, summary, settings, solutions, logs] = await Promise.all([
+        getConfidenceSuggestions(),
+        getAnalyticsSummary(),
+        getAutomationSettings(),
+        getAutoAnswerSolutions(),
+        getAutoAnswerLogs(),
+      ]);
+
+      setConfidenceSuggestionsState(suggestions);
+      setAnalyticsSummary(summary);
+      setAutomationSettings(settings);
+      setAutoAnswerSolutionsState(solutions);
+      setAutoAnswerLogsState(logs);
+    } catch (error) {
+      setCaseError(error instanceof Error ? error.message : "โหลดข้อมูล dashboard จาก backend ไม่สำเร็จ");
+    } finally {
+      setIsLoadingDashboardData(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([
+      getCases(),
+      getConfidenceSuggestions(),
+      getAnalyticsSummary(),
+      getAutomationSettings(),
+      getAutoAnswerSolutions(),
+      getAutoAnswerLogs(),
+    ])
+      .then(([nextCases, suggestions, summary, settings, solutions, logs]) => {
+        if (!isMounted) return;
+        setCases(nextCases);
+        setSelectedCase(nextCases[0] ?? null);
+        setConfidenceSuggestionsState(suggestions);
+        setAnalyticsSummary(summary);
+        setAutomationSettings(settings);
+        setAutoAnswerSolutionsState(solutions);
+        setAutoAnswerLogsState(logs);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setCaseError(error instanceof Error ? error.message : "โหลดข้อมูลเคสจาก backend ไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsLoadingCases(false);
+        setIsLoadingDashboardData(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleOpenCase = async (item: SupportCase) => {
     setSelectedCase(item);
     setActiveTab("detail");
+
+    try {
+      const latestCase = await getCase(item.id);
+      setSelectedCase(latestCase);
+      setCases((current) => current.map((caseItem) => (caseItem.id === latestCase.id ? latestCase : caseItem)));
+    } catch (error) {
+      setCaseError(error instanceof Error ? error.message : "โหลดรายละเอียดเคสจาก backend ไม่สำเร็จ");
+    }
   };
 
   const handleOpenConfidence = () => {
     setActiveTab("confidence");
+  };
+
+  const handleSelectedCaseStatusChange = async (status: CaseStatus) => {
+    if (!selectedCase) return;
+
+    const updatedCase = await updateCaseStatus(selectedCase.id, status);
+    setSelectedCase(updatedCase);
+    setCases((current) => current.map((caseItem) => (caseItem.id === updatedCase.id ? updatedCase : caseItem)));
+    await loadDashboardData();
+  };
+
+  const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
+    await reviewConfidenceSuggestion({ caseId: item.caseId, id: item.id, result });
+    await Promise.all([loadCases(), loadDashboardData()]);
+  };
+
+  const handleUpdateAutomationSettings = async (input: { emergencyDisable?: boolean; enabled?: boolean }) => {
+    const updatedSettings = await updateAutomationSettings(input);
+    setAutomationSettings(updatedSettings);
   };
 
   return (
@@ -710,7 +952,7 @@ export default function OffMaiDashboardContent() {
               <AppIcon name="message" />
             </ThemeIcon>
             <Box>
-              <Title order={3}>Off Mai Assistant</Title>
+              <Title order={3}>Off ML Project</Title>
               <Text c="dimmed" size="xs">LINE intake · AI analysis · MS Teams support</Text>
             </Box>
           </Group>
@@ -720,7 +962,7 @@ export default function OffMaiDashboardContent() {
 
       <AppShell.Navbar className="sidebar" p="md">
         <Stack gap="xs">
-          {OFF_MAI_TABS.map((tab) => {
+          {OFF_ML_PROJECT_TABS.map((tab) => {
             const icon: IconName =
               tab.value === "inbox"
                 ? "inbox"
@@ -749,19 +991,39 @@ export default function OffMaiDashboardContent() {
         <Box className="content">
             <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
             <Tabs.Panel value="inbox">
-              <CaseInbox onOpenCase={handleOpenCase} onOpenConfidence={handleOpenConfidence} />
+              <CaseInbox
+                cases={cases}
+                error={caseError}
+                isLoading={isLoadingCases}
+                onOpenCase={(item) => {
+                  void handleOpenCase(item);
+                }}
+                onOpenConfidence={handleOpenConfidence}
+                onRefresh={() => {
+                  void loadCases();
+                }}
+              />
             </Tabs.Panel>
             <Tabs.Panel value="detail">
-              <CaseDetail item={selectedCase} />
+              <CaseDetail item={selectedCase} onStatusChange={handleSelectedCaseStatusChange} />
             </Tabs.Panel>
             <Tabs.Panel value="confidence">
-              <ConfidenceReview />
+              <ConfidenceReview
+                isLoading={isLoadingDashboardData}
+                onReview={handleReviewSuggestion}
+                suggestions={confidenceSuggestionsState}
+              />
             </Tabs.Panel>
             <Tabs.Panel value="analytics">
-              <AnalyticsDashboard />
+              <AnalyticsDashboard summary={analyticsSummary} />
             </Tabs.Panel>
             <Tabs.Panel value="automation">
-              <AutomationSettings />
+              <AutomationSettings
+                logs={autoAnswerLogsState}
+                onUpdateSettings={handleUpdateAutomationSettings}
+                settings={automationSettings}
+                solutions={autoAnswerSolutionsState}
+              />
             </Tabs.Panel>
           </Tabs>
         </Box>

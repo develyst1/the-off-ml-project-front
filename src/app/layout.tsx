@@ -5,7 +5,7 @@ import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
 import { UIProvider } from "@/components/providers/UIProvider";
 
 export const metadata: Metadata = {
-  title: "Off Mai Assistant",
+  title: "Off ML Project",
   description: "AI Tech Support Assistant for LINE and MS Teams workflows",
 };
 

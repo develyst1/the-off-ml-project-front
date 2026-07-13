@@ -1,5 +1,5 @@
-import { OffMaiDashboardContent } from "@/components/partials/OffMaiDashboard";
+﻿import { OffMlProjectDashboardContent } from "@/components/partials/OffMlProjectDashboard";
 
 export default function HomePage() {
-  return <OffMaiDashboardContent />;
+  return <OffMlProjectDashboardContent />;
 }

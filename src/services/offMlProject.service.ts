@@ -1,0 +1,142 @@
+﻿import type {
+  AnalyticsSummary,
+  AutoAnswerLog,
+  AutoAnswerSolution,
+  AutomationSettings,
+  CaseStatus,
+  ConfidenceSuggestion,
+  OffMlProjectCaseResponse,
+  SupportCase,
+} from "@/types/app/offMlProject";
+
+type ApiResponse<T> = {
+  data: T;
+};
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_OFF_ML_PROJECT_API_BASE_URL ?? "http://localhost:4000";
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Off ML Project API error ${response.status}`);
+  }
+
+  const body = (await response.json()) as ApiResponse<T>;
+  return body.data;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("th-TH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function firstText(caseItem: OffMlProjectCaseResponse, direction: "inbound_customer" | "inbound_tech" | "outbound_customer") {
+  return caseItem.messages.find((message) => message.direction === direction)?.originalText;
+}
+
+function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCaseResponse["analyses"][number]["analysisType"]) {
+  return [...caseItem.analyses].reverse().find((analysis) => analysis.analysisType === type);
+}
+
+export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase {
+  const customerMessage = firstText(caseItem, "inbound_customer") ?? "ยังไม่มีข้อความต้นฉบับจากลูกค้า";
+  const techReply = firstText(caseItem, "inbound_tech");
+  const outboundReply = firstText(caseItem, "outbound_customer");
+  const customerAnalysis = latestAnalysis(caseItem, "customer_message");
+  const techAnalysis = latestAnalysis(caseItem, "tech_solution");
+  const latestSolution = caseItem.solutions.at(-1);
+
+  return {
+    id: caseItem.id,
+    customerName: caseItem.customer.displayName ?? caseItem.customer.lineUserId,
+    lineUserId: caseItem.customer.lineUserId,
+    originalText: customerMessage,
+    category: customerAnalysis?.category ?? caseItem.category ?? "-",
+    aiConfidence: customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
+    status: caseItem.status,
+    createdAt: formatDateTime(caseItem.createdAt),
+    slaHours: 4,
+    summary: customerAnalysis?.summary ?? "ยังไม่มีผลวิเคราะห์โดย AI",
+    teamsThread: [
+      "ระบบแจ้งลูกค้า + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
+      techReply ? `Tech Support ตอบกลับ: ${techReply}` : "รอทีม Tech Support วิเคราะห์และตอบกลับ",
+    ],
+    supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary,
+    customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
+  };
+}
+
+export async function getCases(): Promise<SupportCase[]> {
+  const cases = await request<OffMlProjectCaseResponse[]>("/cases");
+  return cases.map(mapCaseResponse);
+}
+
+export async function getCase(caseId: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}`);
+  return mapCaseResponse(caseItem);
+}
+
+export async function updateCaseStatus(caseId: string, status: CaseStatus): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+
+  return mapCaseResponse(caseItem);
+}
+
+export async function getConfidenceSuggestions(): Promise<ConfidenceSuggestion[]> {
+  return request<ConfidenceSuggestion[]>("/confidence/suggestions");
+}
+
+export async function reviewConfidenceSuggestion(input: {
+  caseId: string;
+  id: string;
+  result: "approved" | "rejected";
+}) {
+  return request<{ caseId: string; id: string; result: "approved" | "rejected" }>(`/confidence/suggestions/${input.id}/review`, {
+    method: "POST",
+    body: JSON.stringify({
+      caseId: input.caseId,
+      result: input.result,
+    }),
+  });
+}
+
+export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
+  return request<AnalyticsSummary>("/analytics/summary");
+}
+
+export async function getAutomationSettings(): Promise<AutomationSettings> {
+  return request<AutomationSettings>("/automation/settings");
+}
+
+export async function updateAutomationSettings(input: { emergencyDisable?: boolean; enabled?: boolean }): Promise<AutomationSettings> {
+  return request<AutomationSettings>("/automation/settings", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getAutoAnswerSolutions(): Promise<AutoAnswerSolution[]> {
+  return request<AutoAnswerSolution[]>("/automation/solutions");
+}
+
+export async function getAutoAnswerLogs(): Promise<AutoAnswerLog[]> {
+  return request<AutoAnswerLog[]>("/automation/logs");
+}
