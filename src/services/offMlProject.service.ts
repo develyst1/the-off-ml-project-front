@@ -141,3 +141,7 @@ export async function getAutoAnswerSolutions(): Promise<AutoAnswerSolution[]> {
 export async function getAutoAnswerLogs(): Promise<AutoAnswerLog[]> {
   return request<AutoAnswerLog[]>("/automation/logs");
 }
+
+export async function getTeamsStatus(): Promise<{ connected: boolean; mode: "incoming_webhook" | "mock" }> {
+  return request<{ connected: boolean; mode: "incoming_webhook" | "mock" }>("/integrations/teams/status");
+}

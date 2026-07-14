@@ -34,6 +34,7 @@ import {
   getCase,
   getCases,
   getConfidenceSuggestions,
+  getTeamsStatus,
   reviewConfidenceSuggestion,
   updateAutomationSettings,
   updateCaseStatus,
@@ -214,7 +215,7 @@ function CaseInbox({
             </Text>
           </Box>
           <Badge color="gray" variant="light">
-            {isLoading ? "กำลังโหลดจาก Backend" : "SCR-001"}
+            {isLoading ? "กำลังโหลดจาก Backend" : ""}
           </Badge>
         </Group>
 
@@ -287,9 +288,11 @@ function CaseInbox({
 function CaseDetail({
   item,
   onStatusChange,
+  teamsConnected,
 }: {
   item: SupportCase | null;
   onStatusChange: (status: CaseStatus) => Promise<void>;
+  teamsConnected: boolean;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
 
@@ -321,8 +324,10 @@ function CaseDetail({
       </Group>
 
       <Alert color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
-        ระบบส่งเคสนี้ไปยัง Microsoft Teams แล้ว ตอนนี้กำลังรอทีม Tech Support ตอบกลับ
-        คุณยังไม่ต้องดำเนินการเพิ่มเติมในหน้านี้
+        {teamsConnected
+          ? "ระบบส่งเคสนี้ไปยัง Microsoft Teams แล้ว ตอนนี้กำลังรอทีม Tech Support ตอบกลับ"
+          : "ระบบยังไม่ได้ส่งเคสไปยัง Microsoft Teams เพราะยังไม่ได้ตั้งค่า Teams Webhook"}
+        {teamsConnected ? " คุณยังไม่ต้องดำเนินการเพิ่มเติมในหน้านี้" : " กรุณาตั้งค่า TEAMS_WEBHOOK_URL ใน backend แล้ว restart server"}
       </Alert>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
@@ -377,8 +382,8 @@ function CaseDetail({
               แสดงสิ่งที่ระบบส่งเข้า Teams และสถานะหลังทีมส่งคำตอบกลับ
             </Text>
           </Box>
-          <Badge color="green" variant="light">
-            เชื่อมต่อ Webhook แล้ว
+          <Badge color={teamsConnected ? "green" : "red"} variant="light">
+            {teamsConnected ? "เชื่อมต่อ Teams Webhook แล้ว" : "ยังไม่ได้เชื่อมต่อ Teams"}
           </Badge>
         </Group>
 
@@ -821,6 +826,7 @@ export default function OffMlProjectDashboardContent() {
   const [autoAnswerLogsState, setAutoAnswerLogsState] = useState<AutoAnswerLog[]>([]);
   const [autoAnswerSolutionsState, setAutoAnswerSolutionsState] = useState<AutoAnswerSolution[]>([]);
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
+  const [teamsConnected, setTeamsConnected] = useState(false);
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
 
   const loadCases = async () => {
@@ -846,12 +852,13 @@ export default function OffMlProjectDashboardContent() {
     setIsLoadingDashboardData(true);
 
     try {
-      const [suggestions, summary, settings, solutions, logs] = await Promise.all([
+      const [suggestions, summary, settings, solutions, logs, teamsStatus] = await Promise.all([
         getConfidenceSuggestions(),
         getAnalyticsSummary(),
         getAutomationSettings(),
         getAutoAnswerSolutions(),
         getAutoAnswerLogs(),
+        getTeamsStatus(),
       ]);
 
       setConfidenceSuggestionsState(suggestions);
@@ -859,6 +866,7 @@ export default function OffMlProjectDashboardContent() {
       setAutomationSettings(settings);
       setAutoAnswerSolutionsState(solutions);
       setAutoAnswerLogsState(logs);
+      setTeamsConnected(teamsStatus.connected);
     } catch (error) {
       setCaseError(error instanceof Error ? error.message : "โหลดข้อมูล dashboard จาก backend ไม่สำเร็จ");
     } finally {
@@ -876,8 +884,9 @@ export default function OffMlProjectDashboardContent() {
       getAutomationSettings(),
       getAutoAnswerSolutions(),
       getAutoAnswerLogs(),
+      getTeamsStatus(),
     ])
-      .then(([nextCases, suggestions, summary, settings, solutions, logs]) => {
+      .then(([nextCases, suggestions, summary, settings, solutions, logs, teamsStatus]) => {
         if (!isMounted) return;
         setCases(nextCases);
         setSelectedCase(nextCases[0] ?? null);
@@ -886,6 +895,7 @@ export default function OffMlProjectDashboardContent() {
         setAutomationSettings(settings);
         setAutoAnswerSolutionsState(solutions);
         setAutoAnswerLogsState(logs);
+        setTeamsConnected(teamsStatus.connected);
       })
       .catch((error) => {
         if (!isMounted) return;
@@ -1005,7 +1015,7 @@ export default function OffMlProjectDashboardContent() {
               />
             </Tabs.Panel>
             <Tabs.Panel value="detail">
-              <CaseDetail item={selectedCase} onStatusChange={handleSelectedCaseStatusChange} />
+              <CaseDetail item={selectedCase} onStatusChange={handleSelectedCaseStatusChange} teamsConnected={teamsConnected} />
             </Tabs.Panel>
             <Tabs.Panel value="confidence">
               <ConfidenceReview
