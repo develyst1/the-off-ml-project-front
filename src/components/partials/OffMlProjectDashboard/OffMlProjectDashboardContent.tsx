@@ -132,13 +132,21 @@ function MetricCard({
   );
 }
 
-function OperationStepper() {
+function OperationStepper({ status }: { status: CaseStatus }) {
+  const activeStep =
+    status === "new" || status === "analyzing" ? 0 :
+    status === "awaiting_tech" ? 1 :
+    status === "tech_replied" || status === "analyzing_solution" ? 2 : 3;
+
   const steps = [
-    { label: "ส่งเคสเข้า Microsoft Teams แล้ว", state: "done" },
-    { label: WAITING_TECH_STATUS, state: "current" },
-    { label: "AI วิเคราะห์คำตอบจากทีม", state: "todo" },
-    { label: "ส่งคำตอบกลับลูกค้า", state: "todo" },
-  ] as const;
+    "ส่งเคสเข้า Microsoft Teams แล้ว",
+    WAITING_TECH_STATUS,
+    "AI วิเคราะห์คำตอบจากทีม",
+    "ส่งคำตอบกลับลูกค้า",
+  ].map((label, index) => ({
+    label,
+    state: index < activeStep ? "done" : index === activeStep ? "current" : "todo",
+  } as const));
 
   return (
     <Box className="operationStepper">
@@ -325,9 +333,16 @@ function CaseDetail({
 
       <Alert color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
         {teamsConnected
-          ? "ระบบส่งเคสนี้ไปยัง Microsoft Teams แล้ว ตอนนี้กำลังรอทีม Tech Support ตอบกลับ"
-          : "ระบบยังไม่ได้ส่งเคสไปยัง Microsoft Teams เพราะยังไม่ได้ตั้งค่า Teams Webhook"}
-        {teamsConnected ? " คุณยังไม่ต้องดำเนินการเพิ่มเติมในหน้านี้" : " กรุณาตั้งค่า TEAMS_WEBHOOK_URL ใน backend แล้ว restart server"}
+          ? item.status === "awaiting_tech"
+            ? "ส่งเคสเข้า Microsoft Teams แล้ว ตอนนี้กำลังรอทีม Tech Support ตอบกลับ"
+            : item.status === "tech_replied" || item.status === "analyzing_solution"
+              ? "ได้รับคำตอบจากทีม Tech Support แล้ว ตอนนี้ AI กำลังวิเคราะห์วิธีแก้ปัญหา"
+              : item.status === "resolved"
+                ? "AI วิเคราะห์คำตอบเสร็จแล้ว กำลังส่งคำตอบกลับลูกค้าทาง LINE"
+                : item.status === "sent_to_customer" || item.status === "closed"
+                  ? "ส่งคำตอบกลับลูกค้าทาง LINE แล้ว"
+                  : "ระบบกำลังเตรียมและประมวลผลเคสนี้"
+          : "ระบบยังไม่ได้ส่งเคสไปยัง Microsoft Teams เพราะยังไม่ได้ตั้งค่า Teams Webhook กรุณาตั้งค่า TEAMS_WEBHOOK_URL ใน backend แล้ว restart server"}
       </Alert>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
@@ -519,7 +534,7 @@ function CaseDetail({
                 </ThemeIcon>
                 <Text fw={800}>สถานะการดำเนินงาน</Text>
               </Group>
-              <OperationStepper />
+              <OperationStepper status={item.status} />
             </Paper>
 
             <SimpleGrid cols={{ base: 1, md: 2 }}>
@@ -911,6 +926,23 @@ export default function OffMlProjectDashboardContent() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedCase) return;
+
+    const refreshSelectedCase = async () => {
+      try {
+        const latestCase = await getCase(selectedCase.id);
+        setSelectedCase(latestCase);
+        setCases((current) => current.map((item) => (item.id === latestCase.id ? latestCase : item)));
+      } catch {
+        // Keep the current view if a background refresh temporarily fails.
+      }
+    };
+
+    const timer = window.setInterval(refreshSelectedCase, 5000);
+    return () => window.clearInterval(timer);
+  }, [selectedCase?.id]);
 
   const handleOpenCase = async (item: SupportCase) => {
     setSelectedCase(item);
