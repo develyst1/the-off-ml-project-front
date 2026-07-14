@@ -13,6 +13,7 @@
 
 export interface SupportCase {
   id: string;
+  caseNumber: number;
   customerName: string;
   lineUserId: string;
   originalText: string;
@@ -71,6 +72,7 @@ export interface OffMlProjectSolutionResponse {
 
 export interface OffMlProjectCaseResponse {
   id: string;
+  caseNumber: number;
   customerId: string;
   status: CaseStatus;
   category?: string;

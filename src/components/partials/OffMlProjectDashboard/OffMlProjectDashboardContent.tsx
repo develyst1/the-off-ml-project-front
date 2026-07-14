@@ -236,7 +236,7 @@ function CaseInbox({
                   <Table.Td>
                     <Text fw={700}>{item.customerName}</Text>
                     <Text c="dimmed" size="xs">
-                      {item.id}
+                      เคส {item.caseNumber}
                     </Text>
                   </Table.Td>
                   <Table.Td className="tableCellText">{item.originalText}</Table.Td>
@@ -311,7 +311,7 @@ function CaseDetail({
       <Group justify="space-between">
         <Box>
           <Title order={2}>
-            {item.id} · {item.customerName}
+            เคส {item.caseNumber} · {item.customerName}
           </Title>
           <Text c="dimmed">line_user_id: {item.lineUserId} · ส่งเมื่อ {item.createdAt}</Text>
         </Box>
@@ -392,7 +392,7 @@ function CaseDetail({
                 <Box>
                   <Text fw={800}>Tech Support Channel</Text>
                   <Text c="dimmed" size="xs">
-                    เธรด: {item.id} · Off ML Project
+                    เธรด: เคส {item.caseNumber} · Off ML Project
                   </Text>
                 </Box>
               </Group>
@@ -424,7 +424,7 @@ function CaseDetail({
                     </Text>
                   </Group>
                   <Text fw={700} mb="xs">
-                    การ์ดเคสใหม่: {item.id}
+                    การ์ดเคสใหม่: เคส {item.caseNumber}
                   </Text>
                   <Paper bg="gray.0" p="sm" radius="md">
                     <Stack gap={6}>
@@ -461,20 +461,20 @@ function CaseDetail({
                     ผลวิเคราะห์โดย AI: {item.summary}
                   </Text>
                   <Group mt="md">
-                    <Button onClick={() => setTeamsAction(`เปิดรายละเอียด ${item.id} ใน Microsoft Teams แล้ว`)} size="xs" variant="light">
+                    <Button onClick={() => setTeamsAction(`เปิดรายละเอียดเคส ${item.caseNumber} ใน Microsoft Teams แล้ว`)} size="xs" variant="light">
                       เปิดเคสใน Teams
                     </Button>
                     <Button
                       onClick={async () => {
                         await onStatusChange("tech_replied");
-                        setTeamsAction(`รับเคส ${item.id} ให้ Tech Support แล้ว`);
+                        setTeamsAction(`รับเคส ${item.caseNumber} ให้ Tech Support แล้ว`);
                       }}
                       size="xs"
                       variant="light"
                     >
                       รับเคส
                     </Button>
-                    <Button color="gray" onClick={() => setTeamsAction(`ส่งคำขอข้อมูลเพิ่มเติมสำหรับ ${item.id} แล้ว`)} size="xs" variant="light">
+                    <Button color="gray" onClick={() => setTeamsAction(`ส่งคำขอข้อมูลเพิ่มเติมสำหรับเคส ${item.caseNumber} แล้ว`)} size="xs" variant="light">
                       ขอข้อมูลเพิ่ม
                     </Button>
                   </Group>

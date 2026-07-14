@@ -63,6 +63,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
 
   return {
     id: caseItem.id,
+    caseNumber: caseItem.caseNumber,
     customerName: caseItem.customer.displayName ?? caseItem.customer.lineUserId,
     lineUserId: caseItem.customer.lineUserId,
     originalText: customerMessage,
