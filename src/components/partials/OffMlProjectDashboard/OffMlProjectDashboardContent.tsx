@@ -937,6 +937,7 @@ export default function OffMlProjectDashboardContent() {
   const [autoAnswerSolutionsState, setAutoAnswerSolutionsState] = useState<AutoAnswerSolution[]>([]);
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string>();
   const selectedCaseId = selectedCase?.id;
 
   const loadCases = async () => {
@@ -945,12 +946,18 @@ export default function OffMlProjectDashboardContent() {
 
     try {
       const nextCases = await getCases();
+      const requestedCaseId = new URLSearchParams(window.location.search).get("caseId");
       setCases(nextCases);
       setSelectedCase((current) => {
         if (!nextCases.length) return null;
+        const requestedCase = nextCases.find((item) => item.id === requestedCaseId);
+        if (!current && requestedCase) return requestedCase;
         if (!current) return nextCases[0];
         return nextCases.find((item) => item.id === current.id) ?? nextCases[0];
       });
+      if (requestedCaseId && nextCases.some((item) => item.id === requestedCaseId)) {
+        setActiveTab("detail");
+      }
     } catch (error) {
       setCaseError(error instanceof Error ? error.message : "โหลดข้อมูลเคสจาก backend ไม่สำเร็จ");
     } finally {
@@ -961,68 +968,42 @@ export default function OffMlProjectDashboardContent() {
   const loadDashboardData = async () => {
     setIsLoadingDashboardData(true);
 
-    try {
-      const [suggestions, summary, settings, solutions, logs] = await Promise.all([
-        getConfidenceSuggestions(),
-        getAnalyticsSummary(),
-        getAutomationSettings(),
-        getAutoAnswerSolutions(),
-        getAutoAnswerLogs(),
-      ]);
-
-      setConfidenceSuggestionsState(suggestions);
-      setAnalyticsSummary(summary);
-      setAutomationSettings(settings);
-      setAutoAnswerSolutionsState(solutions);
-      setAutoAnswerLogsState(logs);
-    } catch (error) {
-      setCaseError(error instanceof Error ? error.message : "โหลดข้อมูล dashboard จาก backend ไม่สำเร็จ");
-    } finally {
-      setIsLoadingDashboardData(false);
-    }
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    Promise.all([
-      getCases(),
+    const results = await Promise.allSettled([
       getConfidenceSuggestions(),
       getAnalyticsSummary(),
       getAutomationSettings(),
       getAutoAnswerSolutions(),
       getAutoAnswerLogs(),
-    ])
-      .then(([nextCases, suggestions, summary, settings, solutions, logs]) => {
-        if (!isMounted) return;
-        const query = new URLSearchParams(window.location.search);
-        const requestedCaseId = query.get("caseId");
-        const requestedCase = nextCases.find((item) => item.id === requestedCaseId) ?? nextCases[0] ?? null;
+    ]);
+    const failures: string[] = [];
+    const [suggestions, summary, settings, solutions, logs] = results;
 
-        setCases(nextCases);
-        setSelectedCase(requestedCase);
-        if (requestedCaseId && requestedCase) {
-          setActiveTab("detail");
-        }
-        setConfidenceSuggestionsState(suggestions);
-        setAnalyticsSummary(summary);
-        setAutomationSettings(settings);
-        setAutoAnswerSolutionsState(solutions);
-        setAutoAnswerLogsState(logs);
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        setCaseError(error instanceof Error ? error.message : "โหลดข้อมูลเคสจาก backend ไม่สำเร็จ");
-      })
-      .finally(() => {
-        if (!isMounted) return;
-        setIsLoadingCases(false);
-        setIsLoadingDashboardData(false);
-      });
+    if (suggestions.status === "fulfilled") setConfidenceSuggestionsState(suggestions.value);
+    else failures.push("Confidence Review");
+    if (summary.status === "fulfilled") setAnalyticsSummary(summary.value);
+    else failures.push("Analytics");
+    if (settings.status === "fulfilled") setAutomationSettings(settings.value);
+    else failures.push("Automation settings");
+    if (solutions.status === "fulfilled") setAutoAnswerSolutionsState(solutions.value);
+    else failures.push("Automation solutions");
+    if (logs.status === "fulfilled") setAutoAnswerLogsState(logs.value);
+    else failures.push("Automation logs");
 
-    return () => {
-      isMounted = false;
-    };
+    setDashboardError(
+      failures.length
+        ? `โหลดข้อมูลบางส่วนไม่สำเร็จ: ${failures.join(", ")} กดโหลดใหม่เพื่อทดลองอีกครั้ง`
+        : undefined,
+    );
+    setIsLoadingDashboardData(false);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadCases();
+      void loadDashboardData();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -1152,7 +1133,17 @@ export default function OffMlProjectDashboardContent() {
 
       <AppShell.Main>
         <Box className="content">
-            <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
+          {dashboardError ? (
+            <Alert color="yellow" mb="lg" title="โหลดข้อมูล Dashboard ได้บางส่วน" variant="light">
+              <Group justify="space-between">
+                <Text>{dashboardError}</Text>
+                <Button onClick={() => void loadDashboardData()} size="xs" variant="light">
+                  โหลดใหม่
+                </Button>
+              </Group>
+            </Alert>
+          ) : null}
+          <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
             <Tabs.Panel value="inbox">
               <CaseInbox
                 cases={cases}
