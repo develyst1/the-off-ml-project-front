@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   AppShell,
@@ -326,11 +326,13 @@ function CaseInbox({
 
 function CaseDetail({
   item,
+  initialAction,
   onAcceptCase,
   onReply,
   onRequestInfo,
 }: {
   item: SupportCase | null;
+  initialAction?: "accept" | "request-info";
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
   onRequestInfo: (text?: string) => Promise<void>;
@@ -343,6 +345,28 @@ function CaseDetail({
   const [requestInfoText, setRequestInfoText] = useState("");
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const handledInitialAction = useRef(false);
+
+  useEffect(() => {
+    if (!item || !initialAction || handledInitialAction.current) return;
+    handledInitialAction.current = true;
+    const timer = window.setTimeout(() => {
+      window.history.replaceState({}, "", `/?caseId=${encodeURIComponent(item.id)}`);
+
+      if (initialAction === "request-info") {
+        setRequestInfoOpen(true);
+        return;
+      }
+
+      setActionState("accepting");
+      void onAcceptCase()
+        .then(() => setActionNotice(`รับเคส ${item.caseNumber} สำเร็จแล้ว`))
+        .catch((error) => setActionError(error instanceof Error ? error.message : "รับเคสไม่สำเร็จ กรุณาลองใหม่"))
+        .finally(() => setActionState("idle"));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [initialAction, item, onAcceptCase]);
 
   if (!item) {
     return (
@@ -990,6 +1014,7 @@ export default function OffMlProjectDashboardContent() {
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
   const [dashboardError, setDashboardError] = useState<string>();
+  const [initialAction, setInitialAction] = useState<"accept" | "request-info">();
   const selectedCaseId = selectedCase?.id;
 
   const loadCases = async () => {
@@ -999,6 +1024,7 @@ export default function OffMlProjectDashboardContent() {
     try {
       const nextCases = await getCases();
       const requestedCaseId = new URLSearchParams(window.location.search).get("caseId");
+      const requestedAction = new URLSearchParams(window.location.search).get("action");
       setCases(nextCases);
       setSelectedCase((current) => {
         if (!nextCases.length) return null;
@@ -1009,6 +1035,9 @@ export default function OffMlProjectDashboardContent() {
       });
       if (requestedCaseId && nextCases.some((item) => item.id === requestedCaseId)) {
         setActiveTab("detail");
+        if (requestedAction === "accept" || requestedAction === "request-info") {
+          setInitialAction(requestedAction);
+        }
       }
     } catch (error) {
       setCaseError(error instanceof Error ? error.message : "โหลดข้อมูลเคสจาก backend ไม่สำเร็จ");
@@ -1134,6 +1163,7 @@ export default function OffMlProjectDashboardContent() {
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
     await reviewConfidenceSuggestion({ caseId: item.caseId, id: item.id, result });
     await Promise.all([loadCases(), loadDashboardData()]);
+    setActiveTab("confidence");
   };
 
   const handleUpdateAutomationSettings = async (input: { emergencyDisable?: boolean; enabled?: boolean }) => {
@@ -1219,6 +1249,7 @@ export default function OffMlProjectDashboardContent() {
             </Tabs.Panel>
             <Tabs.Panel value="detail">
               <CaseDetail
+                initialAction={initialAction}
                 item={selectedCase}
                 onAcceptCase={handleAcceptCase}
                 onReply={handleReply}
