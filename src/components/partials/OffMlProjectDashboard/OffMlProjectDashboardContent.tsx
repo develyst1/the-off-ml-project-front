@@ -35,9 +35,10 @@ import {
   getCases,
   getConfidenceSuggestions,
   getTeamsStatus,
+  acceptCase,
   reviewConfidenceSuggestion,
   updateAutomationSettings,
-  updateCaseStatus,
+  requestAdditionalInfo,
 } from "@/services/offMlProject.service";
 import type {
   AnalyticsSummary,
@@ -54,9 +55,11 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   new: { label: "เคสใหม่", color: "gray" },
   analyzing: { label: "AI กำลังวิเคราะห์", color: "blue" },
   awaiting_tech: { label: "รอทีม Tech Support ตอบกลับ", color: "yellow" },
+  assigned: { label: "ทีม Tech Support รับเคสแล้ว", color: "blue" },
   tech_replied: { label: "ทีม Tech Support ตอบแล้ว", color: "blue" },
   analyzing_solution: { label: "AI กำลังวิเคราะห์คำตอบ", color: "blue" },
   awaiting_confirmation: { label: "รอยืนยัน AI แนะนำ", color: "blue" },
+  awaiting_customer_info: { label: "รอลูกค้าส่งข้อมูลเพิ่ม", color: "orange" },
   resolved: { label: "ปิดเคสแล้ว", color: "green" },
   sent_to_customer: { label: "ส่งคำตอบแล้ว", color: "green" },
   closed: { label: "ปิดเคสแล้ว", color: "green" },
@@ -135,7 +138,7 @@ function MetricCard({
 function OperationStepper({ status }: { status: CaseStatus }) {
   const activeStep =
     status === "new" || status === "analyzing" ? 0 :
-    status === "awaiting_tech" ? 1 :
+    status === "awaiting_tech" || status === "assigned" || status === "awaiting_customer_info" ? 1 :
     status === "tech_replied" || status === "analyzing_solution" ? 2 : 3;
 
   const steps = [
@@ -295,12 +298,14 @@ function CaseInbox({
 
 function CaseDetail({
   item,
-  onStatusChange,
   teamsConnected,
+  onAcceptCase,
+  onRequestInfo,
 }: {
   item: SupportCase | null;
-  onStatusChange: (status: CaseStatus) => Promise<void>;
   teamsConnected: boolean;
+  onAcceptCase: () => Promise<void>;
+  onRequestInfo: () => Promise<void>;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
 
@@ -484,17 +489,13 @@ function CaseDetail({
                     <Button onClick={() => setTeamsAction(`เปิดรายละเอียดเคส ${item.caseNumber} ใน Microsoft Teams แล้ว`)} size="xs" variant="light">
                       เปิดเคสใน Teams
                     </Button>
-                    <Button
-                      onClick={async () => {
-                        await onStatusChange("tech_replied");
-                        setTeamsAction(`รับเคส ${item.caseNumber} ให้ Tech Support แล้ว`);
-                      }}
+                    <Button onClick={onAcceptCase}
                       size="xs"
                       variant="light"
                     >
                       รับเคส
                     </Button>
-                    <Button color="gray" onClick={() => setTeamsAction(`ส่งคำขอข้อมูลเพิ่มเติมสำหรับเคส ${item.caseNumber} แล้ว`)} size="xs" variant="light">
+                    <Button color="gray" onClick={onRequestInfo} size="xs" variant="light">
                       ขอข้อมูลเพิ่ม
                     </Button>
                   </Group>
@@ -507,7 +508,7 @@ function CaseDetail({
                 </Avatar>
                 <Paper className="teamsReplyPending" radius="md">
                   <Text fw={700} size="sm">
-                    {WAITING_TECH_STATUS}
+                    {item.status === "awaiting_customer_info" ? "รอลูกค้าส่งข้อมูลเพิ่มเติม" : WAITING_TECH_STATUS}
                   </Text>
                   <Text c="dimmed" size="sm">
                     เมื่อทีมส่งคำตอบในเธรดนี้ ระบบจะรับผ่าน Teams webhook แล้วส่งต่อให้ AI วิเคราะห์วิธีแก้
@@ -843,6 +844,7 @@ export default function OffMlProjectDashboardContent() {
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
   const [teamsConnected, setTeamsConnected] = useState(false);
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
+  const selectedCaseId = selectedCase?.id;
 
   const loadCases = async () => {
     setIsLoadingCases(true);
@@ -928,11 +930,11 @@ export default function OffMlProjectDashboardContent() {
   }, []);
 
   useEffect(() => {
-    if (!selectedCase) return;
+    if (!selectedCaseId) return;
 
     const refreshSelectedCase = async () => {
       try {
-        const latestCase = await getCase(selectedCase.id);
+        const latestCase = await getCase(selectedCaseId);
         setSelectedCase(latestCase);
         setCases((current) => current.map((item) => (item.id === latestCase.id ? latestCase : item)));
       } catch {
@@ -942,7 +944,7 @@ export default function OffMlProjectDashboardContent() {
 
     const timer = window.setInterval(refreshSelectedCase, 5000);
     return () => window.clearInterval(timer);
-  }, [selectedCase?.id]);
+  }, [selectedCaseId]);
 
   const handleOpenCase = async (item: SupportCase) => {
     setSelectedCase(item);
@@ -961,13 +963,18 @@ export default function OffMlProjectDashboardContent() {
     setActiveTab("confidence");
   };
 
-  const handleSelectedCaseStatusChange = async (status: CaseStatus) => {
+  const handleAcceptCase = async () => {
     if (!selectedCase) return;
-
-    const updatedCase = await updateCaseStatus(selectedCase.id, status);
+    const updatedCase = await acceptCase(selectedCase.id);
     setSelectedCase(updatedCase);
-    setCases((current) => current.map((caseItem) => (caseItem.id === updatedCase.id ? updatedCase : caseItem)));
-    await loadDashboardData();
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+  };
+
+  const handleRequestInfo = async () => {
+    if (!selectedCase) return;
+    const updatedCase = await requestAdditionalInfo(selectedCase.id);
+    setSelectedCase(updatedCase);
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
@@ -1047,7 +1054,12 @@ export default function OffMlProjectDashboardContent() {
               />
             </Tabs.Panel>
             <Tabs.Panel value="detail">
-              <CaseDetail item={selectedCase} onStatusChange={handleSelectedCaseStatusChange} teamsConnected={teamsConnected} />
+              <CaseDetail
+                item={selectedCase}
+                onAcceptCase={handleAcceptCase}
+                onRequestInfo={handleRequestInfo}
+                teamsConnected={teamsConnected}
+              />
             </Tabs.Panel>
             <Tabs.Panel value="confidence">
               <ConfidenceReview

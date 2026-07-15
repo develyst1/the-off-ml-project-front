@@ -2,18 +2,23 @@
   | "new"
   | "analyzing"
   | "awaiting_tech"
+  | "assigned"
   | "tech_replied"
   | "analyzing_solution"
   | "awaiting_confirmation"
   | "resolved"
   | "sent_to_customer"
   | "closed"
+  | "awaiting_customer_info"
   | "sent"
   | "sla_breach";
 
 export interface SupportCase {
   id: string;
   caseNumber: number;
+  teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
+  teamsDeliveryAt?: string;
+  teamsDeliveryError?: string;
   customerName: string;
   lineUserId: string;
   originalText: string;
@@ -74,6 +79,9 @@ export interface OffMlProjectCaseResponse {
   id: string;
   caseNumber: number;
   customerId: string;
+  teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
+  teamsDeliveryAt?: string;
+  teamsDeliveryError?: string;
   status: CaseStatus;
   category?: string;
   priority?: "low" | "medium" | "high" | "critical";

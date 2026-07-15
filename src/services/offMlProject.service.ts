@@ -64,6 +64,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   return {
     id: caseItem.id,
     caseNumber: caseItem.caseNumber,
+    teamsDeliveryStatus: caseItem.teamsDeliveryStatus,
+    teamsDeliveryAt: caseItem.teamsDeliveryAt,
+    teamsDeliveryError: caseItem.teamsDeliveryError,
     customerName: caseItem.customer.displayName ?? caseItem.customer.lineUserId,
     lineUserId: caseItem.customer.lineUserId,
     originalText: customerMessage,
@@ -98,6 +101,19 @@ export async function updateCaseStatus(caseId: string, status: CaseStatus): Prom
     body: JSON.stringify({ status }),
   });
 
+  return mapCaseResponse(caseItem);
+}
+
+export async function acceptCase(caseId: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/accept`, { method: "POST" });
+  return mapCaseResponse(caseItem);
+}
+
+export async function requestAdditionalInfo(caseId: string, text?: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/request-info`, {
+    method: "POST",
+    body: JSON.stringify(text ? { text } : {}),
+  });
   return mapCaseResponse(caseItem);
 }
 
