@@ -327,12 +327,14 @@ function CaseInbox({
 function CaseDetail({
   item,
   initialAction,
+  onInitialActionHandled,
   onAcceptCase,
   onReply,
   onRequestInfo,
 }: {
   item: SupportCase | null;
   initialAction?: "accept" | "request-info";
+  onInitialActionHandled: () => void;
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
   onRequestInfo: (text?: string) => Promise<void>;
@@ -355,6 +357,7 @@ function CaseDetail({
 
       if (initialAction === "request-info") {
         setRequestInfoOpen(true);
+        onInitialActionHandled();
         return;
       }
 
@@ -363,10 +366,11 @@ function CaseDetail({
         .then(() => setActionNotice(`รับเคส ${item.caseNumber} สำเร็จแล้ว`))
         .catch((error) => setActionError(error instanceof Error ? error.message : "รับเคสไม่สำเร็จ กรุณาลองใหม่"))
         .finally(() => setActionState("idle"));
+      onInitialActionHandled();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [initialAction, item, onAcceptCase]);
+  }, [initialAction, item, onAcceptCase, onInitialActionHandled]);
 
   if (!item) {
     return (
@@ -1252,6 +1256,7 @@ export default function OffMlProjectDashboardContent() {
                 initialAction={initialAction}
                 item={selectedCase}
                 onAcceptCase={handleAcceptCase}
+                onInitialActionHandled={() => setInitialAction(undefined)}
                 onReply={handleReply}
                 onRequestInfo={handleRequestInfo}
               />
