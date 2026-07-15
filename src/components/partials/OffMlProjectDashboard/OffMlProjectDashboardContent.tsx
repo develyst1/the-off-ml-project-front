@@ -905,8 +905,15 @@ export default function OffMlProjectDashboardContent() {
     ])
       .then(([nextCases, suggestions, summary, settings, solutions, logs, teamsStatus]) => {
         if (!isMounted) return;
+        const query = new URLSearchParams(window.location.search);
+        const requestedCaseId = query.get("caseId");
+        const requestedCase = nextCases.find((item) => item.id === requestedCaseId) ?? nextCases[0] ?? null;
+
         setCases(nextCases);
-        setSelectedCase(nextCases[0] ?? null);
+        setSelectedCase(requestedCase);
+        if (requestedCaseId && requestedCase) {
+          setActiveTab("detail");
+        }
         setConfidenceSuggestionsState(suggestions);
         setAnalyticsSummary(summary);
         setAutomationSettings(settings);
