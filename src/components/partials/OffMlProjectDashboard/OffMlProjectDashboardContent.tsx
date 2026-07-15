@@ -11,6 +11,7 @@ import {
   Card,
   Flex,
   Group,
+  Modal,
   NavLink,
   Paper,
   Progress,
@@ -21,6 +22,7 @@ import {
   Table,
   Tabs,
   Text,
+  Textarea,
   ThemeIcon,
   Title,
 } from "@mantine/core";
@@ -34,7 +36,6 @@ import {
   getCase,
   getCases,
   getConfidenceSuggestions,
-  getTeamsStatus,
   acceptCase,
   reviewConfidenceSuggestion,
   updateAutomationSettings,
@@ -67,6 +68,12 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   sla_breach: { label: "เกิน SLA", color: "red" },
 };
 
+const fallbackStatusMeta = { label: "ไม่ทราบสถานะ", color: "gray" };
+
+function getStatusMeta(status: CaseStatus) {
+  return statusMeta[status] ?? fallbackStatusMeta;
+}
+
 const WAITING_TECH_STATUS = "รอทีม Tech Support ตอบกลับ";
 
 const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
@@ -87,6 +94,22 @@ function confidenceColor(value: number) {
   if (value >= 90) return "green";
   if (value >= 60) return "yellow";
   return "red";
+}
+
+function teamsDeliveryMeta(item: SupportCase) {
+  if (item.teamsDeliveryStatus === "failed") {
+    return { color: "red", label: "ส่งเข้า Teams ไม่สำเร็จ" };
+  }
+
+  if (item.teamsDeliveryStatus === "accepted") {
+    return { color: "green", label: "ส่งเข้า Teams สำเร็จ" };
+  }
+
+  if (!item.teamsDeliveryStatus && item.status !== "new" && item.status !== "analyzing") {
+    return { color: "yellow", label: "ยังไม่ทราบผลการส่ง Teams" };
+  }
+
+  return { color: "gray", label: "กำลังเตรียมส่งเข้า Teams" };
 }
 
 function MetricCard({
@@ -243,7 +266,10 @@ function CaseInbox({
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {cases.map((item) => (
+              {cases.map((item) => {
+                const caseStatusMeta = getStatusMeta(item.status);
+
+                return (
                 <Table.Tr key={item.id}>
                   <Table.Td>
                     <Text fw={700}>{item.customerName}</Text>
@@ -269,8 +295,8 @@ function CaseInbox({
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    <Badge color={statusMeta[item.status].color} variant="light">
-                      {statusMeta[item.status].label}
+                    <Badge color={caseStatusMeta.color} variant="light">
+                      {caseStatusMeta.label}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
@@ -279,7 +305,8 @@ function CaseInbox({
                     </Button>
                   </Table.Td>
                 </Table.Tr>
-              ))}
+                );
+              })}
             </Table.Tbody>
           </Table>
         </ScrollArea>
@@ -298,16 +325,19 @@ function CaseInbox({
 
 function CaseDetail({
   item,
-  teamsConnected,
   onAcceptCase,
   onRequestInfo,
 }: {
   item: SupportCase | null;
-  teamsConnected: boolean;
   onAcceptCase: () => Promise<void>;
-  onRequestInfo: () => Promise<void>;
+  onRequestInfo: (text?: string) => Promise<void>;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
+  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting">("idle");
+  const [actionError, setActionError] = useState<string>();
+  const [actionNotice, setActionNotice] = useState<string>();
+  const [requestInfoOpen, setRequestInfoOpen] = useState(false);
+  const [requestInfoText, setRequestInfoText] = useState("");
 
   if (!item) {
     return (
@@ -320,7 +350,39 @@ function CaseDetail({
     );
   }
 
-  const statusLabel = item.status === "awaiting_tech" ? WAITING_TECH_STATUS : statusMeta[item.status].label;
+  const currentStatusMeta = getStatusMeta(item.status);
+  const statusLabel = item.status === "awaiting_tech" ? WAITING_TECH_STATUS : currentStatusMeta.label;
+  const teamsMeta = teamsDeliveryMeta(item);
+  const isActionRunning = actionState !== "idle";
+
+  const runAction = async (action: "accepting" | "requesting", successMessage: string, handler: () => Promise<void>) => {
+    setActionState(action);
+    setActionError(undefined);
+    setActionNotice(undefined);
+
+    try {
+      await handler();
+      setActionNotice(successMessage);
+      return true;
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "ดำเนินการไม่สำเร็จ กรุณาลองใหม่");
+      return false;
+    } finally {
+      setActionState("idle");
+    }
+  };
+
+  const submitRequestInfo = async () => {
+    const completed = await runAction(
+      "requesting",
+      `ส่งคำขอข้อมูลเพิ่มเติมสำหรับเคส ${item.caseNumber} แล้ว`,
+      () => onRequestInfo(requestInfoText.trim() || undefined),
+    );
+    if (completed) {
+      setRequestInfoOpen(false);
+      setRequestInfoText("");
+    }
+  };
 
   return (
     <Stack gap="lg">
@@ -331,14 +393,15 @@ function CaseDetail({
           </Title>
           <Text c="dimmed">line_user_id: {item.lineUserId} · ส่งเมื่อ {item.createdAt}</Text>
         </Box>
-        <Badge color={statusMeta[item.status].color} size="lg" variant="light">
+        <Badge color={currentStatusMeta.color} size="lg" variant="light">
           {statusLabel}
         </Badge>
       </Group>
 
       <Alert color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
-        {teamsConnected
-          ? item.status === "awaiting_tech"
+        {item.teamsDeliveryStatus === "failed"
+          ? `ส่งเคสเข้า Microsoft Teams ไม่สำเร็จ: ${item.teamsDeliveryError ?? "ไม่ทราบสาเหตุ"}`
+          : item.status === "awaiting_tech"
             ? "ส่งเคสเข้า Microsoft Teams แล้ว ตอนนี้กำลังรอทีม Tech Support ตอบกลับ"
             : item.status === "tech_replied" || item.status === "analyzing_solution"
               ? "ได้รับคำตอบจากทีม Tech Support แล้ว ตอนนี้ AI กำลังวิเคราะห์วิธีแก้ปัญหา"
@@ -346,8 +409,7 @@ function CaseDetail({
                 ? "AI วิเคราะห์คำตอบเสร็จแล้ว กำลังส่งคำตอบกลับลูกค้าทาง LINE"
                 : item.status === "sent_to_customer" || item.status === "closed"
                   ? "ส่งคำตอบกลับลูกค้าทาง LINE แล้ว"
-                  : "ระบบกำลังเตรียมและประมวลผลเคสนี้"
-          : "ระบบยังไม่ได้ส่งเคสไปยัง Microsoft Teams เพราะยังไม่ได้ตั้งค่า Teams Webhook กรุณาตั้งค่า TEAMS_WEBHOOK_URL ใน backend แล้ว restart server"}
+                  : teamsMeta.label}
       </Alert>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
@@ -402,8 +464,8 @@ function CaseDetail({
               แสดงสิ่งที่ระบบส่งเข้า Teams และสถานะหลังทีมส่งคำตอบกลับ
             </Text>
           </Box>
-          <Badge color={teamsConnected ? "green" : "red"} variant="light">
-            {teamsConnected ? "เชื่อมต่อ Teams Webhook แล้ว" : "ยังไม่ได้เชื่อมต่อ Teams"}
+          <Badge color={teamsMeta.color} variant="light">
+            {teamsMeta.label}
           </Badge>
         </Group>
 
@@ -421,7 +483,7 @@ function CaseDetail({
                   </Text>
                 </Box>
               </Group>
-              <Badge color={statusMeta[item.status].color} variant="light">
+              <Badge color={currentStatusMeta.color} variant="light">
                 {statusLabel}
               </Badge>
             </Box>
@@ -489,16 +551,30 @@ function CaseDetail({
                     <Button onClick={() => setTeamsAction(`เปิดรายละเอียดเคส ${item.caseNumber} ใน Microsoft Teams แล้ว`)} size="xs" variant="light">
                       เปิดเคสใน Teams
                     </Button>
-                    <Button onClick={onAcceptCase}
+                    <Button
+                      disabled={isActionRunning || item.status === "assigned"}
+                      loading={actionState === "accepting"}
+                      onClick={() => {
+                        void runAction("accepting", `รับเคส ${item.caseNumber} สำเร็จแล้ว`, onAcceptCase);
+                      }}
                       size="xs"
                       variant="light"
                     >
                       รับเคส
                     </Button>
-                    <Button color="gray" onClick={onRequestInfo} size="xs" variant="light">
+                    <Button
+                      color="gray"
+                      disabled={isActionRunning}
+                      loading={actionState === "requesting"}
+                      onClick={() => setRequestInfoOpen(true)}
+                      size="xs"
+                      variant="light"
+                    >
                       ขอข้อมูลเพิ่ม
                     </Button>
                   </Group>
+                  {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
+                  {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
                 </Paper>
               </Group>
 
@@ -555,6 +631,24 @@ function CaseDetail({
           </Stack>
         </SimpleGrid>
       </Card>
+      <Modal opened={requestInfoOpen} onClose={() => setRequestInfoOpen(false)} title="ขอข้อมูลเพิ่มเติมจากลูกค้า">
+        <Textarea
+          autosize
+          label="ข้อความที่จะส่งทาง LINE"
+          minRows={4}
+          onChange={(event) => setRequestInfoText(event.currentTarget.value)}
+          placeholder="เช่น กรุณาส่งภาพหน้าจอและเวลาที่พบปัญหาเพิ่มเติม"
+          value={requestInfoText}
+        />
+        <Group justify="flex-end" mt="md">
+          <Button disabled={actionState !== "idle"} onClick={() => setRequestInfoOpen(false)} variant="default">
+            ยกเลิก
+          </Button>
+          <Button loading={actionState === "requesting"} onClick={() => void submitRequestInfo()}>
+            ส่งข้อความ
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }
@@ -842,7 +936,6 @@ export default function OffMlProjectDashboardContent() {
   const [autoAnswerLogsState, setAutoAnswerLogsState] = useState<AutoAnswerLog[]>([]);
   const [autoAnswerSolutionsState, setAutoAnswerSolutionsState] = useState<AutoAnswerSolution[]>([]);
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
-  const [teamsConnected, setTeamsConnected] = useState(false);
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
   const selectedCaseId = selectedCase?.id;
 
@@ -869,13 +962,12 @@ export default function OffMlProjectDashboardContent() {
     setIsLoadingDashboardData(true);
 
     try {
-      const [suggestions, summary, settings, solutions, logs, teamsStatus] = await Promise.all([
+      const [suggestions, summary, settings, solutions, logs] = await Promise.all([
         getConfidenceSuggestions(),
         getAnalyticsSummary(),
         getAutomationSettings(),
         getAutoAnswerSolutions(),
         getAutoAnswerLogs(),
-        getTeamsStatus(),
       ]);
 
       setConfidenceSuggestionsState(suggestions);
@@ -883,7 +975,6 @@ export default function OffMlProjectDashboardContent() {
       setAutomationSettings(settings);
       setAutoAnswerSolutionsState(solutions);
       setAutoAnswerLogsState(logs);
-      setTeamsConnected(teamsStatus.connected);
     } catch (error) {
       setCaseError(error instanceof Error ? error.message : "โหลดข้อมูล dashboard จาก backend ไม่สำเร็จ");
     } finally {
@@ -901,9 +992,8 @@ export default function OffMlProjectDashboardContent() {
       getAutomationSettings(),
       getAutoAnswerSolutions(),
       getAutoAnswerLogs(),
-      getTeamsStatus(),
     ])
-      .then(([nextCases, suggestions, summary, settings, solutions, logs, teamsStatus]) => {
+      .then(([nextCases, suggestions, summary, settings, solutions, logs]) => {
         if (!isMounted) return;
         const query = new URLSearchParams(window.location.search);
         const requestedCaseId = query.get("caseId");
@@ -919,7 +1009,6 @@ export default function OffMlProjectDashboardContent() {
         setAutomationSettings(settings);
         setAutoAnswerSolutionsState(solutions);
         setAutoAnswerLogsState(logs);
-        setTeamsConnected(teamsStatus.connected);
       })
       .catch((error) => {
         if (!isMounted) return;
@@ -953,6 +1042,24 @@ export default function OffMlProjectDashboardContent() {
     return () => window.clearInterval(timer);
   }, [selectedCaseId]);
 
+  useEffect(() => {
+    const refreshInbox = async () => {
+      try {
+        const nextCases = await getCases();
+        setCases(nextCases);
+        setSelectedCase((current) => {
+          if (!current) return nextCases[0] ?? null;
+          return nextCases.find((item) => item.id === current.id) ?? nextCases[0] ?? null;
+        });
+      } catch {
+        // Keep the current inbox when a background refresh temporarily fails.
+      }
+    };
+
+    const timer = window.setInterval(() => void refreshInbox(), 10000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const handleOpenCase = async (item: SupportCase) => {
     setSelectedCase(item);
     setActiveTab("detail");
@@ -977,9 +1084,9 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleRequestInfo = async () => {
+  const handleRequestInfo = async (text?: string) => {
     if (!selectedCase) return;
-    const updatedCase = await requestAdditionalInfo(selectedCase.id);
+    const updatedCase = await requestAdditionalInfo(selectedCase.id, text);
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
@@ -1065,7 +1172,6 @@ export default function OffMlProjectDashboardContent() {
                 item={selectedCase}
                 onAcceptCase={handleAcceptCase}
                 onRequestInfo={handleRequestInfo}
-                teamsConnected={teamsConnected}
               />
             </Tabs.Panel>
             <Tabs.Panel value="confidence">

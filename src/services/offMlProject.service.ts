@@ -45,12 +45,20 @@ function formatDateTime(value: string) {
   }).format(date);
 }
 
+function latestByCreatedAt<T extends { createdAt: string }>(items: T[]) {
+  return [...items].sort((left, right) => {
+    const leftTime = new Date(left.createdAt).getTime();
+    const rightTime = new Date(right.createdAt).getTime();
+    return rightTime - leftTime;
+  });
+}
+
 function firstText(caseItem: OffMlProjectCaseResponse, direction: "inbound_customer" | "inbound_tech" | "outbound_customer") {
-  return caseItem.messages.find((message) => message.direction === direction)?.originalText;
+  return latestByCreatedAt(caseItem.messages.filter((message) => message.direction === direction))[0]?.originalText;
 }
 
 function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCaseResponse["analyses"][number]["analysisType"]) {
-  return [...caseItem.analyses].reverse().find((analysis) => analysis.analysisType === type);
+  return latestByCreatedAt(caseItem.analyses.filter((analysis) => analysis.analysisType === type))[0];
 }
 
 export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase {
@@ -59,7 +67,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const outboundReply = firstText(caseItem, "outbound_customer");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
-  const latestSolution = caseItem.solutions.at(-1);
+  const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
 
   return {
     id: caseItem.id,
