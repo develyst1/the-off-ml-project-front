@@ -125,6 +125,14 @@ export async function requestAdditionalInfo(caseId: string, text?: string): Prom
   return mapCaseResponse(caseItem);
 }
 
+export async function replyToCustomer(caseId: string, text: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+  return mapCaseResponse(caseItem);
+}
+
 export async function getConfidenceSuggestions(): Promise<ConfidenceSuggestion[]> {
   return request<ConfidenceSuggestion[]>("/confidence/suggestions");
 }

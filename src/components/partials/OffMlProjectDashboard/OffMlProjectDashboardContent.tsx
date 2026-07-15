@@ -40,6 +40,7 @@ import {
   reviewConfidenceSuggestion,
   updateAutomationSettings,
   requestAdditionalInfo,
+  replyToCustomer,
 } from "@/services/offMlProject.service";
 import type {
   AnalyticsSummary,
@@ -326,18 +327,22 @@ function CaseInbox({
 function CaseDetail({
   item,
   onAcceptCase,
+  onReply,
   onRequestInfo,
 }: {
   item: SupportCase | null;
   onAcceptCase: () => Promise<void>;
+  onReply: (text: string) => Promise<void>;
   onRequestInfo: (text?: string) => Promise<void>;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
-  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting">("idle");
+  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying">("idle");
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
   const [requestInfoOpen, setRequestInfoOpen] = useState(false);
   const [requestInfoText, setRequestInfoText] = useState("");
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
 
   if (!item) {
     return (
@@ -355,7 +360,7 @@ function CaseDetail({
   const teamsMeta = teamsDeliveryMeta(item);
   const isActionRunning = actionState !== "idle";
 
-  const runAction = async (action: "accepting" | "requesting", successMessage: string, handler: () => Promise<void>) => {
+  const runAction = async (action: "accepting" | "requesting" | "replying", successMessage: string, handler: () => Promise<void>) => {
     setActionState(action);
     setActionError(undefined);
     setActionNotice(undefined);
@@ -369,6 +374,24 @@ function CaseDetail({
       return false;
     } finally {
       setActionState("idle");
+    }
+  };
+
+  const submitReply = async () => {
+    const text = replyText.trim();
+    if (!text) {
+      setActionError("กรุณากรอกข้อความตอบกลับลูกค้า");
+      return;
+    }
+
+    const completed = await runAction(
+      "replying",
+      `ส่งคำตอบให้ลูกค้าสำหรับเคส ${item.caseNumber} แล้ว ระบบวิเคราะห์และบันทึกวิธีแก้เรียบร้อย`,
+      () => onReply(text),
+    );
+    if (completed) {
+      setReplyOpen(false);
+      setReplyText("");
     }
   };
 
@@ -563,6 +586,14 @@ function CaseDetail({
                       รับเคส
                     </Button>
                     <Button
+                      disabled={isActionRunning}
+                      onClick={() => setReplyOpen(true)}
+                      size="xs"
+                      variant="light"
+                    >
+                      ตอบลูกค้า
+                    </Button>
+                    <Button
                       color="gray"
                       disabled={isActionRunning}
                       loading={actionState === "requesting"}
@@ -587,7 +618,7 @@ function CaseDetail({
                     {item.status === "awaiting_customer_info" ? "รอลูกค้าส่งข้อมูลเพิ่มเติม" : WAITING_TECH_STATUS}
                   </Text>
                   <Text c="dimmed" size="sm">
-                    เมื่อทีมส่งคำตอบในเธรดนี้ ระบบจะรับผ่าน Teams webhook แล้วส่งต่อให้ AI วิเคราะห์วิธีแก้
+                  คำตอบจากทีมส่งได้ทั้งใน Microsoft Teams หรือจากหน้าเว็บ ระบบจะส่งต่อให้ AI วิเคราะห์วิธีแก้เหมือนกัน
                   </Text>
                 </Paper>
               </Group>
@@ -597,7 +628,7 @@ function CaseDetail({
                   {teamsAction}
                 </Text>
                 <Text c="dimmed" mt={4} size="sm">
-                  การตอบต้องทำใน Microsoft Teams เพื่อให้ระบบติดตามเธรดได้ถูกต้อง
+                  ช่องทางตอบกลับ: Microsoft Teams หรือหน้าเว็บ
                 </Text>
               </Paper>
             </Stack>
@@ -646,6 +677,27 @@ function CaseDetail({
           </Button>
           <Button loading={actionState === "requesting"} onClick={() => void submitRequestInfo()}>
             ส่งข้อความ
+          </Button>
+        </Group>
+      </Modal>
+      <Modal opened={replyOpen} onClose={() => setReplyOpen(false)} title="ตอบกลับลูกค้า">
+        <Textarea
+          autosize
+          label="ข้อความคำตอบจากทีม Tech Support"
+          minRows={5}
+          onChange={(event) => setReplyText(event.currentTarget.value)}
+          placeholder="พิมพ์วิธีแก้ปัญหาหรือคำตอบที่ต้องการส่งให้ลูกค้า"
+          value={replyText}
+        />
+        <Text c="dimmed" mt="xs" size="xs">
+          ระบบจะวิเคราะห์ข้อความนี้ สกัดวิธีแก้ และบันทึกลงเคสก่อนส่งกลับ LINE
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button disabled={actionState !== "idle"} onClick={() => setReplyOpen(false)} variant="default">
+            ยกเลิก
+          </Button>
+          <Button loading={actionState === "replying"} onClick={() => void submitReply()}>
+            วิเคราะห์และส่ง
           </Button>
         </Group>
       </Modal>
@@ -1072,6 +1124,13 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
+  const handleReply = async (text: string) => {
+    if (!selectedCase) return;
+    const updatedCase = await replyToCustomer(selectedCase.id, text);
+    setSelectedCase(updatedCase);
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+  };
+
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
     await reviewConfidenceSuggestion({ caseId: item.caseId, id: item.id, result });
     await Promise.all([loadCases(), loadDashboardData()]);
@@ -1162,6 +1221,7 @@ export default function OffMlProjectDashboardContent() {
               <CaseDetail
                 item={selectedCase}
                 onAcceptCase={handleAcceptCase}
+                onReply={handleReply}
                 onRequestInfo={handleRequestInfo}
               />
             </Tabs.Panel>
