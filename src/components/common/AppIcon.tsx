@@ -8,6 +8,7 @@ export type IconName =
   | "alert"
   | "stop"
   | "message"
+  | "copy"
   | "brain"
   | "menu";
 
@@ -57,6 +58,12 @@ const paths: Record<IconName, ReactNode> = {
   ),
   message: (
     <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+  ),
+  copy: (
+    <>
+      <rect height="11" rx="2" width="11" x="9" y="9" />
+      <path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" />
+    </>
   ),
   brain: (
     <>

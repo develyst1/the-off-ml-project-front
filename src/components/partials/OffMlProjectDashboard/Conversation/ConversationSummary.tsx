@@ -1,10 +1,10 @@
 "use client";
 
-import { Box, Button, Group, Paper, Select, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
-import { useState } from "react";
+import { ActionIcon, Box, Group, Paper, Select, Stack, Text, ThemeIcon, Tooltip } from "@mantine/core";
+import { useEffect, useRef, useState } from "react";
 import { AppIcon } from "@/components/common";
-import type { ConversationRange } from "./types";
 import { formatConversationDateTime } from "./conversation.config";
+import type { ConversationRange } from "./types";
 
 interface ConversationSummaryProps {
   caseNumber: string;
@@ -25,46 +25,75 @@ const countItems = [
 
 export function ConversationSummary({ caseNumber, lastUpdatedAt, counts, range, onRangeChange }: ConversationSummaryProps) {
   const [copied, setCopied] = useState(false);
+  const copiedTimeout = useRef<number | undefined>(undefined);
   const lastUpdated = formatConversationDateTime(lastUpdatedAt);
+  const hasLastUpdated = Boolean(lastUpdatedAt && !Number.isNaN(new Date(lastUpdatedAt).getTime()));
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeout.current) {
+        window.clearTimeout(copiedTimeout.current);
+      }
+    };
+  }, []);
 
   const copyCaseNumber = async () => {
     try {
       await navigator.clipboard.writeText(caseNumber);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
+      if (copiedTimeout.current) {
+        window.clearTimeout(copiedTimeout.current);
+      }
+      copiedTimeout.current = window.setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
     }
   };
 
   return (
-    <Paper className="caseConversationSummary" p="md" radius="md" withBorder>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4, xl: 8 }} spacing="md" verticalSpacing="md">
-        <Stack gap={2} justify="center">
+    <Paper className="caseConversationSummary" p={0} radius="md" withBorder>
+      <Box className="caseConversationSummaryLayout">
+        <Stack className="caseConversationCaseIdentity" gap={1} justify="center">
           <Text c="dimmed" fw={700} size="xs">หมายเลขเคส</Text>
-          <Group gap="xs" wrap="nowrap">
-            <Text fw={800}>{caseNumber}</Text>
-            <Button aria-label="คัดลอกหมายเลขเคส" onClick={() => void copyCaseNumber()} size="compact-xs" variant="subtle">
-              {copied ? "คัดลอกแล้ว" : "คัดลอก"}
-            </Button>
+          <Group gap={6} wrap="nowrap">
+            <Text className="caseConversationCaseNumber" fw={800}>{caseNumber}</Text>
+            <Tooltip label="คัดลอกหมายเลขเคส" withArrow>
+              <ActionIcon
+                aria-label="คัดลอกหมายเลขเคส"
+                color={copied ? "green" : "gray"}
+                onClick={() => void copyCaseNumber()}
+                size="sm"
+                variant="subtle"
+              >
+                <AppIcon name={copied ? "check" : "copy"} size={14} />
+              </ActionIcon>
+            </Tooltip>
           </Group>
-          <Text c="dimmed" size="xs">อัปเดตล่าสุด: {lastUpdated.date} {lastUpdated.time}</Text>
+          <Text c="dimmed" size="xs">
+            อัปเดตล่าสุด: {hasLastUpdated ? `${lastUpdated.date} ${lastUpdated.time}` : "-"}
+          </Text>
         </Stack>
 
-        {countItems.map((item) => (
-          <Group className="caseConversationMetric" gap="xs" key={item.key} wrap="nowrap">
-            <ThemeIcon color={item.color} radius="md" size="md" variant="light">
-              <AppIcon name={item.icon} size={15} />
-            </ThemeIcon>
-            <Box>
-              <Text c="dimmed" size="xs">{item.label}</Text>
-              <Text fw={800} size="lg">{counts[item.key]}</Text>
-            </Box>
-          </Group>
-        ))}
+        <Box className="caseConversationMetrics">
+          {countItems.map((item) => (
+            <Group className="caseConversationMetric" gap={6} key={item.key} wrap="nowrap">
+              <ThemeIcon color={item.color} radius="md" size="md" variant="light">
+                <AppIcon name={item.icon} size={15} />
+              </ThemeIcon>
+              <Stack gap={0} justify="center">
+                <Text c="dimmed" size="xs">{item.label}</Text>
+                <Group gap={4} wrap="nowrap">
+                  <Text className="caseConversationMetricCount" fw={800} size="lg">{counts[item.key]}</Text>
+                  <Text c="dimmed" size="xs">รายการ</Text>
+                </Group>
+              </Stack>
+            </Group>
+          ))}
+        </Box>
 
         <Select
           aria-label="ช่วงเวลาประวัติการสนทนา"
+          className="caseConversationRange"
           data={[
             { value: "all", label: "ช่วงเวลา: ทั้งหมด" },
             { value: "today", label: "วันนี้" },
@@ -75,8 +104,8 @@ export function ConversationSummary({ caseNumber, lastUpdatedAt, counts, range, 
           size="sm"
           value={range}
         />
-      </SimpleGrid>
+      </Box>
+      {copied ? <Box className="caseConversationCopyToast" role="status">คัดลอกหมายเลขเคสแล้ว</Box> : null}
     </Paper>
   );
 }
-
