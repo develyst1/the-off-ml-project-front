@@ -12,6 +12,7 @@
   | "reopened"
   | "in_progress"
   | "awaiting_customer_info"
+  | "awaiting_tech_review"
   | "sent"
   | "sla_breach";
 

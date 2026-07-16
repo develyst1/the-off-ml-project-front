@@ -62,6 +62,7 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   analyzing_solution: { label: "AI กำลังวิเคราะห์คำตอบ", color: "blue" },
   awaiting_confirmation: { label: "รอยืนยัน AI แนะนำ", color: "blue" },
   awaiting_customer_info: { label: "รอลูกค้าส่งข้อมูลเพิ่ม", color: "orange" },
+  awaiting_tech_review: { label: "รอตรวจสอบข้อความก่อนส่ง", color: "yellow" },
   resolved: { label: "ปิดเคสแล้ว", color: "green" },
   sent_to_customer: { label: "ส่งคำตอบแล้ว", color: "green" },
   closed: { label: "ปิดเคสแล้ว", color: "green" },
@@ -175,7 +176,7 @@ function MetricCard({
 function OperationStepper({ status }: { status: CaseStatus }) {
   const activeStep =
     status === "new" || status === "analyzing" ? 0 :
-    status === "awaiting_tech" || status === "assigned" || status === "awaiting_customer_info" ? 1 :
+    status === "awaiting_tech" || status === "assigned" || status === "awaiting_customer_info" || status === "awaiting_tech_review" ? 1 :
     status === "tech_replied" || status === "analyzing_solution" ? 2 : 3;
 
   const steps = [
