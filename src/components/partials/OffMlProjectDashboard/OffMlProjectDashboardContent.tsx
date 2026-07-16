@@ -806,7 +806,7 @@ function ConfidenceReview({
         <Card key={item.id} padding="lg" radius="md" withBorder>
           <Group align="flex-start" justify="space-between">
             <Box>
-              <Title order={3}>{item.caseId} · {item.customerName}</Title>
+              <Title order={3}>{item.caseNumber} · {item.customerName}</Title>
               <Text c="dimmed" mt={4}>{item.originalText}</Text>
             </Box>
             <Group gap="xs">
@@ -912,6 +912,7 @@ function AutomationSettings({
 }) {
   const enabled = settings?.enabled ?? false;
   const [automationNotice, setAutomationNotice] = useState("Auto-answer พร้อมทำงานตาม guardrail ที่กำหนด");
+  const [selectedLogSolution, setSelectedLogSolution] = useState<AutoAnswerLog | null>(null);
 
   const stopAutomationNow = async () => {
     await onUpdateSettings({ emergencyDisable: true });
@@ -1014,17 +1015,25 @@ function AutomationSettings({
               <Table.Th>เวลา</Table.Th>
               <Table.Th>ลูกค้า</Table.Th>
               <Table.Th>ข้อความที่ตอบ</Table.Th>
-              <Table.Th>Solution</Table.Th>
+              <Table.Th>วิธีแก้</Table.Th>
               <Table.Th>Teams</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {logs.map((item) => (
               <Table.Tr key={item.id}>
-                <Table.Td>{item.time}</Table.Td>
+                <Table.Td>{formatEventTime(item.time)}</Table.Td>
                 <Table.Td>{item.customer}</Table.Td>
                 <Table.Td>{item.answerText}</Table.Td>
-                <Table.Td>{item.solutionId}</Table.Td>
+                <Table.Td>
+                  {item.solutionText ? (
+                    <Button size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
+                      ดูวิธีแก้
+                    </Button>
+                  ) : (
+                    <Text c="dimmed" size="sm">ไม่มีวิธีแก้ที่บันทึกไว้</Text>
+                  )}
+                </Table.Td>
                 <Table.Td>
                   <Badge color="green" variant="light">
                     แจ้งแล้ว
@@ -1040,6 +1049,16 @@ function AutomationSettings({
           </Text>
         ) : null}
       </Card>
+      <Modal
+        centered
+        onClose={() => setSelectedLogSolution(null)}
+        opened={Boolean(selectedLogSolution)}
+        title={`วิธีแก้ของ ${selectedLogSolution?.caseNumber ?? ""}`}
+      >
+        <Text style={{ whiteSpace: "pre-wrap" }}>
+          {selectedLogSolution?.solutionText ?? "ไม่มีวิธีแก้ที่บันทึกไว้"}
+        </Text>
+      </Modal>
     </Stack>
   );
 }

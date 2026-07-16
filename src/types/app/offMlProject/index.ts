@@ -121,6 +121,7 @@ export interface OffMlProjectCaseResponse {
 export interface ConfidenceSuggestion {
   id: string;
   caseId: string;
+  caseNumber: string;
   customerName: string;
   suggestedSolutionId: string;
   category: string;
@@ -142,9 +143,10 @@ export interface AutoAnswerSolution {
 export interface AutoAnswerLog {
   id: string;
   time: string;
+  caseNumber: string;
   customer: string;
   answerText: string;
-  solutionId: string;
+  solutionText?: string;
   teamsNotified: boolean;
 }
 
