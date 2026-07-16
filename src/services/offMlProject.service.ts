@@ -53,8 +53,8 @@ function latestByCreatedAt<T extends { createdAt: string }>(items: T[]) {
   });
 }
 
-function firstText(caseItem: OffMlProjectCaseResponse, direction: "inbound_customer" | "inbound_tech" | "outbound_customer") {
-  return latestByCreatedAt(caseItem.messages.filter((message) => message.direction === direction))[0]?.originalText;
+function firstText(caseItem: OffMlProjectCaseResponse, senderType: "CUSTOMER" | "TECH" | "BOT") {
+  return latestByCreatedAt(caseItem.messages.filter((message) => message.senderType === senderType))[0]?.originalText;
 }
 
 function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCaseResponse["analyses"][number]["analysisType"]) {
@@ -62,9 +62,9 @@ function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCa
 }
 
 export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase {
-  const customerMessage = firstText(caseItem, "inbound_customer") ?? "";
-  const techReply = firstText(caseItem, "inbound_tech");
-  const outboundReply = firstText(caseItem, "outbound_customer");
+  const customerMessage = firstText(caseItem, "CUSTOMER") ?? "";
+  const techReply = firstText(caseItem, "TECH");
+  const outboundReply = firstText(caseItem, "BOT");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
@@ -102,6 +102,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
       "ระบบแจ้งลูกค้า + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
       techReply ? `Tech Support ตอบกลับ: ${techReply}` : "รอทีม Tech Support วิเคราะห์และตอบกลับ",
     ],
+    conversation: [...caseItem.messages].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()),
     supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary,
     customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
   };

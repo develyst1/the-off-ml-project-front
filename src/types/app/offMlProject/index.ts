@@ -42,6 +42,7 @@ export interface SupportCase {
   slaHours: number;
   summary: string;
   teamsThread: string[];
+  conversation: OffMlProjectMessageResponse[];
   supportSolution?: string;
   customerReply?: string;
 }
@@ -60,6 +61,17 @@ export interface OffMlProjectMessageResponse {
   direction: "inbound_customer" | "outbound_customer" | "inbound_tech" | "outbound_tech";
   channel: "line" | "ms_teams" | "system";
   originalText: string;
+  senderType?: "CUSTOMER" | "BOT" | "AI" | "TECH" | "SYSTEM";
+  messageType?: string;
+  displayText?: string;
+  direction?: "INBOUND" | "OUTBOUND" | "INTERNAL";
+  isVisibleToCustomer?: boolean;
+  deliveryStatus?: "RECEIVED" | "PROCESSING" | "PROCESSED" | "PENDING" | "SENT" | "API_ACCEPTED" | "DELIVERED" | "FAILED" | "SKIPPED" | "pending" | "sent" | "delivered" | "failed";
+  receivedAt?: string;
+  processedAt?: string;
+  sentAt?: string;
+  deliveredAt?: string;
+  failedAt?: string;
   externalMessageId?: string;
   createdAt: string;
 }

@@ -91,6 +91,36 @@ function formatEventTime(value?: string) {
   }).format(date);
 }
 
+function conversationMeta(message: SupportCase["conversation"][number]) {
+  if (message.messageType === "INTERNAL_NOTE") {
+    return { color: "yellow", label: "ข้อความภายใน", sender: "ทีม Tech Support" };
+  }
+  if (message.senderType === "CUSTOMER") return { color: "blue", label: "ลูกค้า", sender: "ลูกค้า" };
+  if (message.senderType === "BOT") return { color: "cyan", label: "LINE Bot", sender: "LINE Bot" };
+  if (message.senderType === "AI") return { color: "violet", label: "AI เรียบเรียง", sender: "AI" };
+  if (message.senderType === "TECH") return { color: "orange", label: "ทีม Tech Support", sender: "ทีม Tech Support" };
+  return { color: "gray", label: "ระบบ", sender: "ระบบ" };
+}
+
+function conversationMessageType(message: SupportCase["conversation"][number]) {
+  const labels: Record<string, string> = {
+    CASE_ACKNOWLEDGEMENT: "รับเรื่อง",
+    REQUEST_MORE_INFO: "ขอข้อมูลเพิ่ม",
+    CUSTOMER_ADDITIONAL_INFO: "ข้อมูลเพิ่มเติมจากลูกค้า",
+    CASE_FORWARDED: "ส่งต่อ Teams",
+    STATUS_UPDATE: "อัปเดตสถานะ",
+    TECH_REPLY: "ข้อความจากทีม",
+    TECH_RAW_REPLY: "ข้อความต้นฉบับจากทีม Tech",
+    INTERNAL_NOTE: "ข้อความภายใน",
+    CUSTOMER_REWRITE: "ข้อความที่ AI เรียบเรียง",
+    AI_REWRITTEN_REPLY: "ข้อความที่ AI เรียบเรียง",
+    CUSTOMER_REPLY: "ส่งให้ลูกค้า",
+    RESOLUTION: "แนวทางแก้ไข",
+    CASE_CLOSED: "ปิดเคส",
+  };
+  return message.messageType ? labels[message.messageType] ?? message.messageType : "ข้อความ";
+}
+
 const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
   total: 0,
   solvedFromExistingSolutionPct: 0,
@@ -537,6 +567,40 @@ function CaseDetail({
       </SimpleGrid>
 
       <Card padding="lg" radius="md" withBorder>
+        <Group justify="space-between" mb="md">
+          <Box>
+            <Title order={3}>3) ประวัติการสนทนาในเคส</Title>
+            <Text c="dimmed" size="sm">แสดงเฉพาะข้อความที่ผูกกับเคสนี้ เรียงจากเก่าไปใหม่</Text>
+          </Box>
+          <Badge color="gray" variant="light">{item.conversation.length} ข้อความ</Badge>
+        </Group>
+        <Stack gap="sm">
+          {item.conversation.map((message) => {
+            const meta = conversationMeta(message);
+            const isInternal = message.messageType === "INTERNAL_NOTE";
+            return (
+              <Paper bg={isInternal ? "yellow.0" : "gray.0"} key={message.id} p="sm" radius="md" withBorder>
+                <Group justify="space-between" mb={6} wrap="nowrap">
+                  <Group gap="xs">
+                    <Badge color={meta.color} variant="light">{meta.label}</Badge>
+                    <Text c="dimmed" size="xs">{conversationMessageType(message)}</Text>
+                  </Group>
+                  <Text c="dimmed" size="xs">{formatEventTime(message.createdAt)}</Text>
+                </Group>
+                <Text className="compactText" size="sm">{message.displayText ?? message.originalText}</Text>
+                {message.deliveryStatus ? (
+                  <Text c="dimmed" mt={6} size="xs">
+                    สถานะ: {message.deliveryStatus === "API_ACCEPTED" || message.deliveryStatus === "SENT" || message.deliveryStatus === "sent" ? "ระบบปลายทางรับคำขอแล้ว" : message.deliveryStatus === "DELIVERED" || message.deliveryStatus === "delivered" ? "ส่งถึงปลายทางแล้ว" : message.deliveryStatus === "RECEIVED" ? "ระบบรับข้อความแล้ว" : message.deliveryStatus === "PROCESSED" ? "ประมวลผลแล้ว" : message.deliveryStatus === "PENDING" || message.deliveryStatus === "pending" ? "รอส่ง" : message.deliveryStatus === "FAILED" || message.deliveryStatus === "failed" ? "ส่งไม่สำเร็จ" : "บันทึกแล้ว"}
+                  </Text>
+                ) : null}
+              </Paper>
+            );
+          })}
+        </Stack>
+        {item.conversation.length === 0 ? <Text c="dimmed">ยังไม่มีประวัติการสนทนา</Text> : null}
+      </Card>
+
+      <Card padding="lg" radius="md" withBorder>
         <Title order={3} mb="sm">ลำดับเวลาของเคส</Title>
         <Stack gap="xs">
           <Text size="sm">สร้างเคส: {formatEventTime(item.caseCreatedAt)}</Text>
@@ -550,7 +614,7 @@ function CaseDetail({
       <Card padding="lg" radius="md" withBorder>
         <Group align="flex-start" justify="space-between" mb="md">
           <Box>
-            <Title order={3}>3) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
+            <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
             <Text c="dimmed" size="sm">
               แสดงสิ่งที่ระบบส่งเข้า Teams และสถานะหลังทีมส่งคำตอบกลับ
             </Text>
