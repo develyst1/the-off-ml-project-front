@@ -58,13 +58,12 @@ export interface OffMlProjectCustomerResponse {
 export interface OffMlProjectMessageResponse {
   id: string;
   caseId: string;
-  direction: "inbound_customer" | "outbound_customer" | "inbound_tech" | "outbound_tech";
+  direction: "INBOUND" | "OUTBOUND" | "INTERNAL";
   channel: "line" | "ms_teams" | "system";
   originalText: string;
   senderType?: "CUSTOMER" | "BOT" | "AI" | "TECH" | "SYSTEM";
   messageType?: string;
   displayText?: string;
-  direction?: "INBOUND" | "OUTBOUND" | "INTERNAL";
   isVisibleToCustomer?: boolean;
   deliveryStatus?: "RECEIVED" | "PROCESSING" | "PROCESSED" | "PENDING" | "SENT" | "API_ACCEPTED" | "DELIVERED" | "FAILED" | "SKIPPED" | "pending" | "sent" | "delivered" | "failed";
   receivedAt?: string;
