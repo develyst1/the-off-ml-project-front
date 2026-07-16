@@ -62,7 +62,7 @@ function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCa
 }
 
 export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase {
-  const customerMessage = firstText(caseItem, "inbound_customer") ?? "ยังไม่มีข้อความต้นฉบับจากลูกค้า";
+  const customerMessage = firstText(caseItem, "inbound_customer") ?? "";
   const techReply = firstText(caseItem, "inbound_tech");
   const outboundReply = firstText(caseItem, "outbound_customer");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
@@ -72,18 +72,32 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   return {
     id: caseItem.id,
     caseNumber: caseItem.caseNumber,
+    aiStatus: caseItem.aiStatus,
+    dataStatus: caseItem.dataStatus,
+    customerSentAt: caseItem.customerSentAt,
+    caseCreatedAt: caseItem.createdAt,
+    systemReceivedAt: caseItem.systemReceivedAt,
+    aiAnalyzedAt: caseItem.aiAnalyzedAt,
+    teamsSentAt: caseItem.teamsSentAt,
+    techRepliedAt: caseItem.techRepliedAt,
+    lineSentAt: caseItem.lineSentAt,
+    lineDeliveredAt: caseItem.lineDeliveredAt,
     teamsDeliveryStatus: caseItem.teamsDeliveryStatus,
     teamsDeliveryAt: caseItem.teamsDeliveryAt,
     teamsDeliveryError: caseItem.teamsDeliveryError,
     customerName: caseItem.customer.displayName ?? caseItem.customer.lineUserId,
     lineUserId: caseItem.customer.lineUserId,
     originalText: customerMessage,
-    category: customerAnalysis?.category ?? caseItem.category ?? "-",
+    category: caseItem.aiStatus === "AI_FAILED" ? "วิเคราะห์ไม่สำเร็จ" : customerAnalysis?.category ?? caseItem.category ?? "-",
     aiConfidence: customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),
     slaHours: 4,
-    summary: customerAnalysis?.summary ?? "ยังไม่มีผลวิเคราะห์โดย AI",
+    summary: !customerMessage
+      ? "ไม่สามารถวิเคราะห์ได้ เนื่องจากไม่พบข้อความต้นฉบับจากลูกค้า"
+      : caseItem.aiStatus === "AI_FAILED"
+        ? "AI วิเคราะห์ไม่สำเร็จ กรุณาตรวจสอบอีกครั้ง"
+      : customerAnalysis?.summary ?? "ยังไม่มีผลวิเคราะห์โดย AI",
     teamsThread: [
       "ระบบแจ้งลูกค้า + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
       techReply ? `Tech Support ตอบกลับ: ${techReply}` : "รอทีม Tech Support วิเคราะห์และตอบกลับ",

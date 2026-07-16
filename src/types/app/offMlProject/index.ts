@@ -18,6 +18,16 @@
 export interface SupportCase {
   id: string;
   caseNumber: string;
+  aiStatus?: "AI_SUCCESS" | "AI_LOW_CONFIDENCE" | "AI_FAILED";
+  dataStatus?: "COMPLETE" | "DATA_INCOMPLETE";
+  customerSentAt?: string;
+  caseCreatedAt?: string;
+  systemReceivedAt?: string;
+  aiAnalyzedAt?: string;
+  teamsSentAt?: string;
+  techRepliedAt?: string;
+  lineSentAt?: string;
+  lineDeliveredAt?: string;
   teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
   teamsDeliveryAt?: string;
   teamsDeliveryError?: string;
@@ -80,6 +90,17 @@ export interface OffMlProjectSolutionResponse {
 export interface OffMlProjectCaseResponse {
   id: string;
   caseNumber: string;
+  title?: string;
+  aiStatus?: "AI_SUCCESS" | "AI_LOW_CONFIDENCE" | "AI_FAILED";
+  dataStatus?: "COMPLETE" | "DATA_INCOMPLETE";
+  customerSentAt?: string;
+  caseCreatedAt?: string;
+  systemReceivedAt?: string;
+  aiAnalyzedAt?: string;
+  teamsSentAt?: string;
+  techRepliedAt?: string;
+  lineSentAt?: string;
+  lineDeliveredAt?: string;
   customerId: string;
   teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
   teamsDeliveryAt?: string;

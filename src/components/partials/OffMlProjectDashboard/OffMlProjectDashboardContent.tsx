@@ -79,6 +79,17 @@ function getStatusMeta(status: CaseStatus) {
 
 const WAITING_TECH_STATUS = "รอทีม Tech Support ตอบกลับ";
 
+function formatEventTime(value?: string) {
+  if (!value) return "ยังไม่มีข้อมูล";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "ข้อมูลเวลาไม่ถูกต้อง";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+}
+
 const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
   total: 0,
   solvedFromExistingSolutionPct: 0,
@@ -471,8 +482,18 @@ function CaseDetail({
             1) ข้อความต้นฉบับจากลูกค้า
           </Title>
           <Paper bg="gray.0" p="md" radius="md">
-            <Text className="compactText">{item.originalText}</Text>
+            {item.originalText ? (
+              <Text className="compactText">{item.originalText}</Text>
+            ) : (
+              <Alert color="red" title="ไม่พบข้อความต้นฉบับของลูกค้า">
+                กรุณาตรวจสอบข้อมูล LINE webhook
+              </Alert>
+            )}
           </Paper>
+          <Stack gap={4} mt="sm">
+            <Text c="dimmed" size="xs">ส่งจาก LINE: {formatEventTime(item.customerSentAt)}</Text>
+            <Text c="dimmed" size="xs">ระบบรับข้อความ: {formatEventTime(item.systemReceivedAt)}</Text>
+          </Stack>
         </Card>
 
         <Card padding="lg" radius="md" withBorder>
@@ -492,9 +513,13 @@ function CaseDetail({
               <Text c="dimmed" fw={700} size="sm">
                 ความมั่นใจของ AI
               </Text>
-              <Badge color={confidenceColor(item.aiConfidence)} mt={6} variant="light">
-                {item.aiConfidence}%
-              </Badge>
+              {item.aiStatus === "AI_FAILED" ? (
+                <Badge color="red" mt={6} variant="light">วิเคราะห์ไม่สำเร็จ</Badge>
+              ) : (
+                <Badge color={confidenceColor(item.aiConfidence)} mt={6} variant="light">
+                  {item.aiConfidence}%
+                </Badge>
+              )}
             </Box>
           </SimpleGrid>
           <Text c="dimmed" fw={700} size="sm">
@@ -506,8 +531,20 @@ function CaseDetail({
           <Text c="dimmed" mt="sm" size="xs">
             ผลวิเคราะห์นี้เป็นการประเมินเบื้องต้นจาก AI ยังไม่ใช่การยืนยันสาเหตุที่แน่นอน
           </Text>
+          <Text c="dimmed" mt="sm" size="xs">วิเคราะห์เสร็จเมื่อ: {formatEventTime(item.aiAnalyzedAt)}</Text>
         </Card>
       </SimpleGrid>
+
+      <Card padding="lg" radius="md" withBorder>
+        <Title order={3} mb="sm">ลำดับเวลาของเคส</Title>
+        <Stack gap="xs">
+          <Text size="sm">สร้างเคส: {formatEventTime(item.caseCreatedAt)}</Text>
+          <Text size="sm">ส่งเข้า Microsoft Teams: {formatEventTime(item.teamsSentAt)}</Text>
+          <Text size="sm">ทีม Tech ตอบกลับ: {formatEventTime(item.techRepliedAt)}</Text>
+          <Text size="sm">ส่งคำตอบกลับ LINE: {formatEventTime(item.lineSentAt)}</Text>
+          <Text size="sm">ยืนยันการส่ง LINE: {formatEventTime(item.lineDeliveredAt)}</Text>
+        </Stack>
+      </Card>
 
       <Card padding="lg" radius="md" withBorder>
         <Group align="flex-start" justify="space-between" mb="md">
