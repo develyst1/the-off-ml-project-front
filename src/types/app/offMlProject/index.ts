@@ -9,13 +9,15 @@
   | "resolved"
   | "sent_to_customer"
   | "closed"
+  | "reopened"
+  | "in_progress"
   | "awaiting_customer_info"
   | "sent"
   | "sla_breach";
 
 export interface SupportCase {
   id: string;
-  caseNumber: number;
+  caseNumber: string;
   teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
   teamsDeliveryAt?: string;
   teamsDeliveryError?: string;
@@ -77,7 +79,7 @@ export interface OffMlProjectSolutionResponse {
 
 export interface OffMlProjectCaseResponse {
   id: string;
-  caseNumber: number;
+  caseNumber: string;
   customerId: string;
   teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
   teamsDeliveryAt?: string;

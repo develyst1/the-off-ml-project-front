@@ -65,6 +65,8 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   resolved: { label: "ปิดเคสแล้ว", color: "green" },
   sent_to_customer: { label: "ส่งคำตอบแล้ว", color: "green" },
   closed: { label: "ปิดเคสแล้ว", color: "green" },
+  reopened: { label: "เปิดเคสกลับมาตรวจสอบ", color: "orange" },
+  in_progress: { label: "กำลังดำเนินการ", color: "blue" },
   sent: { label: "ส่งคำตอบแล้ว", color: "green" },
   sla_breach: { label: "เกิน SLA", color: "red" },
 };
