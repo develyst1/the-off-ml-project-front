@@ -65,6 +65,76 @@ body {
   padding-left: 16px;
 }
 
+.caseConversationSummary {
+  background: #ffffff;
+}
+
+.caseConversationMetric {
+  min-width: 0;
+}
+
+.caseConversationFilters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(230px, 290px);
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+}
+
+.caseConversationFilterChips {
+  min-width: 0;
+}
+
+.caseConversationTimeline {
+  position: relative;
+}
+
+.caseConversationTimelineItem {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.caseConversationTimelineRail {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.caseConversationTimelineLine {
+  background: #dbe4f0;
+  bottom: -12px;
+  left: 50%;
+  position: absolute;
+  top: 28px;
+  transform: translateX(-50%);
+  width: 2px;
+}
+
+.caseConversationTimelineCard {
+  border-left: 3px solid #868e96;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  min-width: 0;
+}
+
+.caseConversationTimelineHeader {
+  align-items: flex-start;
+}
+
+.caseConversationTimestamp {
+  flex: none;
+  min-width: 138px;
+}
+
+.caseConversationStatusDot {
+  border-radius: 999px;
+  display: inline-block;
+  height: 6px;
+  width: 6px;
+}
+
 .teamsPreview {
   overflow: hidden;
   background: #f6f7fb;
@@ -153,5 +223,31 @@ body {
 
   .operationStepper {
     grid-template-columns: 1fr;
+  }
+
+  .caseConversationFilters {
+    grid-template-columns: 1fr;
+  }
+
+  .caseConversationFilterChips {
+    flex-wrap: wrap;
+  }
+
+  .caseConversationTimelineHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .caseConversationTimestamp {
+    border-top: 1px solid #edf0f5;
+    min-width: 0;
+    padding-top: 8px;
+    width: 100%;
+  }
+
+  .caseConversationTimestamp > div,
+  .caseConversationTimestamp > p {
+    justify-content: flex-start;
+    text-align: left;
   }
 }

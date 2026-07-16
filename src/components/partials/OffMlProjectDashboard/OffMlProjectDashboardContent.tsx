@@ -40,6 +40,7 @@ import {
   reviewConfidenceSuggestion,
   updateAutomationSettings,
   requestAdditionalInfo,
+  rewriteAdditionalInfoRequest,
   replyToCustomer,
 } from "@/services/offMlProject.service";
 import type {
@@ -51,6 +52,7 @@ import type {
   ConfidenceSuggestion,
   SupportCase,
 } from "@/types/app/offMlProject";
+import { CaseConversation } from "./Conversation/CaseConversation";
 import { OFF_ML_PROJECT_TABS } from "./OffMlProjectDashboard.config";
 
 const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
@@ -89,36 +91,6 @@ function formatEventTime(value?: string) {
     timeStyle: "short",
     timeZone: "Asia/Bangkok",
   }).format(date);
-}
-
-function conversationMeta(message: SupportCase["conversation"][number]) {
-  if (message.messageType === "INTERNAL_NOTE") {
-    return { color: "yellow", label: "ข้อความภายใน", sender: "ทีม Tech Support" };
-  }
-  if (message.senderType === "CUSTOMER") return { color: "blue", label: "ลูกค้า", sender: "ลูกค้า" };
-  if (message.senderType === "BOT") return { color: "cyan", label: "LINE Bot", sender: "LINE Bot" };
-  if (message.senderType === "AI") return { color: "violet", label: "AI เรียบเรียง", sender: "AI" };
-  if (message.senderType === "TECH") return { color: "orange", label: "ทีม Tech Support", sender: "ทีม Tech Support" };
-  return { color: "gray", label: "ระบบ", sender: "ระบบ" };
-}
-
-function conversationMessageType(message: SupportCase["conversation"][number]) {
-  const labels: Record<string, string> = {
-    CASE_ACKNOWLEDGEMENT: "รับเรื่อง",
-    REQUEST_MORE_INFO: "ขอข้อมูลเพิ่ม",
-    CUSTOMER_ADDITIONAL_INFO: "ข้อมูลเพิ่มเติมจากลูกค้า",
-    CASE_FORWARDED: "ส่งต่อ Teams",
-    STATUS_UPDATE: "อัปเดตสถานะ",
-    TECH_REPLY: "ข้อความจากทีม",
-    TECH_RAW_REPLY: "ข้อความต้นฉบับจากทีม Tech",
-    INTERNAL_NOTE: "ข้อความภายใน",
-    CUSTOMER_REWRITE: "ข้อความที่ AI เรียบเรียง",
-    AI_REWRITTEN_REPLY: "ข้อความที่ AI เรียบเรียง",
-    CUSTOMER_REPLY: "ส่งให้ลูกค้า",
-    RESOLUTION: "แนวทางแก้ไข",
-    CASE_CLOSED: "ปิดเคส",
-  };
-  return message.messageType ? labels[message.messageType] ?? message.messageType : "ข้อความ";
 }
 
 const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
@@ -381,14 +353,15 @@ function CaseDetail({
   onInitialActionHandled: () => void;
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
-  onRequestInfo: (text?: string) => Promise<void>;
+  onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
-  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying">("idle");
+  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "rewriting">("idle");
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
   const [requestInfoOpen, setRequestInfoOpen] = useState(false);
   const [requestInfoText, setRequestInfoText] = useState("");
+  const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const handledInitialAction = useRef(false);
@@ -468,14 +441,39 @@ function CaseDetail({
   };
 
   const submitRequestInfo = async () => {
+    const text = requestInfoText.trim();
+    if (!text) {
+      setActionError("กรุณากรอกข้อความที่จะส่งให้ลูกค้า");
+      return;
+    }
     const completed = await runAction(
       "requesting",
       `ส่งคำขอข้อมูลเพิ่มเติมสำหรับเคส ${item.caseNumber} แล้ว`,
-      () => onRequestInfo(requestInfoText.trim() || undefined),
+      () => onRequestInfo(text, requestInfoDraftMessageId),
     );
     if (completed) {
       setRequestInfoOpen(false);
       setRequestInfoText("");
+      setRequestInfoDraftMessageId(undefined);
+    }
+  };
+
+  const rewriteRequestInfo = async () => {
+    const text = requestInfoText.trim();
+    if (!text || actionState !== "idle") return;
+
+    setActionState("rewriting");
+    setActionError(undefined);
+    setActionNotice(undefined);
+    try {
+      const draft = await rewriteAdditionalInfoRequest(item.id, text);
+      setRequestInfoText(draft.rewrittenMessage);
+      setRequestInfoDraftMessageId(draft.rewrittenMessageId);
+      setActionNotice("AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้ คุณยังสามารถแก้ไขและส่งข้อความเดิมได้");
+    } finally {
+      setActionState("idle");
     }
   };
 
@@ -566,39 +564,7 @@ function CaseDetail({
         </Card>
       </SimpleGrid>
 
-      <Card padding="lg" radius="md" withBorder>
-        <Group justify="space-between" mb="md">
-          <Box>
-            <Title order={3}>3) ประวัติการสนทนาในเคส</Title>
-            <Text c="dimmed" size="sm">แสดงเฉพาะข้อความที่ผูกกับเคสนี้ เรียงจากเก่าไปใหม่</Text>
-          </Box>
-          <Badge color="gray" variant="light">{item.conversation.length} ข้อความ</Badge>
-        </Group>
-        <Stack gap="sm">
-          {item.conversation.map((message) => {
-            const meta = conversationMeta(message);
-            const isInternal = message.messageType === "INTERNAL_NOTE";
-            return (
-              <Paper bg={isInternal ? "yellow.0" : "gray.0"} key={message.id} p="sm" radius="md" withBorder>
-                <Group justify="space-between" mb={6} wrap="nowrap">
-                  <Group gap="xs">
-                    <Badge color={meta.color} variant="light">{meta.label}</Badge>
-                    <Text c="dimmed" size="xs">{conversationMessageType(message)}</Text>
-                  </Group>
-                  <Text c="dimmed" size="xs">{formatEventTime(message.createdAt)}</Text>
-                </Group>
-                <Text className="compactText" size="sm">{message.displayText ?? message.originalText}</Text>
-                {message.deliveryStatus ? (
-                  <Text c="dimmed" mt={6} size="xs">
-                    สถานะ: {message.deliveryStatus === "API_ACCEPTED" || message.deliveryStatus === "SENT" || message.deliveryStatus === "sent" ? "ระบบปลายทางรับคำขอแล้ว" : message.deliveryStatus === "DELIVERED" || message.deliveryStatus === "delivered" ? "ส่งถึงปลายทางแล้ว" : message.deliveryStatus === "RECEIVED" ? "ระบบรับข้อความแล้ว" : message.deliveryStatus === "PROCESSED" ? "ประมวลผลแล้ว" : message.deliveryStatus === "PENDING" || message.deliveryStatus === "pending" ? "รอส่ง" : message.deliveryStatus === "FAILED" || message.deliveryStatus === "failed" ? "ส่งไม่สำเร็จ" : "บันทึกแล้ว"}
-                  </Text>
-                ) : null}
-              </Paper>
-            );
-          })}
-        </Stack>
-        {item.conversation.length === 0 ? <Text c="dimmed">ยังไม่มีประวัติการสนทนา</Text> : null}
-      </Card>
+      <CaseConversation item={item} />
 
       <Card padding="lg" radius="md" withBorder>
         <Title order={3} mb="sm">ลำดับเวลาของเคส</Title>
@@ -794,7 +760,7 @@ function CaseDetail({
           </Stack>
         </SimpleGrid>
       </Card>
-      <Modal opened={requestInfoOpen} onClose={() => setRequestInfoOpen(false)} title="ขอข้อมูลเพิ่มเติมจากลูกค้า">
+      <Modal opened={requestInfoOpen} onClose={() => actionState === "idle" && setRequestInfoOpen(false)} title="ขอข้อมูลเพิ่มเติมจากลูกค้า">
         <Textarea
           autosize
           label="ข้อความที่จะส่งทาง LINE"
@@ -803,13 +769,24 @@ function CaseDetail({
           placeholder="เช่น กรุณาส่งภาพหน้าจอและเวลาที่พบปัญหาเพิ่มเติม"
           value={requestInfoText}
         />
-        <Group justify="flex-end" mt="md">
-          <Button disabled={actionState !== "idle"} onClick={() => setRequestInfoOpen(false)} variant="default">
-            ยกเลิก
+        <Group justify="space-between" mt="md">
+          <Button
+            disabled={!requestInfoText.trim() || actionState !== "idle"}
+            leftSection={<AppIcon name="brain" size={16} />}
+            loading={actionState === "rewriting"}
+            onClick={() => void rewriteRequestInfo()}
+            variant="light"
+          >
+            {actionState === "rewriting" ? "กำลังเรียบเรียง..." : "ช่วยเรียบเรียงด้วย AI"}
           </Button>
-          <Button loading={actionState === "requesting"} onClick={() => void submitRequestInfo()}>
-            ส่งข้อความ
-          </Button>
+          <Group gap="sm">
+            <Button disabled={actionState !== "idle"} onClick={() => setRequestInfoOpen(false)} variant="default">
+              ยกเลิก
+            </Button>
+            <Button disabled={!requestInfoText.trim() || actionState !== "idle"} loading={actionState === "requesting"} onClick={() => void submitRequestInfo()}>
+              ส่งข้อความ
+            </Button>
+          </Group>
         </Group>
       </Modal>
       <Modal opened={replyOpen} onClose={() => setReplyOpen(false)} title="ตอบกลับลูกค้า">
@@ -1273,9 +1250,9 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleRequestInfo = async (text?: string) => {
+  const handleRequestInfo = async (text: string, sourceMessageId?: string) => {
     if (!selectedCase) return;
-    const updatedCase = await requestAdditionalInfo(selectedCase.id, text);
+    const updatedCase = await requestAdditionalInfo(selectedCase.id, text, sourceMessageId);
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };

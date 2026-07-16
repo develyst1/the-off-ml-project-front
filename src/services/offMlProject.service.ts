@@ -25,7 +25,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`Off ML Project API error ${response.status}`);
+    const error = await response.json().catch(() => undefined) as { error?: string } | undefined;
+    throw new Error(error?.error || `Off ML Project API error ${response.status}`);
   }
 
   const body = (await response.json()) as ApiResponse<T>;
@@ -132,12 +133,19 @@ export async function acceptCase(caseId: string): Promise<SupportCase> {
   return mapCaseResponse(caseItem);
 }
 
-export async function requestAdditionalInfo(caseId: string, text?: string): Promise<SupportCase> {
+export async function requestAdditionalInfo(caseId: string, text: string, sourceMessageId?: string): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/request-info`, {
     method: "POST",
-    body: JSON.stringify(text ? { text } : {}),
+    body: JSON.stringify({ text, sourceMessageId }),
   });
   return mapCaseResponse(caseItem);
+}
+
+export async function rewriteAdditionalInfoRequest(caseId: string, text: string): Promise<{ rewrittenMessage: string; rewrittenMessageId: string }> {
+  return request<{ rewrittenMessage: string; rewrittenMessageId: string }>(`/cases/${caseId}/rewrite-request-info`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
 }
 
 export async function replyToCustomer(caseId: string, text: string): Promise<SupportCase> {
