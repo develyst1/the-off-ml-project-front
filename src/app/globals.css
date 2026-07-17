@@ -269,7 +269,33 @@ body {
   align-items: center;
 }
 
+.caseReplyComposerTools {
+  flex-wrap: wrap;
+}
+
+.caseMoreInfoGoalPanel,
+.caseReplyPreview {
+  background: #ffffff;
+}
+
+.caseMoreInfoGoalPanel {
+  border-color: #bfdbfe;
+}
+
+.caseReplyPreview {
+  border-style: dashed;
+}
+
 @media (max-width: 48em) {
+  .caseReplyComposer > .mantine-Group-root {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .caseReplyComposer [data-mantine-component="Select"] {
+    width: 100%;
+  }
+
   .caseReplyComposerActions,
   .caseReplyComposerSubmit {
     align-items: stretch;

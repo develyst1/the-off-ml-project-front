@@ -158,6 +158,13 @@ export async function replyToCustomer(caseId: string, text: string): Promise<Sup
   return mapCaseResponse(caseItem);
 }
 
+export async function generateMoreInfoRequest(caseId: string, requestedInformation?: string): Promise<{ suggestedMessage: string; requestedFields: string[]; reason: string; rewrittenMessageId: string; sourceMessageId?: string }> {
+  return request<{ suggestedMessage: string; requestedFields: string[]; reason: string; rewrittenMessageId: string; sourceMessageId?: string }>(`/cases/${caseId}/generate-more-info`, {
+    method: "POST",
+    body: JSON.stringify({ requestedInformation }),
+  });
+}
+
 export async function closeCaseWithReply(caseId: string, text: string): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/close`, {
     method: "POST",
