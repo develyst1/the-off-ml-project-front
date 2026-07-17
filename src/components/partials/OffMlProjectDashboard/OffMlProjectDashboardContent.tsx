@@ -63,12 +63,12 @@ import { OFF_ML_PROJECT_TABS } from "./OffMlProjectDashboard.config";
 const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   new: { label: "เคสใหม่", color: "gray" },
   analyzing: { label: "AI กำลังวิเคราะห์", color: "blue" },
-  awaiting_tech: { label: "รอทีม Tech Support ตอบกลับ", color: "yellow" },
+  awaiting_tech: { label: "รอทีม Tech ตอบ", color: "yellow" },
   assigned: { label: "ทีม Tech Support รับเคสแล้ว", color: "blue" },
   tech_replied: { label: "ทีม Tech Support ตอบแล้ว", color: "blue" },
   analyzing_solution: { label: "AI กำลังวิเคราะห์คำตอบ", color: "blue" },
   awaiting_confirmation: { label: "รอยืนยัน AI แนะนำ", color: "blue" },
-  awaiting_customer_info: { label: "รอลูกค้าส่งข้อมูลเพิ่ม", color: "orange" },
+  awaiting_customer_info: { label: "รอลูกค้าให้ข้อมูล", color: "orange" },
   awaiting_tech_review: { label: "รอตรวจสอบข้อความก่อนส่ง", color: "yellow" },
   resolved: { label: "ปิดเคสแล้ว", color: "green" },
   sent_to_customer: { label: "ส่งคำตอบแล้ว", color: "green" },
@@ -87,7 +87,7 @@ function getStatusMeta(status: CaseStatus) {
   return statusMeta[status] ?? fallbackStatusMeta;
 }
 
-const WAITING_TECH_STATUS = "รอทีม Tech Support ตอบกลับ";
+const WAITING_TECH_STATUS = statusMeta.awaiting_tech.label;
 
 function formatEventTime(value?: string) {
   if (!value) return "ยังไม่มีข้อมูล";
@@ -118,6 +118,18 @@ function confidenceColor(value: number) {
   if (value >= 90) return "green";
   if (value >= 60) return "yellow";
   return "red";
+}
+
+function relativeTime(value?: string) {
+  if (!value) return "ยังไม่มีข้อมูล";
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return "ข้อมูลเวลาไม่ถูกต้อง";
+  const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+  if (minutes < 1) return "เมื่อสักครู่นี้";
+  if (minutes < 60) return `${minutes} นาทีที่แล้ว`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ชั่วโมงที่แล้ว`;
+  return `${Math.floor(hours / 24)} วันที่แล้ว`;
 }
 
 function teamsDeliveryMeta(item: SupportCase) {
@@ -227,6 +239,7 @@ function CaseInbox({
   onOpenCase,
   onOpenConfidence,
   onRefresh,
+  selectedCaseId,
 }: {
   cases: SupportCase[];
   error?: string;
@@ -234,7 +247,84 @@ function CaseInbox({
   onOpenCase: (item: SupportCase) => void;
   onOpenConfidence: () => void;
   onRefresh: () => void;
+  selectedCaseId?: string;
 }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [confidenceFilter, setConfidenceFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [slaOnly, setSlaOnly] = useState(false);
+  const [caseScope, setCaseScope] = useState("open");
+  const [sortMode, setSortMode] = useState("priority");
+
+  const closedStatuses = new Set<CaseStatus>(["resolved", "closed", "sent_to_customer", "sent"]);
+  const priorityOrder: Partial<Record<CaseStatus, number>> = {
+    sla_breach: 0,
+    awaiting_tech: 1,
+    in_progress: 2,
+    analyzing: 2,
+    analyzing_solution: 2,
+    awaiting_customer_info: 3,
+    closed: 5,
+    resolved: 5,
+    sent_to_customer: 5,
+    sent: 5,
+  };
+  const categories = [...new Set(cases.map((item) => item.category).filter((value) => value && value !== "-"))];
+  const assignees = [...new Set(cases.map((item) => item.assignee).filter((value): value is string => Boolean(value)))];
+  const statusOptions = Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }));
+
+  const visibleCases = cases
+    .filter((item) => {
+      const searchable = [item.caseNumber, item.customerName, item.problemSummary, item.initialCustomerMessage, item.latestCustomerMessage, item.category]
+        .join(" ")
+        .toLocaleLowerCase();
+      if (search.trim() && !searchable.includes(search.trim().toLocaleLowerCase())) return false;
+      if (statusFilter && item.status !== statusFilter) return false;
+      if (categoryFilter && item.category !== categoryFilter) return false;
+      if (assigneeFilter && item.assignee !== assigneeFilter) return false;
+      if (unreadOnly && !item.hasUnreadCustomerMessage) return false;
+      if (slaOnly && item.status !== "sla_breach") return false;
+      if (caseScope === "open" && closedStatuses.has(item.status)) return false;
+      if (caseScope === "closed" && !closedStatuses.has(item.status)) return false;
+      if (confidenceFilter !== "all") {
+        const confidence = item.aiConfidence;
+        const inRange = confidenceFilter === "0-59" ? confidence < 60
+          : confidenceFilter === "60-89" ? confidence >= 60 && confidence < 90
+            : confidenceFilter === "90-97" ? confidence >= 90 && confidence < 98
+              : confidence >= 98;
+        if (!inRange || item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE") return false;
+      }
+      if (timeFilter !== "all") {
+        const days = Number(timeFilter);
+        if (Date.now() - new Date(item.lastActivityAt).getTime() > days * 24 * 60 * 60 * 1000) return false;
+      }
+      return true;
+    })
+    .sort((left, right) => {
+      if (sortMode === "oldest") return new Date(left.lastActivityAt).getTime() - new Date(right.lastActivityAt).getTime();
+      if (sortMode === "latest") return new Date(right.lastActivityAt).getTime() - new Date(left.lastActivityAt).getTime();
+      const priorityDifference = (priorityOrder[left.status] ?? 4) - (priorityOrder[right.status] ?? 4);
+      return priorityDifference || new Date(right.lastActivityAt).getTime() - new Date(left.lastActivityAt).getTime();
+    });
+
+  const hasFilters = Boolean(search || statusFilter || categoryFilter || assigneeFilter || unreadOnly || slaOnly || confidenceFilter !== "all" || timeFilter !== "all" || caseScope !== "open" || sortMode !== "priority");
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter(null);
+    setCategoryFilter(null);
+    setConfidenceFilter("all");
+    setTimeFilter("all");
+    setAssigneeFilter(null);
+    setUnreadOnly(false);
+    setSlaOnly(false);
+    setCaseScope("open");
+    setSortMode("priority");
+  };
+
   const awaitingTechCase = cases.find((item) => item.status === "awaiting_tech") ?? cases[0];
   const awaitingConfirmationCase = cases.find((item) => item.status === "awaiting_confirmation");
   const resolvedCase = cases.find((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status));
@@ -277,55 +367,86 @@ function CaseInbox({
           </Badge>
         </Group>
 
+        <Group align="flex-end" gap="sm" mb="md" wrap="wrap">
+          <TextInput
+            flex={1}
+            label="ค้นหา"
+            miw={240}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            placeholder="เลขเคส ชื่อลูกค้า หรือปัญหาที่แจ้ง"
+            value={search}
+          />
+          <Select clearable data={statusOptions} label="สถานะ" onChange={setStatusFilter} placeholder="ทั้งหมด" value={statusFilter} />
+          <Select clearable data={categories} label="หมวดหมู่" onChange={setCategoryFilter} placeholder="ทั้งหมด" value={categoryFilter} />
+          <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => setConfidenceFilter(value ?? "all")} value={confidenceFilter} />
+          <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => setTimeFilter(value ?? "all")} value={timeFilter} />
+          <Select clearable data={assignees} label="ผู้รับผิดชอบ" onChange={setAssigneeFilter} placeholder="ทั้งหมด" value={assigneeFilter} />
+          <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="การแสดงผล" onChange={(value) => setCaseScope(value ?? "open")} value={caseScope} />
+          <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => setSortMode(value ?? "priority")} value={sortMode} />
+          {hasFilters ? <Button onClick={resetFilters} variant="subtle">ล้างตัวกรอง</Button> : null}
+        </Group>
+        <Group gap="lg" mb="md">
+          <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => setUnreadOnly(event.currentTarget.checked)} />
+          <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => setSlaOnly(event.currentTarget.checked)} />
+          <Text c="dimmed" size="sm">แสดง {visibleCases.length} จาก {cases.length} เคส</Text>
+        </Group>
+
         <ScrollArea>
-          <Table highlightOnHover miw={980} verticalSpacing="sm">
+          <Table highlightOnHover miw={1240} verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>ลูกค้า</Table.Th>
-                <Table.Th>ข้อความต้นฉบับ</Table.Th>
+                <Table.Th>ปัญหาที่แจ้ง</Table.Th>
                 <Table.Th>หมวดหมู่</Table.Th>
                 <Table.Th>ความมั่นใจจาก AI</Table.Th>
                 <Table.Th>สถานะ</Table.Th>
+                <Table.Th>ผู้รับผิดชอบ</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {cases.map((item) => {
+              {visibleCases.map((item) => {
                 const caseStatusMeta = getStatusMeta(item.status);
+                const aiStatusLabel = item.analysisStatus === "AI_FAILED" ? "AI วิเคราะห์ไม่สำเร็จ" : item.analysisStatus === "AI_LOW_CONFIDENCE" ? "AI ความมั่นใจต่ำ" : item.analysisStatus === "NO_CUSTOMER_MESSAGE" ? "ไม่พบข้อความลูกค้า" : "AI วิเคราะห์แล้ว";
 
                 return (
-                <Table.Tr key={item.id}>
+                <Table.Tr key={item.id} style={{ backgroundColor: selectedCaseId === item.id ? "var(--mantine-color-blue-0)" : item.hasUnreadCustomerMessage ? "#f5fbff" : undefined, borderLeft: selectedCaseId === item.id ? "3px solid var(--mantine-color-blue-6)" : item.hasUnreadCustomerMessage ? "3px solid var(--mantine-color-blue-4)" : undefined }}>
                   <Table.Td>
                     <Text fw={700}>{item.customerName}</Text>
                     <Text c="dimmed" size="xs">
                       เคส {item.caseNumber}
                     </Text>
+                    {item.hasUnreadCustomerMessage ? <Badge color="blue" mt={4} size="xs" variant="light">ข้อความใหม่</Badge> : null}
                   </Table.Td>
-                  <Table.Td className="tableCellText">{item.originalText}</Table.Td>
+                  <Table.Td className="tableCellText" maw={360}>
+                    <Text fw={item.hasUnreadCustomerMessage ? 700 : 500} lineClamp={2} title={item.problemSummary}>{item.problemSummary}</Text>
+                    {item.problemSummaryStatus === "SUCCESS" ? <Badge color="violet" mt={4} size="xs" variant="light">สรุปโดย AI</Badge> : null}
+                    {item.latestCustomerMessage && item.latestCustomerMessage !== item.problemSummary && item.latestCustomerMessage !== item.initialCustomerMessage ? (
+                      <Text c="dimmed" lineClamp={1} mt={4} size="xs" title={item.latestCustomerMessage}>ล่าสุด: {item.latestCustomerMessage}</Text>
+                    ) : null}
+                    {item.latestCustomerMessageAt ? <Text c="dimmed" size="xs" title={formatEventTime(item.latestCustomerMessageAt)}>ลูกค้าตอบล่าสุด {relativeTime(item.latestCustomerMessageAt)}</Text> : null}
+                  </Table.Td>
                   <Table.Td>
                     <Badge variant="light">{item.category}</Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      <Progress
-                        color={confidenceColor(item.aiConfidence)}
-                        miw={72}
-                        size="sm"
-                        value={item.aiConfidence}
-                      />
-                      <Text fw={700} size="sm">
-                        {item.aiConfidence}%
-                      </Text>
-                    </Group>
+                    {item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE" ? <Text c="dimmed">-</Text> : (
+                      <Group gap="xs" wrap="nowrap">
+                        <Progress color={confidenceColor(item.aiConfidence)} miw={72} size="sm" value={item.aiConfidence} />
+                        <Text fw={700} size="sm">{item.aiConfidence}%</Text>
+                      </Group>
+                    )}
                   </Table.Td>
                   <Table.Td>
                     <Badge color={caseStatusMeta.color} variant="light">
                       {caseStatusMeta.label}
                     </Badge>
+                    <Badge color={item.analysisStatus === "AI_FAILED" ? "red" : item.analysisStatus === "AI_LOW_CONFIDENCE" ? "yellow" : "blue"} mt={4} size="xs" variant="light">{aiStatusLabel}</Badge>
                   </Table.Td>
+                  <Table.Td>{item.assignee ?? "-"}</Table.Td>
                   <Table.Td>
                     <Button onClick={() => onOpenCase(item)} size="xs" variant="light">
-                      เปิดเคส
+                      ดูเคส
                     </Button>
                   </Table.Td>
                 </Table.Tr>
@@ -334,11 +455,11 @@ function CaseInbox({
             </Table.Tbody>
           </Table>
         </ScrollArea>
-        {!isLoading && cases.length === 0 ? (
+        {!isLoading && visibleCases.length === 0 ? (
           <Paper bg="gray.0" mt="md" p="lg" radius="md">
-            <Text fw={700}>ยังไม่มีเคสจาก backend</Text>
+            <Text fw={700}>{cases.length === 0 ? "ยังไม่มีเคสจาก backend" : "ไม่พบเคสตามตัวกรอง"}</Text>
             <Text c="dimmed" size="sm">
-              เมื่อมีข้อมูลจาก POST /webhooks/line รายการเคสจะแสดงในตารางนี้
+              {cases.length === 0 ? "เมื่อมีข้อมูลจาก POST /webhooks/line รายการเคสจะแสดงในตารางนี้" : "ลองเปลี่ยนตัวกรองหรือล้างตัวกรองเพื่อดูรายการอื่น"}
             </Text>
           </Paper>
         ) : null}
@@ -1541,6 +1662,7 @@ export default function OffMlProjectDashboardContent() {
                 onRefresh={() => {
                   void loadCases();
                 }}
+                selectedCaseId={selectedCase?.id}
               />
             </Tabs.Panel>
             <Tabs.Panel value="detail">

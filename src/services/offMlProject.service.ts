@@ -58,17 +58,50 @@ function firstText(caseItem: OffMlProjectCaseResponse, senderType: "CUSTOMER" | 
   return latestByCreatedAt(caseItem.messages.filter((message) => message.senderType === senderType))[0]?.originalText;
 }
 
+function customerMessages(caseItem: OffMlProjectCaseResponse) {
+  return caseItem.messages
+    .filter((message) => message.senderType === "CUSTOMER" && message.direction === "INBOUND")
+    .sort((left, right) => {
+      const leftTime = new Date(left.receivedAt ?? left.createdAt).getTime();
+      const rightTime = new Date(right.receivedAt ?? right.createdAt).getTime();
+      return leftTime - rightTime;
+    });
+}
+
 function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCaseResponse["analyses"][number]["analysisType"]) {
   return latestByCreatedAt(caseItem.analyses.filter((analysis) => analysis.analysisType === type))[0];
 }
 
 export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase {
-  const customerMessage = firstText(caseItem, "CUSTOMER") ?? "";
+  const customerMessageList = customerMessages(caseItem);
+  const initialCustomerMessage = caseItem.initialCustomerMessageId
+    ? customerMessageList.find((message) => message.id === caseItem.initialCustomerMessageId)
+    : customerMessageList[0];
+  const latestCustomerMessage = caseItem.latestCustomerMessageId
+    ? customerMessageList.find((message) => message.id === caseItem.latestCustomerMessageId)
+    : customerMessageList.at(-1);
+  const customerMessage = initialCustomerMessage?.originalText ?? "";
+  const latestCustomerText = latestCustomerMessage?.originalText ?? "";
   const techReply = firstText(caseItem, "TECH");
   const outboundReply = firstText(caseItem, "BOT");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
+  const analysisStatus = !customerMessage
+    ? "NO_CUSTOMER_MESSAGE"
+    : caseItem.aiStatus ?? "AI_LOW_CONFIDENCE";
+  const problemSummary = caseItem.problemSummary
+    ?? (caseItem.aiStatus === "AI_FAILED"
+      ? "AI วิเคราะห์ไม่สำเร็จ"
+      : (caseItem.title || customerMessage || "ยังไม่มีข้อมูลสรุปปัญหา"));
+  const problemSummaryStatus = caseItem.problemSummaryStatus
+    ?? (caseItem.aiStatus === "AI_FAILED" ? "FAILED" : caseItem.problemSummary ? "SUCCESS" : "PENDING");
+  const latestOutbound = [...caseItem.messages]
+    .filter((message) => message.senderType !== "CUSTOMER" && message.direction === "OUTBOUND")
+    .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
+    .at(-1);
+  const hasUnreadCustomerMessage = caseItem.hasUnreadCustomerMessage
+    ?? Boolean(latestCustomerMessage && (!latestOutbound || new Date(latestCustomerMessage.receivedAt ?? latestCustomerMessage.createdAt).getTime() > new Date(latestOutbound.createdAt).getTime()));
 
   return {
     id: caseItem.id,
@@ -91,16 +124,26 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     customerName: caseItem.customer.displayName ?? caseItem.customer.lineUserId,
     lineUserId: caseItem.customer.lineUserId,
     originalText: customerMessage,
-    category: caseItem.aiStatus === "AI_FAILED" ? "วิเคราะห์ไม่สำเร็จ" : customerAnalysis?.category ?? caseItem.category ?? "-",
-    aiConfidence: customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
+    initialCustomerMessage: customerMessage,
+    latestCustomerMessage: latestCustomerText,
+    latestCustomerMessageAt: latestCustomerMessage?.receivedAt ?? latestCustomerMessage?.createdAt,
+    problemSummary,
+    problemSummaryStatus,
+    problemSummaryGeneratedAt: caseItem.problemSummaryGeneratedAt,
+    analysisStatus,
+    assignee: caseItem.assigneeName ?? null,
+    lastActivityAt: caseItem.updatedAt,
+    hasUnreadCustomerMessage,
+    category: caseItem.aiStatus === "AI_FAILED"
+      ? "AI วิเคราะห์ไม่สำเร็จ"
+      : caseItem.dataStatus === "DATA_INCOMPLETE"
+        ? "ต้องการข้อมูลเพิ่มเติม"
+        : customerAnalysis?.category ?? caseItem.category ?? "-",
+    aiConfidence: caseItem.aiStatus === "AI_FAILED" ? 0 : customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),
     slaHours: 4,
-    summary: !customerMessage
-      ? "ไม่สามารถวิเคราะห์ได้ เนื่องจากไม่พบข้อความต้นฉบับจากลูกค้า"
-      : caseItem.aiStatus === "AI_FAILED"
-        ? "AI วิเคราะห์ไม่สำเร็จ กรุณาตรวจสอบอีกครั้ง"
-      : customerAnalysis?.summary ?? "ยังไม่มีผลวิเคราะห์โดย AI",
+    summary: problemSummary,
     teamsThread: [
       "ระบบแจ้งลูกค้า + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
       techReply ? `Tech Support ตอบกลับ: ${techReply}` : "รอทีม Tech Support วิเคราะห์และตอบกลับ",
