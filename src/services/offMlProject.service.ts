@@ -165,6 +165,26 @@ export async function generateMoreInfoRequest(caseId: string, requestedInformati
   });
 }
 
+export type AiComposeMode = "CUSTOMER_REPLY" | "REQUEST_MORE_INFO";
+
+export type AiComposeResult = {
+  mode: AiComposeMode;
+  suggestedMessage: string;
+  suggestedMode: AiComposeMode;
+  reason: string;
+  requestedFields: string[];
+  missingInformation: string[];
+  rewrittenMessageId: string;
+  sourceMessageId?: string;
+};
+
+export async function composeAiMessage(caseId: string, input: { mode: AiComposeMode; supportInstruction?: string; requestedInformation?: string }): Promise<AiComposeResult> {
+  return request<AiComposeResult>(`/cases/${caseId}/ai-compose`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function closeCaseWithReply(caseId: string, text: string): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/close`, {
     method: "POST",

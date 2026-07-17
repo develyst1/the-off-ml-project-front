@@ -38,7 +38,7 @@ import {
   getCase,
   getCases,
   getConfidenceSuggestions,
-  generateMoreInfoRequest,
+  composeAiMessage,
   acceptCase,
   reviewConfidenceSuggestion,
   updateAutomationSettings,
@@ -46,8 +46,8 @@ import {
   replyToCustomer,
   closeCaseWithReply,
   reopenCase,
-  rewriteCustomerReply,
 } from "@/services/offMlProject.service";
+import type { AiComposeMode, AiComposeResult } from "@/services/offMlProject.service";
 import type {
   AnalyticsSummary,
   AutoAnswerLog,
@@ -354,9 +354,8 @@ function CaseDetail({
   onAcceptCase,
   onReply,
   onCloseCase,
-  onGenerateMoreInfo,
+  onComposeAi,
   onReopenCase,
-  onRewriteReply,
   onRequestInfo,
 }: {
   item: SupportCase | null;
@@ -365,9 +364,8 @@ function CaseDetail({
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
   onCloseCase: (text: string) => Promise<void>;
-  onGenerateMoreInfo: (requestedInformation?: string) => Promise<{ suggestedMessage: string; requestedFields: string[]; reason: string; rewrittenMessageId: string; sourceMessageId?: string }>;
+  onComposeAi: (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => Promise<AiComposeResult>;
   onReopenCase: () => Promise<void>;
-  onRewriteReply: (text: string) => Promise<string>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
@@ -378,9 +376,10 @@ function CaseDetail({
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [actionMode, setActionMode] = useState<"CUSTOMER_REPLY" | "REQUEST_MORE_INFO">("CUSTOMER_REPLY");
+  const [supportInstruction, setSupportInstruction] = useState("");
   const [moreInfoGoal, setMoreInfoGoal] = useState("");
   const [moreInfoReason, setMoreInfoReason] = useState<string>();
-  const [moreInfoPanelOpen, setMoreInfoPanelOpen] = useState(false);
+  const [aiMissingInformation, setAiMissingInformation] = useState<string[]>([]);
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
   const [closeMessageText, setCloseMessageText] = useState("");
   const [closeToastVisible, setCloseToastVisible] = useState(false);
@@ -397,7 +396,6 @@ function CaseDetail({
       if (initialAction === "request-info") {
         setReplyOpen(true);
         setActionMode("REQUEST_MORE_INFO");
-        setMoreInfoPanelOpen(true);
         onInitialActionHandled();
         return;
       }
@@ -498,38 +496,25 @@ function CaseDetail({
     }
   };
 
-  const rewriteReply = async () => {
-    const text = replyText.trim();
-    if (!text || actionState !== "idle") return;
-
-    setActionState("rewriting");
-    setActionError(undefined);
-    setActionNotice(undefined);
-    try {
-      setReplyText(await onRewriteReply(text));
-      setActionNotice("AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : "AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้ คุณยังสามารถส่งข้อความเดิมได้");
-    } finally {
-      setActionState("idle");
-    }
-  };
-
-  const generateMoreInfo = async () => {
+  const composeWithAi = async () => {
     if (actionState !== "idle") return;
     setActionState("rewriting");
     setActionError(undefined);
     setActionNotice(undefined);
+    setAiMissingInformation([]);
     try {
-      const draft = await onGenerateMoreInfo(moreInfoGoal.trim() || undefined);
-      setReplyText(draft.suggestedMessage);
-      setRequestInfoDraftMessageId(draft.rewrittenMessageId);
+      const draft = await onComposeAi(
+        actionMode,
+        actionMode === "CUSTOMER_REPLY" ? supportInstruction.trim() || undefined : undefined,
+        actionMode === "REQUEST_MORE_INFO" ? moreInfoGoal.trim() || undefined : undefined,
+      );
+      if (draft.suggestedMessage.trim()) setReplyText(draft.suggestedMessage);
+      setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? draft.rewrittenMessageId : undefined);
       setMoreInfoReason(draft.reason);
-      setActionMode("REQUEST_MORE_INFO");
-      setMoreInfoPanelOpen(false);
-      setActionNotice("AI สร้างคำขอข้อมูลแล้ว กรุณาตรวจสอบและแก้ไขก่อนส่ง");
+      setAiMissingInformation(actionMode === "CUSTOMER_REPLY" ? draft.missingInformation : []);
+      setActionNotice("AI สร้างข้อความแล้ว กรุณาตรวจสอบและแก้ไขก่อนส่ง");
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "AI ไม่สามารถสร้างคำขอข้อมูลเพิ่มเติมได้ในขณะนี้ คุณยังสามารถพิมพ์ข้อความและส่งด้วยตนเองได้");
+      setActionError(error instanceof Error ? error.message : "AI ไม่สามารถสร้างข้อความได้ในขณะนี้ คุณยังสามารถพิมพ์ข้อความและส่งด้วยตนเองได้");
     } finally {
       setActionState("idle");
     }
@@ -755,7 +740,7 @@ function CaseDetail({
                         setActionError(undefined);
                         setActionNotice(undefined);
                         setActionMode("CUSTOMER_REPLY");
-                        setMoreInfoPanelOpen(false);
+                        setAiMissingInformation([]);
                         setReplyOpen(true);
                       }}
                       size="xs"
@@ -810,11 +795,9 @@ function CaseDetail({
                           onChange={(value) => {
                             const nextMode = (value as "CUSTOMER_REPLY" | "REQUEST_MORE_INFO" | null) ?? "CUSTOMER_REPLY";
                             setActionMode(nextMode);
-                            setMoreInfoPanelOpen(nextMode === "REQUEST_MORE_INFO");
-                            if (nextMode !== "REQUEST_MORE_INFO") {
-                              setRequestInfoDraftMessageId(undefined);
-                              setMoreInfoReason(undefined);
-                            }
+                            setRequestInfoDraftMessageId(undefined);
+                            setMoreInfoReason(undefined);
+                            setAiMissingInformation([]);
                           }}
                           size="xs"
                           value={actionMode}
@@ -831,46 +814,55 @@ function CaseDetail({
                         placeholder={actionMode === "REQUEST_MORE_INFO" ? "เช่น รบกวนแจ้งเวลาที่พบปัญหาและแนบภาพหน้าจอเพิ่มเติมนะคะ" : "พิมพ์ข้อความที่ต้องการส่งให้ลูกค้า"}
                         value={replyText}
                       />
-                      <Group className="caseReplyComposerTools" gap="sm" mt="sm">
+                      <Paper className="caseMoreInfoGoalPanel" mt="sm" p="sm" radius="sm" withBorder>
+                        <Text fw={700} size="sm">
+                          {actionMode === "CUSTOMER_REPLY" ? "ให้ AI ช่วยร่างคำตอบลูกค้า" : "ระบุข้อมูลที่ต้องการขอเพิ่มเติม"}
+                        </Text>
+                        <Text c="dimmed" size="xs" mt={4}>
+                          {actionMode === "CUSTOMER_REPLY"
+                            ? "AI จะอ่านข้อความล่าสุดและประวัติในเคส เพื่อช่วยร่างคำตอบที่เหมาะสม"
+                            : "AI จะดูบริบทของเคสและช่วยสร้างคำถาม โดยไม่ถามข้อมูลซ้ำ"}
+                        </Text>
+                        {actionMode === "CUSTOMER_REPLY" ? (
+                          <Textarea
+                            autosize
+                            label="แนวทางที่ต้องการให้ AI ช่วยตอบ"
+                            minRows={2}
+                            mt="sm"
+                            onChange={(event) => setSupportInstruction(event.currentTarget.value)}
+                            placeholder="เช่น แนะนำให้ตรวจสอบสาย LAN และสถานะ Network Adapter"
+                            value={supportInstruction}
+                          />
+                        ) : (
+                          <TextInput
+                            label="ระบุข้อมูลที่ต้องการขอเพิ่มเติม"
+                            mt="sm"
+                            onChange={(event) => setMoreInfoGoal(event.currentTarget.value)}
+                            placeholder="เช่น ขอภาพหน้าจอ เวลาที่พบปัญหา หรือรุ่นอุปกรณ์"
+                            value={moreInfoGoal}
+                          />
+                        )}
+                        {moreInfoReason ? <Text c="dimmed" mt="xs" size="xs">เหตุผลสำหรับทีม: {moreInfoReason}</Text> : null}
                         <Button
                           className="caseReplyComposerAi"
-                          disabled={!replyText.trim() || isActionRunning}
-                          leftSection={<AppIcon name="brain" size={16} />}
-                          loading={actionState === "rewriting"}
-                          onClick={() => void rewriteReply()}
-                          variant="light"
-                        >
-                          ช่วยเรียบเรียงคำตอบด้วย AI
-                        </Button>
-                        <Button
                           disabled={isActionRunning}
                           leftSection={<AppIcon name="brain" size={16} />}
-                          loading={actionState === "rewriting" && actionMode === "REQUEST_MORE_INFO"}
-                          onClick={() => setMoreInfoPanelOpen((open) => !open)}
+                          loading={actionState === "rewriting"}
+                          mt="sm"
+                          onClick={() => void composeWithAi()}
                           variant="light"
                         >
-                          AI ช่วยขอข้อมูลเพิ่มเติม
+                          {actionMode === "CUSTOMER_REPLY" ? "สร้างคำตอบด้วย AI" : "สร้างคำขอข้อมูลด้วย AI"}
                         </Button>
-                      </Group>
-                      {moreInfoPanelOpen ? (
-                        <Paper className="caseMoreInfoGoalPanel" mt="sm" p="sm" radius="sm" withBorder>
-                          <Text fw={700} size="sm">ระบุข้อมูลที่ต้องการขอเพิ่มเติม (ไม่บังคับ)</Text>
-                          <Text c="dimmed" size="xs" mt={4}>
-                            AI จะดูบริบทของเคสและช่วยร่างข้อความให้เอง โดยยังไม่ส่งให้ลูกค้า
-                          </Text>
-                          <Group align="end" gap="sm" mt="sm">
-                            <TextInput
-                              onChange={(event) => setMoreInfoGoal(event.currentTarget.value)}
-                              placeholder="เช่น ขอชื่อวิชา เวลาที่พบปัญหา หรือภาพหน้าจอ"
-                              value={moreInfoGoal}
-                              style={{ flex: 1 }}
-                            />
-                            <Button disabled={isActionRunning} loading={actionState === "rewriting"} onClick={() => void generateMoreInfo()}>
-                              สร้างข้อความด้วย AI
-                            </Button>
-                          </Group>
-                          {moreInfoReason ? <Text c="dimmed" mt="xs" size="xs">เหตุผลสำหรับทีม: {moreInfoReason}</Text> : null}
-                        </Paper>
+                      </Paper>
+                      {actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
+                        <Alert color="yellow" mt="md" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
+                          <Text size="sm">แนะนำให้เปลี่ยนเป็นโหมดขอข้อมูลเพิ่มเติม</Text>
+                          <Text c="dimmed" mt={4} size="sm">ข้อมูลที่ยังขาด: {aiMissingInformation.join(", ")}</Text>
+                          <Button mt="sm" onClick={() => { setActionMode("REQUEST_MORE_INFO"); setAiMissingInformation([]); }} size="xs" variant="light">
+                            เปลี่ยนเป็นโหมดขอข้อมูลเพิ่มเติม
+                          </Button>
+                        </Alert>
                       ) : null}
                       {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
                       {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
@@ -1438,11 +1430,6 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleGenerateMoreInfo = async (requestedInformation?: string) => {
-    if (!selectedCase) throw new Error("ยังไม่ได้เลือกเคส");
-    return generateMoreInfoRequest(selectedCase.id, requestedInformation);
-  };
-
   const handleReply = async (text: string) => {
     if (!selectedCase) return;
     const updatedCase = await replyToCustomer(selectedCase.id, text);
@@ -1457,17 +1444,16 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
+  const handleComposeAi = async (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => {
+    if (!selectedCase) throw new Error("ยังไม่ได้เลือกเคส");
+    return composeAiMessage(selectedCase.id, { mode, supportInstruction, requestedInformation });
+  };
+
   const handleReopenCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await reopenCase(selectedCase.id);
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
-  };
-
-  const handleRewriteReply = async (text: string) => {
-    if (!selectedCase) throw new Error("ยังไม่ได้เลือกเคส");
-    const result = await rewriteCustomerReply(selectedCase.id, text, "NORMAL_REPLY");
-    return result.rewrittenMessage;
   };
 
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
@@ -1565,9 +1551,8 @@ export default function OffMlProjectDashboardContent() {
                 onInitialActionHandled={() => setInitialAction(undefined)}
                 onReply={handleReply}
                 onCloseCase={handleCloseCase}
-                onGenerateMoreInfo={handleGenerateMoreInfo}
+                onComposeAi={handleComposeAi}
                 onReopenCase={handleReopenCase}
-                onRewriteReply={handleRewriteReply}
                 onRequestInfo={handleRequestInfo}
               />
             </Tabs.Panel>

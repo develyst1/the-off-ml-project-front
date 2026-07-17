@@ -73,6 +73,7 @@ export interface OffMlProjectMessageResponse {
   sentAt?: string;
   deliveredAt?: string;
   failedAt?: string;
+  metadata?: Record<string, unknown>;
   externalMessageId?: string;
   createdAt: string;
 }
