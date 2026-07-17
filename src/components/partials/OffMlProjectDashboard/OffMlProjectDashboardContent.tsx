@@ -44,6 +44,7 @@ import {
   updateAutomationSettings,
   requestAdditionalInfo,
   replyToCustomer,
+  closeCaseWithReply,
   reopenCase,
   rewriteCustomerReply,
 } from "@/services/offMlProject.service";
@@ -77,6 +78,8 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   sent: { label: "ส่งคำตอบแล้ว", color: "green" },
   sla_breach: { label: "เกิน SLA", color: "red" },
 };
+
+const DEFAULT_CLOSE_CUSTOMER_MESSAGE = "ทีมงานดำเนินการในเรื่องนี้เรียบร้อยแล้ว จึงขอปิดเคสนี้นะคะ\nหากยังพบปัญหา สามารถตอบกลับพร้อมแจ้งหมายเลขเคสได้เลยค่ะ";
 
 const fallbackStatusMeta = { label: "ไม่ทราบสถานะ", color: "gray" };
 
@@ -350,6 +353,7 @@ function CaseDetail({
   onInitialActionHandled,
   onAcceptCase,
   onReply,
+  onCloseCase,
   onGenerateMoreInfo,
   onReopenCase,
   onRewriteReply,
@@ -360,13 +364,14 @@ function CaseDetail({
   onInitialActionHandled: () => void;
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
+  onCloseCase: (text: string) => Promise<void>;
   onGenerateMoreInfo: (requestedInformation?: string) => Promise<{ suggestedMessage: string; requestedFields: string[]; reason: string; rewrittenMessageId: string; sourceMessageId?: string }>;
   onReopenCase: () => Promise<void>;
   onRewriteReply: (text: string) => Promise<string>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
-  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "reopening" | "rewriting">("idle");
+  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "closing" | "reopening" | "rewriting">("idle");
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
   const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
@@ -376,6 +381,9 @@ function CaseDetail({
   const [moreInfoGoal, setMoreInfoGoal] = useState("");
   const [moreInfoReason, setMoreInfoReason] = useState<string>();
   const [moreInfoPanelOpen, setMoreInfoPanelOpen] = useState(false);
+  const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
+  const [closeMessageText, setCloseMessageText] = useState("");
+  const [closeToastVisible, setCloseToastVisible] = useState(false);
   const handledInitialAction = useRef(false);
   const replyComposerRef = useRef<HTMLDivElement | null>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -414,6 +422,12 @@ function CaseDetail({
     return () => window.clearTimeout(timer);
   }, [replyOpen]);
 
+  useEffect(() => {
+    if (!closeToastVisible) return;
+    const timer = window.setTimeout(() => setCloseToastVisible(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [closeToastVisible]);
+
   if (!item) {
     return (
       <Card padding="lg" radius="md" withBorder>
@@ -431,7 +445,7 @@ function CaseDetail({
   const isActionRunning = actionState !== "idle";
   const isClosed = item.status === "closed";
 
-  const runAction = async (action: "accepting" | "requesting" | "replying" | "reopening", successMessage: string, handler: () => Promise<void>) => {
+  const runAction = async (action: "accepting" | "requesting" | "replying" | "closing" | "reopening", successMessage: string, handler: () => Promise<void>) => {
     setActionState(action);
     setActionError(undefined);
     setActionNotice(undefined);
@@ -465,6 +479,22 @@ function CaseDetail({
       setReplyText("");
       setRequestInfoDraftMessageId(undefined);
       setMoreInfoReason(undefined);
+    }
+  };
+
+  const submitCloseCase = async () => {
+    const message = closeMessageText.trim() || DEFAULT_CLOSE_CUSTOMER_MESSAGE;
+    const completed = await runAction(
+      "closing",
+      "ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว",
+      () => onCloseCase(message),
+    );
+    if (completed) {
+      setCloseConfirmationOpen(false);
+      setCloseMessageText("");
+      setReplyOpen(false);
+      setActionMode("CUSTOMER_REPLY");
+      setCloseToastVisible(true);
     }
   };
 
@@ -514,9 +544,16 @@ function CaseDetail({
           </Title>
           <Text c="dimmed">line_user_id: {item.lineUserId} · ส่งเมื่อ {item.createdAt}</Text>
         </Box>
-        <Badge color={currentStatusMeta.color} size="lg" variant="light">
-          {statusLabel}
-        </Badge>
+        <Box ta="right">
+          <Badge color={currentStatusMeta.color} size="lg" variant="light">
+            {statusLabel}
+          </Badge>
+          {isClosed && item.closedAt ? (
+            <Text c="dimmed" mt={4} size="xs">
+              ปิดเมื่อ {formatEventTime(item.closedAt)}{item.closedBy ? ` โดย ${item.closedBy}` : ""}
+            </Text>
+          ) : null}
+        </Box>
       </Group>
 
       <Alert color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
@@ -726,6 +763,20 @@ function CaseDetail({
                     >
                       ตอบลูกค้า
                     </Button>
+                    <Button
+                      color="orange"
+                      disabled={isActionRunning || isClosed}
+                      loading={actionState === "closing"}
+                      onClick={() => {
+                        setActionError(undefined);
+                        setCloseMessageText("");
+                        setCloseConfirmationOpen(true);
+                      }}
+                      size="xs"
+                      variant="light"
+                    >
+                      {actionState === "closing" ? "กำลังปิดเคส..." : "ปิดเคส"}
+                    </Button>
                     {isClosed ? (
                       <Button
                         color="orange"
@@ -906,6 +957,40 @@ function CaseDetail({
           </Stack>
         </SimpleGrid>
       </Card>
+      <Modal
+        opened={closeConfirmationOpen}
+        onClose={() => actionState === "idle" && setCloseConfirmationOpen(false)}
+        title="ยืนยันการปิดเคส"
+      >
+        <Text>
+          ต้องการปิดเคส {item.caseNumber} ใช่ไหม?
+        </Text>
+        <Text c="dimmed" mt="xs" size="sm">
+          เรื่อง: {item.summary}
+        </Text>
+        <Text c="dimmed" mt="xs" size="sm">
+          หลังปิดเคส ลูกค้าจะได้รับข้อความแจ้งว่าเคสนี้ปิดแล้ว
+        </Text>
+        <Textarea
+          autosize
+          label="ข้อความแจ้งลูกค้า"
+          minRows={4}
+          mt="md"
+          onChange={(event) => setCloseMessageText(event.currentTarget.value)}
+          placeholder="เช่น ทีมงานตรวจสอบและแนะนำวิธีแก้ไขเรียบร้อยแล้วค่ะ"
+          value={closeMessageText}
+        />
+        {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
+        <Group justify="flex-end" mt="md">
+          <Button disabled={actionState !== "idle"} onClick={() => setCloseConfirmationOpen(false)} variant="default">
+            ยกเลิก
+          </Button>
+          <Button color="orange" disabled={actionState !== "idle"} loading={actionState === "closing"} onClick={() => void submitCloseCase()}>
+            {actionState === "closing" ? "กำลังปิดเคส..." : "ยืนยันปิดเคส"}
+          </Button>
+        </Group>
+      </Modal>
+      {closeToastVisible ? <Box className="caseConversationCopyToast" role="status">ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว</Box> : null}
     </Stack>
   );
 }
@@ -1365,6 +1450,13 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
+  const handleCloseCase = async (text: string) => {
+    if (!selectedCase) return;
+    const updatedCase = await closeCaseWithReply(selectedCase.id, text);
+    setSelectedCase(updatedCase);
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+  };
+
   const handleReopenCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await reopenCase(selectedCase.id);
@@ -1472,6 +1564,7 @@ export default function OffMlProjectDashboardContent() {
                 onAcceptCase={handleAcceptCase}
                 onInitialActionHandled={() => setInitialAction(undefined)}
                 onReply={handleReply}
+                onCloseCase={handleCloseCase}
                 onGenerateMoreInfo={handleGenerateMoreInfo}
                 onReopenCase={handleReopenCase}
                 onRewriteReply={handleRewriteReply}
