@@ -29,6 +29,8 @@ export interface SupportCase {
   techRepliedAt?: string;
   lineSentAt?: string;
   lineDeliveredAt?: string;
+  closedAt?: string;
+  closedBy?: string;
   teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
   teamsDeliveryAt?: string;
   teamsDeliveryError?: string;
@@ -113,6 +115,8 @@ export interface OffMlProjectCaseResponse {
   techRepliedAt?: string;
   lineSentAt?: string;
   lineDeliveredAt?: string;
+  closedAt?: string;
+  closedBy?: string;
   customerId: string;
   teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
   teamsDeliveryAt?: string;

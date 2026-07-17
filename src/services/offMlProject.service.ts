@@ -83,6 +83,8 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     techRepliedAt: caseItem.techRepliedAt,
     lineSentAt: caseItem.lineSentAt,
     lineDeliveredAt: caseItem.lineDeliveredAt,
+    closedAt: caseItem.closedAt,
+    closedBy: caseItem.closedBy,
     teamsDeliveryStatus: caseItem.teamsDeliveryStatus,
     teamsDeliveryAt: caseItem.teamsDeliveryAt,
     teamsDeliveryError: caseItem.teamsDeliveryError,
@@ -152,6 +154,29 @@ export async function replyToCustomer(caseId: string, text: string): Promise<Sup
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/reply`, {
     method: "POST",
     body: JSON.stringify({ text }),
+  });
+  return mapCaseResponse(caseItem);
+}
+
+export async function closeCaseWithReply(caseId: string, text: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/close`, {
+    method: "POST",
+    body: JSON.stringify({ text, closedBy: "Tech Support Console" }),
+  });
+  return mapCaseResponse(caseItem);
+}
+
+export async function rewriteCustomerReply(caseId: string, text: string, mode: "NORMAL_REPLY" | "CLOSING_REPLY") {
+  return request<{ rewrittenMessage: string }>(`/cases/${caseId}/rewrite-reply`, {
+    method: "POST",
+    body: JSON.stringify({ text, mode }),
+  });
+}
+
+export async function reopenCase(caseId: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/reopen`, {
+    method: "POST",
+    body: JSON.stringify({ reopenedBy: "Tech Support Console" }),
   });
   return mapCaseResponse(caseItem);
 }

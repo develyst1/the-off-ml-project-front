@@ -227,6 +227,28 @@ body {
   padding: 12px 14px;
 }
 
+.caseReplyComposer {
+  background: var(--mantine-color-gray-0);
+}
+
+.caseReplyComposerActions {
+  align-items: center;
+}
+
+@media (max-width: 48em) {
+  .caseReplyComposerActions,
+  .caseReplyComposerSubmit {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .caseReplyComposerActions button,
+  .caseReplyComposerSubmit button {
+    width: 100%;
+  }
+}
+
 .operationStepper {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
