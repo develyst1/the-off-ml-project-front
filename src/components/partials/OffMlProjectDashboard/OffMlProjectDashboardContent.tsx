@@ -737,6 +737,7 @@ function CaseDetail({
                       onClick={() => {
                         setActionError(undefined);
                         setActionNotice(undefined);
+                        setRequestInfoOpen(false);
                         setReplyOpen(true);
                       }}
                       size="xs"
@@ -748,7 +749,12 @@ function CaseDetail({
                       color="gray"
                       disabled={isActionRunning || isClosed}
                       loading={actionState === "requesting"}
-                      onClick={() => setRequestInfoOpen(true)}
+                      onClick={() => {
+                        setActionError(undefined);
+                        setActionNotice(undefined);
+                        setReplyOpen(false);
+                        setRequestInfoOpen(true);
+                      }}
                       size="xs"
                       variant="light"
                     >
@@ -819,6 +825,51 @@ function CaseDetail({
                       </Group>
                     </Paper>
                   ) : null}
+                  {requestInfoOpen && !isClosed ? (
+                    <Paper className="caseReplyComposer" mt="md" p="md" radius="md" withBorder>
+                      <Text fw={800} size="sm">ขอข้อมูลเพิ่มเติมจากลูกค้าทาง LINE</Text>
+                      <Textarea
+                        autosize
+                        label="ข้อความที่จะส่งให้ลูกค้า"
+                        minRows={5}
+                        mt="sm"
+                        onChange={(event) => setRequestInfoText(event.currentTarget.value)}
+                        placeholder="เช่น รบกวนส่งภาพหน้าจอและเวลาที่พบปัญหาเพิ่มเติมนะคะ"
+                        value={requestInfoText}
+                      />
+                      <Group className="caseReplyComposerActions" justify="space-between" mt="md">
+                        <Button
+                          className="caseReplyComposerAi"
+                          disabled={!requestInfoText.trim() || isActionRunning}
+                          leftSection={<AppIcon name="brain" size={16} />}
+                          loading={actionState === "rewriting"}
+                          onClick={() => void rewriteRequestInfo()}
+                          variant="light"
+                        >
+                          {actionState === "rewriting" ? "กำลังเรียบเรียง..." : "ช่วยเรียบเรียงด้วย AI"}
+                        </Button>
+                        <Group className="caseReplyComposerSubmit" gap="sm">
+                          <Button
+                            disabled={isActionRunning}
+                            onClick={() => {
+                              setRequestInfoOpen(false);
+                              setActionError(undefined);
+                            }}
+                            variant="default"
+                          >
+                            ยกเลิก
+                          </Button>
+                          <Button
+                            disabled={!requestInfoText.trim() || isActionRunning}
+                            loading={actionState === "requesting"}
+                            onClick={() => void submitRequestInfo()}
+                          >
+                            ส่งข้อความ
+                          </Button>
+                        </Group>
+                      </Group>
+                    </Paper>
+                  ) : null}
                   {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
                   {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
                 </Paper>
@@ -877,35 +928,6 @@ function CaseDetail({
           </Stack>
         </SimpleGrid>
       </Card>
-      <Modal opened={requestInfoOpen} onClose={() => actionState === "idle" && setRequestInfoOpen(false)} title="ขอข้อมูลเพิ่มเติมจากลูกค้า">
-        <Textarea
-          autosize
-          label="ข้อความที่จะส่งทาง LINE"
-          minRows={4}
-          onChange={(event) => setRequestInfoText(event.currentTarget.value)}
-          placeholder="เช่น กรุณาส่งภาพหน้าจอและเวลาที่พบปัญหาเพิ่มเติม"
-          value={requestInfoText}
-        />
-        <Group justify="space-between" mt="md">
-          <Button
-            disabled={!requestInfoText.trim() || actionState !== "idle"}
-            leftSection={<AppIcon name="brain" size={16} />}
-            loading={actionState === "rewriting"}
-            onClick={() => void rewriteRequestInfo()}
-            variant="light"
-          >
-            {actionState === "rewriting" ? "กำลังเรียบเรียง..." : "ช่วยเรียบเรียงด้วย AI"}
-          </Button>
-          <Group gap="sm">
-            <Button disabled={actionState !== "idle"} onClick={() => setRequestInfoOpen(false)} variant="default">
-              ยกเลิก
-            </Button>
-            <Button disabled={!requestInfoText.trim() || actionState !== "idle"} loading={actionState === "requesting"} onClick={() => void submitRequestInfo()}>
-              ส่งข้อความ
-            </Button>
-          </Group>
-        </Group>
-      </Modal>
       <Modal
         opened={closeConfirmationOpen}
         onClose={() => actionState === "idle" && setCloseConfirmationOpen(false)}
