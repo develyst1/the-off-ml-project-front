@@ -74,7 +74,7 @@ body {
 .caseConversationSummaryLayout {
   align-items: center;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -95,16 +95,27 @@ body {
   display: flex;
   flex: 1 1 auto;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
 }
 
 .caseConversationMetric {
   align-items: center;
   border-left: 1px solid #eef1f5;
+  border-radius: 6px;
   flex: 1 1 108px;
   min-width: 0;
-  padding: 2px 8px;
+  padding: 4px 7px;
+  text-align: left;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.caseConversationMetric:hover,
+.caseConversationMetric:focus-visible,
+.caseConversationMetric.isActive {
+  background: #f1f5f9;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
+  outline: none;
 }
 
 .caseConversationMetricCount {
@@ -132,7 +143,7 @@ body {
 
 .caseConversationFilters {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto minmax(230px, 290px);
+  grid-template-columns: minmax(190px, 1.4fr) repeat(4, minmax(138px, 0.75fr)) minmax(190px, 1fr);
   align-items: center;
   gap: 10px;
   background: #ffffff;
@@ -148,8 +159,8 @@ body {
 
 .caseConversationTimelineItem {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
   min-width: 0;
 }
 
@@ -161,7 +172,7 @@ body {
 }
 
 .caseConversationTimelineLine {
-  background: #dbe4f0;
+  background: #e5eaf1;
   bottom: -12px;
   left: 50%;
   position: absolute;
@@ -176,13 +187,36 @@ body {
   min-width: 0;
 }
 
+.caseConversationSystemRow {
+  background: #f8fafc;
+  border-left: 3px solid #a8b0bb;
+  min-width: 0;
+}
+
+.caseConversationDateSeparator {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 8px 0 4px 42px;
+}
+
+.caseConversationDateSeparator::before,
+.caseConversationDateSeparator::after {
+  background: #e5eaf1;
+  content: "";
+  height: 1px;
+  max-width: 180px;
+  width: 100%;
+}
+
 .caseConversationTimelineHeader {
   align-items: flex-start;
 }
 
 .caseConversationTimestamp {
   flex: none;
-  min-width: 138px;
+  white-space: nowrap;
 }
 
 .caseConversationStatusDot {
@@ -299,6 +333,14 @@ body {
     flex-basis: calc(100% - 202px);
   }
 
+  .caseConversationFilters {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+
+  .caseConversationSearch {
+    grid-column: span 3;
+  }
+
   .caseConversationRange {
     margin-left: 0;
   }
@@ -320,6 +362,10 @@ body {
 
   .caseConversationFilters {
     grid-template-columns: 1fr;
+  }
+
+  .caseConversationSearch {
+    grid-column: auto;
   }
 
   .caseConversationFilterChips {
@@ -356,6 +402,10 @@ body {
     flex-direction: column;
   }
 
+  .caseConversationMessageMeta {
+    width: 100%;
+  }
+
   .caseConversationTimestamp {
     border-top: 1px solid #edf0f5;
     min-width: 0;
@@ -367,5 +417,13 @@ body {
   .caseConversationTimestamp > p {
     justify-content: flex-start;
     text-align: left;
+  }
+
+  .caseConversationCurrentStatus {
+    align-items: flex-start;
+  }
+
+  .caseConversationDateSeparator {
+    margin-left: 42px;
   }
 }

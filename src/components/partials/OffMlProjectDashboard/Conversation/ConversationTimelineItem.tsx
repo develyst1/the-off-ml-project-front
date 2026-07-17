@@ -1,4 +1,4 @@
-import { Badge, Box, Group, Paper, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Badge, Box, Group, Paper, Text, ThemeIcon } from "@mantine/core";
 import { AppIcon } from "@/components/common";
 import { formatConversationDateTime, getConversationContent, getConversationMeta, getConversationStatus } from "./conversation.config";
 import type { ConversationMessage } from "./types";
@@ -14,32 +14,27 @@ export function ConversationTimelineItem({ isLast, message }: ConversationTimeli
   const timestamp = formatConversationDateTime(message.createdAt);
 
   return (
-    <Box className="caseConversationTimelineItem">
+    <Box className={`caseConversationTimelineItem ${meta.isSystemEvent ? "isSystemEvent" : ""}`}>
       <Box className="caseConversationTimelineRail">
         {!isLast ? <Box className="caseConversationTimelineLine" /> : null}
-        <ThemeIcon color={meta.color} radius="xl" size="lg" variant="filled">
-          <AppIcon name={meta.icon} size={17} />
+        <ThemeIcon color={meta.color} radius="xl" size={32} variant="filled">
+          <AppIcon name={meta.icon} size={16} />
         </ThemeIcon>
       </Box>
 
-      <Paper className="caseConversationTimelineCard" p="sm" radius="md" style={{ borderLeftColor: meta.accent }} withBorder>
+      <Paper className={meta.isSystemEvent ? "caseConversationSystemRow" : "caseConversationTimelineCard"} p="xs" radius="md" style={{ borderLeftColor: meta.accent }} withBorder>
         <Group className="caseConversationTimelineHeader" gap="xs" justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="wrap">
             <Badge color={meta.color} variant="light">{meta.label}</Badge>
             <Text c="dimmed" size="xs">{meta.actionLabel}</Text>
           </Group>
-          <Stack className="caseConversationTimestamp" gap={1}>
-            <Group gap={5} justify="flex-end" wrap="nowrap">
-              <Box className="caseConversationStatusDot" style={{ backgroundColor: `var(--mantine-color-${status.color}-6)` }} />
-              <Text c="dimmed" size="xs">{status.label}</Text>
-            </Group>
-            <Text c="dimmed" size="xs" ta="right">{timestamp.date}</Text>
-            <Text c="dimmed" size="xs" ta="right">{timestamp.time}</Text>
-          </Stack>
+          <Group className="caseConversationMessageMeta" gap="xs" wrap="nowrap">
+            {status.visible ? <Group gap={5} wrap="nowrap"><Box className="caseConversationStatusDot" style={{ backgroundColor: `var(--mantine-color-${status.color}-6)` }} /><Text c={status.color} size="xs">{status.label}</Text></Group> : null}
+            <Text className="caseConversationTimestamp" c="dimmed" size="xs" title={`${timestamp.date} ${timestamp.time}`}>{timestamp.time} น.</Text>
+          </Group>
         </Group>
-        <Text className="compactText" mt="xs" size="sm">{getConversationContent(message)}</Text>
+        <Text className="caseConversationMessageContent" mt={6} size="sm">{getConversationContent(message)}</Text>
       </Paper>
     </Box>
   );
 }
-

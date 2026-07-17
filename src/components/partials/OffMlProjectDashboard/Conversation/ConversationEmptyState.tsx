@@ -16,9 +16,7 @@ export function ConversationEmptyState({ kind, onRetry }: ConversationEmptyState
   return (
     <Paper bg="gray.0" p="xl" radius="md" withBorder>
       <Stack align="center" gap="xs">
-        <ThemeIcon color={kind === "error" ? "red" : "gray"} radius="xl" size="lg" variant="light">
-          <AppIcon name={kind === "error" ? "alert" : "message"} />
-        </ThemeIcon>
+        <ThemeIcon color={kind === "error" ? "red" : "gray"} radius="xl" size="lg" variant="light"><AppIcon name={kind === "error" ? "alert" : "message"} /></ThemeIcon>
         <Text fw={700}>{content.title}</Text>
         <Text c="dimmed" size="sm">{content.detail}</Text>
         {kind === "error" && onRetry ? <Button onClick={onRetry} size="xs" variant="light">ลองใหม่</Button> : null}
@@ -26,4 +24,3 @@ export function ConversationEmptyState({ kind, onRetry }: ConversationEmptyState
     </Paper>
   );
 }
-
