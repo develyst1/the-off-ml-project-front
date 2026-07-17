@@ -47,6 +47,7 @@ export interface SupportCase {
   assignee?: string | null;
   lastActivityAt: string;
   hasUnreadCustomerMessage: boolean;
+  isSlaBreached: boolean;
   category: string;
   aiConfidence: number;
   status: CaseStatus;

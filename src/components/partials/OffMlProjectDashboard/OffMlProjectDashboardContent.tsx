@@ -254,7 +254,6 @@ function CaseInbox({
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
-  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [slaOnly, setSlaOnly] = useState(false);
   const [caseScope, setCaseScope] = useState("open");
@@ -274,7 +273,6 @@ function CaseInbox({
     sent: 5,
   };
   const categories = [...new Set(cases.map((item) => item.category).filter((value) => value && value !== "-"))];
-  const assignees = [...new Set(cases.map((item) => item.assignee).filter((value): value is string => Boolean(value)))];
   const statusOptions = Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }));
 
   const visibleCases = cases
@@ -285,9 +283,8 @@ function CaseInbox({
       if (search.trim() && !searchable.includes(search.trim().toLocaleLowerCase())) return false;
       if (statusFilter && item.status !== statusFilter) return false;
       if (categoryFilter && item.category !== categoryFilter) return false;
-      if (assigneeFilter && item.assignee !== assigneeFilter) return false;
       if (unreadOnly && !item.hasUnreadCustomerMessage) return false;
-      if (slaOnly && item.status !== "sla_breach") return false;
+      if (slaOnly && !item.isSlaBreached) return false;
       if (caseScope === "open" && closedStatuses.has(item.status)) return false;
       if (caseScope === "closed" && !closedStatuses.has(item.status)) return false;
       if (confidenceFilter !== "all") {
@@ -307,18 +304,18 @@ function CaseInbox({
     .sort((left, right) => {
       if (sortMode === "oldest") return new Date(left.lastActivityAt).getTime() - new Date(right.lastActivityAt).getTime();
       if (sortMode === "latest") return new Date(right.lastActivityAt).getTime() - new Date(left.lastActivityAt).getTime();
+      if (left.isSlaBreached !== right.isSlaBreached) return left.isSlaBreached ? -1 : 1;
       const priorityDifference = (priorityOrder[left.status] ?? 4) - (priorityOrder[right.status] ?? 4);
       return priorityDifference || new Date(right.lastActivityAt).getTime() - new Date(left.lastActivityAt).getTime();
     });
 
-  const hasFilters = Boolean(search || statusFilter || categoryFilter || assigneeFilter || unreadOnly || slaOnly || confidenceFilter !== "all" || timeFilter !== "all" || caseScope !== "open" || sortMode !== "priority");
+  const hasFilters = Boolean(search || statusFilter || categoryFilter || unreadOnly || slaOnly || confidenceFilter !== "all" || timeFilter !== "all" || caseScope !== "open" || sortMode !== "priority");
   const resetFilters = () => {
     setSearch("");
     setStatusFilter(null);
     setCategoryFilter(null);
     setConfidenceFilter("all");
     setTimeFilter("all");
-    setAssigneeFilter(null);
     setUnreadOnly(false);
     setSlaOnly(false);
     setCaseScope("open");
@@ -328,11 +325,11 @@ function CaseInbox({
   const awaitingTechCase = cases.find((item) => item.status === "awaiting_tech") ?? cases[0];
   const awaitingConfirmationCase = cases.find((item) => item.status === "awaiting_confirmation");
   const resolvedCase = cases.find((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status));
-  const slaCase = cases.find((item) => item.status === "sla_breach");
+  const slaCase = cases.find((item) => item.isSlaBreached);
   const waitingCount = cases.filter((item) => item.status === "awaiting_tech").length;
   const confirmationCount = cases.filter((item) => item.status === "awaiting_confirmation").length;
   const closedCount = cases.filter((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status)).length;
-  const slaCount = cases.filter((item) => item.status === "sla_breach").length;
+  const slaCount = cases.filter((item) => item.isSlaBreached).length;
 
   return (
     <Stack gap="lg">
@@ -371,7 +368,7 @@ function CaseInbox({
           <TextInput
             flex={1}
             label="ค้นหา"
-            miw={240}
+            miw={320}
             onChange={(event) => setSearch(event.currentTarget.value)}
             placeholder="เลขเคส ชื่อลูกค้า หรือปัญหาที่แจ้ง"
             value={search}
@@ -380,7 +377,6 @@ function CaseInbox({
           <Select clearable data={categories} label="หมวดหมู่" onChange={setCategoryFilter} placeholder="ทั้งหมด" value={categoryFilter} />
           <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => setConfidenceFilter(value ?? "all")} value={confidenceFilter} />
           <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => setTimeFilter(value ?? "all")} value={timeFilter} />
-          <Select clearable data={assignees} label="ผู้รับผิดชอบ" onChange={setAssigneeFilter} placeholder="ทั้งหมด" value={assigneeFilter} />
           <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="การแสดงผล" onChange={(value) => setCaseScope(value ?? "open")} value={caseScope} />
           <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => setSortMode(value ?? "priority")} value={sortMode} />
           {hasFilters ? <Button onClick={resetFilters} variant="subtle">ล้างตัวกรอง</Button> : null}
@@ -392,22 +388,20 @@ function CaseInbox({
         </Group>
 
         <ScrollArea>
-          <Table highlightOnHover miw={1240} verticalSpacing="sm">
+          <Table highlightOnHover verticalSpacing="sm" style={{ tableLayout: "fixed", width: "100%" }}>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>ลูกค้า</Table.Th>
-                <Table.Th>ปัญหาที่แจ้ง</Table.Th>
-                <Table.Th>หมวดหมู่</Table.Th>
-                <Table.Th>ความมั่นใจจาก AI</Table.Th>
-                <Table.Th>สถานะ</Table.Th>
-                <Table.Th>ผู้รับผิดชอบ</Table.Th>
-                <Table.Th />
+                <Table.Th style={{ width: "13%" }}>ลูกค้า</Table.Th>
+                <Table.Th style={{ width: "30%" }}>ปัญหาที่แจ้ง</Table.Th>
+                <Table.Th style={{ width: "16%" }}>หมวดหมู่</Table.Th>
+                <Table.Th style={{ width: "15%" }}>ความมั่นใจจาก AI</Table.Th>
+                <Table.Th style={{ width: "18%" }}>สถานะ</Table.Th>
+                <Table.Th style={{ width: "8%" }}>Action</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {visibleCases.map((item) => {
                 const caseStatusMeta = getStatusMeta(item.status);
-                const aiStatusLabel = item.analysisStatus === "AI_FAILED" ? "AI วิเคราะห์ไม่สำเร็จ" : item.analysisStatus === "AI_LOW_CONFIDENCE" ? "AI ความมั่นใจต่ำ" : item.analysisStatus === "NO_CUSTOMER_MESSAGE" ? "ไม่พบข้อความลูกค้า" : "AI วิเคราะห์แล้ว";
 
                 return (
                 <Table.Tr key={item.id} style={{ backgroundColor: selectedCaseId === item.id ? "var(--mantine-color-blue-0)" : item.hasUnreadCustomerMessage ? "#f5fbff" : undefined, borderLeft: selectedCaseId === item.id ? "3px solid var(--mantine-color-blue-6)" : item.hasUnreadCustomerMessage ? "3px solid var(--mantine-color-blue-4)" : undefined }}>
@@ -418,8 +412,8 @@ function CaseInbox({
                     </Text>
                     {item.hasUnreadCustomerMessage ? <Badge color="blue" mt={4} size="xs" variant="light">ข้อความใหม่</Badge> : null}
                   </Table.Td>
-                  <Table.Td className="tableCellText" maw={360}>
-                    <Text fw={item.hasUnreadCustomerMessage ? 700 : 500} lineClamp={2} title={item.problemSummary}>{item.problemSummary}</Text>
+                  <Table.Td className="tableCellText">
+                    <Text fw={item.hasUnreadCustomerMessage ? 700 : 500} lineClamp={2} style={{ overflowWrap: "anywhere" }} title={item.problemSummary}>{item.problemSummary}</Text>
                     {item.problemSummaryStatus === "SUCCESS" ? <Badge color="violet" mt={4} size="xs" variant="light">สรุปโดย AI</Badge> : null}
                     {item.latestCustomerMessage && item.latestCustomerMessage !== item.problemSummary && item.latestCustomerMessage !== item.initialCustomerMessage ? (
                       <Text c="dimmed" lineClamp={1} mt={4} size="xs" title={item.latestCustomerMessage}>ล่าสุด: {item.latestCustomerMessage}</Text>
@@ -441,11 +435,10 @@ function CaseInbox({
                     <Badge color={caseStatusMeta.color} variant="light">
                       {caseStatusMeta.label}
                     </Badge>
-                    <Badge color={item.analysisStatus === "AI_FAILED" ? "red" : item.analysisStatus === "AI_LOW_CONFIDENCE" ? "yellow" : "blue"} mt={4} size="xs" variant="light">{aiStatusLabel}</Badge>
+                    {item.isSlaBreached && item.status !== "sla_breach" ? <Badge color="red" mt={4} size="xs" variant="light">เกิน SLA</Badge> : null}
                   </Table.Td>
-                  <Table.Td>{item.assignee ?? "-"}</Table.Td>
                   <Table.Td>
-                    <Button onClick={() => onOpenCase(item)} size="xs" variant="light">
+                    <Button fullWidth onClick={() => onOpenCase(item)} size="xs" variant="light">
                       ดูเคส
                     </Button>
                   </Table.Td>

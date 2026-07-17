@@ -72,6 +72,27 @@ function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCa
   return latestByCreatedAt(caseItem.analyses.filter((analysis) => analysis.analysisType === type))[0];
 }
 
+const SLA_HOURS = 4;
+const SLA_MONITORED_STATUSES = new Set<SupportCase["status"]>([
+  "new",
+  "analyzing",
+  "awaiting_tech",
+  "assigned",
+  "in_progress",
+  "analyzing_solution",
+  "awaiting_tech_review",
+  "reopened",
+  "sla_breach",
+]);
+
+function calculateSlaBreached(status: SupportCase["status"], activityAt: string | undefined) {
+  if (status === "sla_breach") return true;
+  if (!SLA_MONITORED_STATUSES.has(status) || !activityAt) return false;
+
+  const activityTime = new Date(activityAt).getTime();
+  return Number.isFinite(activityTime) && Date.now() - activityTime >= SLA_HOURS * 60 * 60 * 1000;
+}
+
 export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase {
   const customerMessageList = customerMessages(caseItem);
   const initialCustomerMessage = caseItem.initialCustomerMessageId
@@ -102,6 +123,8 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     .at(-1);
   const hasUnreadCustomerMessage = caseItem.hasUnreadCustomerMessage
     ?? Boolean(latestCustomerMessage && (!latestOutbound || new Date(latestCustomerMessage.receivedAt ?? latestCustomerMessage.createdAt).getTime() > new Date(latestOutbound.createdAt).getTime()));
+  const slaHours = SLA_HOURS;
+  const isSlaBreached = calculateSlaBreached(caseItem.status, latestCustomerMessage?.receivedAt ?? latestCustomerMessage?.createdAt ?? caseItem.updatedAt);
 
   return {
     id: caseItem.id,
@@ -134,6 +157,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     assignee: caseItem.assigneeName ?? null,
     lastActivityAt: caseItem.updatedAt,
     hasUnreadCustomerMessage,
+    isSlaBreached,
     category: caseItem.aiStatus === "AI_FAILED"
       ? "AI วิเคราะห์ไม่สำเร็จ"
       : caseItem.dataStatus === "DATA_INCOMPLETE"
@@ -142,7 +166,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     aiConfidence: caseItem.aiStatus === "AI_FAILED" ? 0 : customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),
-    slaHours: 4,
+    slaHours,
     summary: problemSummary,
     teamsThread: [
       "ระบบแจ้งลูกค้า + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
