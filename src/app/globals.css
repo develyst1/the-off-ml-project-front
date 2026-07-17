@@ -273,17 +273,12 @@ body {
   flex-wrap: wrap;
 }
 
-.caseMoreInfoGoalPanel,
-.caseReplyPreview {
+.caseMoreInfoGoalPanel {
   background: #ffffff;
 }
 
 .caseMoreInfoGoalPanel {
   border-color: #bfdbfe;
-}
-
-.caseReplyPreview {
-  border-style: dashed;
 }
 
 @media (max-width: 48em) {

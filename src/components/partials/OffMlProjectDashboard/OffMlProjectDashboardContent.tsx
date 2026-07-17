@@ -44,7 +44,6 @@ import {
   updateAutomationSettings,
   requestAdditionalInfo,
   replyToCustomer,
-  closeCaseWithReply,
   reopenCase,
   rewriteCustomerReply,
 } from "@/services/offMlProject.service";
@@ -351,7 +350,6 @@ function CaseDetail({
   onInitialActionHandled,
   onAcceptCase,
   onReply,
-  onCloseCase,
   onGenerateMoreInfo,
   onReopenCase,
   onRewriteReply,
@@ -362,24 +360,22 @@ function CaseDetail({
   onInitialActionHandled: () => void;
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
-  onCloseCase: (text: string) => Promise<void>;
   onGenerateMoreInfo: (requestedInformation?: string) => Promise<{ suggestedMessage: string; requestedFields: string[]; reason: string; rewrittenMessageId: string; sourceMessageId?: string }>;
   onReopenCase: () => Promise<void>;
-  onRewriteReply: (text: string, mode: "NORMAL_REPLY" | "CLOSING_REPLY") => Promise<string>;
+  onRewriteReply: (text: string) => Promise<string>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
-  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "closing" | "reopening" | "rewriting">("idle");
+  const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "reopening" | "rewriting">("idle");
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
   const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
-  const [actionMode, setActionMode] = useState<"CUSTOMER_REPLY" | "REQUEST_MORE_INFO" | "RESOLUTION">("CUSTOMER_REPLY");
+  const [actionMode, setActionMode] = useState<"CUSTOMER_REPLY" | "REQUEST_MORE_INFO">("CUSTOMER_REPLY");
   const [moreInfoGoal, setMoreInfoGoal] = useState("");
   const [moreInfoReason, setMoreInfoReason] = useState<string>();
   const [moreInfoPanelOpen, setMoreInfoPanelOpen] = useState(false);
-  const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
   const handledInitialAction = useRef(false);
   const replyComposerRef = useRef<HTMLDivElement | null>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -435,7 +431,7 @@ function CaseDetail({
   const isActionRunning = actionState !== "idle";
   const isClosed = item.status === "closed";
 
-  const runAction = async (action: "accepting" | "requesting" | "replying" | "closing" | "reopening", successMessage: string, handler: () => Promise<void>) => {
+  const runAction = async (action: "accepting" | "requesting" | "replying" | "reopening", successMessage: string, handler: () => Promise<void>) => {
     setActionState(action);
     setActionError(undefined);
     setActionNotice(undefined);
@@ -472,28 +468,7 @@ function CaseDetail({
     }
   };
 
-  const submitCloseCase = async () => {
-    const text = replyText.trim();
-    if (!text) {
-      setActionError("กรุณากรอกข้อความตอบกลับลูกค้าก่อนปิดเคส");
-      setCloseConfirmationOpen(false);
-      return;
-    }
-
-    const completed = await runAction(
-      "closing",
-      `ส่งข้อความและปิดเคส ${item.caseNumber} แล้ว`,
-      () => onCloseCase(text),
-    );
-    if (completed) {
-      setCloseConfirmationOpen(false);
-      setReplyOpen(false);
-      setReplyText("");
-      setActionMode("CUSTOMER_REPLY");
-    }
-  };
-
-  const rewriteReply = async (mode: "NORMAL_REPLY" | "CLOSING_REPLY") => {
+  const rewriteReply = async () => {
     const text = replyText.trim();
     if (!text || actionState !== "idle") return;
 
@@ -501,7 +476,7 @@ function CaseDetail({
     setActionError(undefined);
     setActionNotice(undefined);
     try {
-      setReplyText(await onRewriteReply(text, mode));
+      setReplyText(await onRewriteReply(text));
       setActionNotice("AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้ คุณยังสามารถส่งข้อความเดิมได้");
@@ -780,10 +755,9 @@ function CaseDetail({
                           data={[
                             { value: "CUSTOMER_REPLY", label: "โหมด: ตอบลูกค้า" },
                             { value: "REQUEST_MORE_INFO", label: "โหมด: ขอข้อมูลเพิ่มเติม" },
-                            { value: "RESOLUTION", label: "โหมด: สรุปผลและปิดเคส" },
                           ]}
                           onChange={(value) => {
-                            const nextMode = (value as "CUSTOMER_REPLY" | "REQUEST_MORE_INFO" | "RESOLUTION" | null) ?? "CUSTOMER_REPLY";
+                            const nextMode = (value as "CUSTOMER_REPLY" | "REQUEST_MORE_INFO" | null) ?? "CUSTOMER_REPLY";
                             setActionMode(nextMode);
                             setMoreInfoPanelOpen(nextMode === "REQUEST_MORE_INFO");
                             if (nextMode !== "REQUEST_MORE_INFO") {
@@ -811,8 +785,8 @@ function CaseDetail({
                           className="caseReplyComposerAi"
                           disabled={!replyText.trim() || isActionRunning}
                           leftSection={<AppIcon name="brain" size={16} />}
-                          loading={actionState === "rewriting" && actionMode !== "REQUEST_MORE_INFO"}
-                          onClick={() => void rewriteReply(actionMode === "RESOLUTION" ? "CLOSING_REPLY" : "NORMAL_REPLY")}
+                          loading={actionState === "rewriting"}
+                          onClick={() => void rewriteReply()}
                           variant="light"
                         >
                           ช่วยเรียบเรียงคำตอบด้วย AI
@@ -847,20 +821,11 @@ function CaseDetail({
                           {moreInfoReason ? <Text c="dimmed" mt="xs" size="xs">เหตุผลสำหรับทีม: {moreInfoReason}</Text> : null}
                         </Paper>
                       ) : null}
-                      <Paper className="caseReplyPreview" mt="sm" p="sm" radius="sm" withBorder>
-                        <Text fw={700} size="sm">Preview ข้อความ LINE</Text>
-                        <Text c="dimmed" mt={4} size="xs">
-                          {actionMode === "REQUEST_MORE_INFO" ? `คำขอข้อมูลเพิ่มเติมสำหรับเคส ${item.caseNumber}` : actionMode === "RESOLUTION" ? `ข้อความสรุปผลก่อนปิดเคส ${item.caseNumber}` : `ข้อความตอบกลับเคส ${item.caseNumber}`}
-                        </Text>
-                        <Text className="compactText" mt="xs" size="sm">
-                          {replyText.trim() || "ยังไม่มีข้อความ"}
-                        </Text>
-                      </Paper>
                       {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
                       {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
                       <Group className="caseReplyComposerActions" justify="space-between" mt="md">
                         <Text c="dimmed" size="xs">
-                          {actionMode === "REQUEST_MORE_INFO" ? "เมื่อส่งแล้ว ระบบจะรอข้อมูลจากลูกค้าในเคสนี้" : actionMode === "RESOLUTION" ? "ส่งคำตอบแล้วจึงเปลี่ยนสถานะเคสเป็นปิดแล้ว" : "การส่งข้อความจะคงสถานะเคสเดิมไว้"}
+                          {actionMode === "REQUEST_MORE_INFO" ? "เมื่อส่งแล้ว ระบบจะรอข้อมูลจากลูกค้าในเคสนี้" : "การส่งข้อความจะคงสถานะเคสเดิมไว้"}
                         </Text>
                         <Group className="caseReplyComposerSubmit" gap="sm">
                           <Button
@@ -878,23 +843,13 @@ function CaseDetail({
                             loading={actionState === "replying" || actionState === "requesting"}
                             onClick={() => void submitReply()}
                           >
-                            {actionMode === "REQUEST_MORE_INFO" ? "ส่งคำขอข้อมูล" : "ส่งข้อความ"}
-                          </Button>
-                          <Button
-                            color="orange"
-                            disabled={actionMode === "REQUEST_MORE_INFO" || !replyText.trim() || isActionRunning}
-                            loading={actionState === "closing"}
-                            onClick={() => setCloseConfirmationOpen(true)}
-                            variant="outline"
-                          >
-                            ส่งและปิดเคส
+                            ส่งข้อความ
                           </Button>
                         </Group>
                       </Group>
                     </Paper>
                   ) : null}
                   {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
-                  {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
                 </Paper>
               </Group>
 
@@ -951,23 +906,6 @@ function CaseDetail({
           </Stack>
         </SimpleGrid>
       </Card>
-      <Modal
-        opened={closeConfirmationOpen}
-        onClose={() => actionState === "idle" && setCloseConfirmationOpen(false)}
-        title="ยืนยันการส่งข้อความและปิดเคส"
-      >
-        <Text>
-          ข้อความนี้จะถูกส่งให้ลูกค้าผ่าน LINE และเคส {item.caseNumber} จะถูกเปลี่ยนเป็นสถานะปิดแล้ว
-        </Text>
-        <Group justify="space-between" mt="md">
-          <Button disabled={actionState !== "idle"} onClick={() => setCloseConfirmationOpen(false)} variant="default">
-            ยกเลิก
-          </Button>
-          <Button color="orange" loading={actionState === "closing"} onClick={() => void submitCloseCase()}>
-            ส่งข้อความและปิดเคส
-          </Button>
-        </Group>
-      </Modal>
     </Stack>
   );
 }
@@ -1427,13 +1365,6 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleCloseCase = async (text: string) => {
-    if (!selectedCase) return;
-    const updatedCase = await closeCaseWithReply(selectedCase.id, text);
-    setSelectedCase(updatedCase);
-    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
-  };
-
   const handleReopenCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await reopenCase(selectedCase.id);
@@ -1441,9 +1372,9 @@ export default function OffMlProjectDashboardContent() {
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleRewriteReply = async (text: string, mode: "NORMAL_REPLY" | "CLOSING_REPLY") => {
+  const handleRewriteReply = async (text: string) => {
     if (!selectedCase) throw new Error("ยังไม่ได้เลือกเคส");
-    const result = await rewriteCustomerReply(selectedCase.id, text, mode);
+    const result = await rewriteCustomerReply(selectedCase.id, text, "NORMAL_REPLY");
     return result.rewrittenMessage;
   };
 
@@ -1541,7 +1472,6 @@ export default function OffMlProjectDashboardContent() {
                 onAcceptCase={handleAcceptCase}
                 onInitialActionHandled={() => setInitialAction(undefined)}
                 onReply={handleReply}
-                onCloseCase={handleCloseCase}
                 onGenerateMoreInfo={handleGenerateMoreInfo}
                 onReopenCase={handleReopenCase}
                 onRewriteReply={handleRewriteReply}
