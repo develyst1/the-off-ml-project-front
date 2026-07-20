@@ -1491,8 +1491,7 @@ function AutomationSettings({
           <Select
             clearable
             data={[
-              { value: "delivered", label: "ส่งแล้ว" },
-              { value: "sent", label: "ส่งแล้ว" },
+              { value: "sent", label: "ส่งสำเร็จ" },
               { value: "pending", label: "รอดำเนินการ" },
               { value: "failed", label: "ส่งไม่สำเร็จ" },
             ]}
