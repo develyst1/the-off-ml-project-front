@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  ActionIcon,
   AppShell,
   Avatar,
   Badge,
@@ -27,6 +28,7 @@ import {
   Textarea,
   ThemeIcon,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { AppIcon } from "@/components/common";
 import type { IconName } from "@/components/common/AppIcon";
@@ -610,8 +612,14 @@ function CaseDetail({
     }
   };
 
-  const composeWithAi = async () => {
+  const composeWithAi = async (draftOverride?: string) => {
     if (actionState !== "idle") return;
+    const draftText = (draftOverride ?? (replyText.trim() || (actionMode === "CUSTOMER_REPLY" ? supportInstruction : moreInfoGoal))).trim();
+    if (!draftText) {
+      setActionError("กรุณาพิมพ์ข้อความก่อนให้ AI ช่วยเรียบเรียง");
+      return;
+    }
+
     setActionState("rewriting");
     setActionError(undefined);
     setActionNotice(undefined);
@@ -619,14 +627,17 @@ function CaseDetail({
     try {
       const draft = await onComposeAi(
         actionMode,
-        actionMode === "CUSTOMER_REPLY" ? supportInstruction.trim() || undefined : undefined,
-        actionMode === "REQUEST_MORE_INFO" ? moreInfoGoal.trim() || undefined : undefined,
+        actionMode === "CUSTOMER_REPLY" ? draftText : undefined,
+        actionMode === "REQUEST_MORE_INFO" ? draftText : undefined,
       );
-      if (draft.suggestedMessage.trim()) setReplyText(draft.suggestedMessage);
+      if (!draft.suggestedMessage.trim()) {
+        throw new Error("AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้");
+      }
+      setReplyText(draft.suggestedMessage);
       setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? draft.rewrittenMessageId : undefined);
       setMoreInfoReason(draft.reason);
       setAiMissingInformation(actionMode === "CUSTOMER_REPLY" ? draft.missingInformation : []);
-      setActionNotice("AI สร้างข้อความแล้ว กรุณาตรวจสอบและแก้ไขก่อนส่ง");
+      setActionNotice("AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "AI ไม่สามารถสร้างข้อความได้ในขณะนี้ คุณยังสามารถพิมพ์ข้อความและส่งด้วยตนเองได้");
     } finally {
@@ -918,16 +929,35 @@ function CaseDetail({
                           w={220}
                         />
                       </Group>
-                      <Textarea
-                        ref={replyTextareaRef}
-                        autosize
-                        label="ข้อความที่จะส่งให้ลูกค้า"
-                        minRows={5}
-                        mt="sm"
-                        onChange={(event) => setReplyText(event.currentTarget.value)}
-                        placeholder={actionMode === "REQUEST_MORE_INFO" ? "เช่น รบกวนแจ้งเวลาที่พบปัญหาและแนบภาพหน้าจอเพิ่มเติมนะคะ" : "พิมพ์ข้อความที่ต้องการส่งให้ลูกค้า"}
-                        value={replyText}
-                      />
+                      <Box pos="relative" mt="sm">
+                        <Textarea
+                          ref={replyTextareaRef}
+                          autosize
+                          label="ข้อความที่จะส่งให้ลูกค้า"
+                          minRows={5}
+                          onChange={(event) => setReplyText(event.currentTarget.value)}
+                          placeholder={actionMode === "REQUEST_MORE_INFO" ? "เช่น รบกวนแจ้งเวลาที่พบปัญหาและแนบภาพหน้าจอเพิ่มเติมนะคะ" : "พิมพ์ข้อความที่ต้องการส่งให้ลูกค้า"}
+                          styles={{ input: { paddingRight: 52 } }}
+                          value={replyText}
+                        />
+                        <Tooltip label="ช่วยเรียบเรียงด้วย AI" withArrow>
+                          <ActionIcon
+                            aria-label="ช่วยเรียบเรียงด้วย AI"
+                            color="blue"
+                            disabled={!replyText.trim() || isActionRunning}
+                            loading={actionState === "rewriting"}
+                            onClick={() => void composeWithAi(replyText)}
+                            pos="absolute"
+                            right={10}
+                            size="lg"
+                            top={34}
+                            variant="light"
+                            radius="xl"
+                          >
+                            <AppIcon name="brain" size={17} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Box>
                       <Paper className="caseMoreInfoGoalPanel" mt="sm" p="sm" radius="sm" withBorder>
                         <Text fw={700} size="sm">
                           {actionMode === "CUSTOMER_REPLY" ? "ให้ AI ช่วยร่างคำตอบลูกค้า" : "ระบุข้อมูลที่ต้องการขอเพิ่มเติม"}
