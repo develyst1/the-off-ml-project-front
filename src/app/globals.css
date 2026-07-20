@@ -87,22 +87,23 @@ body {
 
 .caseConversationSummary {
   background: #ffffff;
-  padding: 8px 10px;
+  overflow: hidden;
+  padding: 0;
   position: relative;
 }
 
 .caseConversationSummaryLayout {
   align-items: center;
   display: flex;
-  gap: 10px;
+  gap: 0;
   min-width: 0;
 }
 
 .caseConversationCaseIdentity {
   border-right: 1px solid #e8edf3;
-  flex: 0 0 auto;
-  min-width: 176px;
-  padding-right: 10px;
+  flex: 0 0 220px;
+  min-width: 220px;
+  padding: 12px 20px;
 }
 
 .caseConversationCaseNumber {
@@ -113,9 +114,10 @@ body {
 .caseConversationMetrics {
   align-items: center;
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   flex-wrap: nowrap;
   gap: 4px;
+  padding: 8px 12px;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
@@ -430,6 +432,13 @@ body {
     flex-wrap: wrap;
   }
 
+  .caseConversationCaseIdentity {
+    flex-basis: 190px;
+    min-width: 190px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
   .caseConversationMetrics {
     flex-basis: calc(100% - 190px);
   }
@@ -476,14 +485,20 @@ body {
   .caseConversationCaseIdentity {
     border-bottom: 1px solid #e8edf3;
     border-right: 0;
+    flex-basis: auto;
     min-width: 0;
-    padding-bottom: 8px;
-    padding-right: 0;
+    padding: 10px 16px 12px;
     width: 100%;
+  }
+
+  .caseConversationSummaryLayout {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .caseConversationMetrics {
     flex-basis: 100%;
+    padding: 8px 12px;
     width: 100%;
   }
 
