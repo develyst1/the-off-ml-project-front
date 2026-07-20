@@ -189,8 +189,28 @@ export interface AutoAnswerLog {
   caseNumber: string;
   customer: string;
   answerText: string;
+  eventType: string;
+  status: string;
   solutionText?: string;
   teamsNotified: boolean;
+}
+
+export interface AutoAnswerLogsQuery {
+  page?: number;
+  pageSize?: 10 | 20 | 50 | 100;
+  search?: string;
+  eventType?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface AutoAnswerLogsPage {
+  items: AutoAnswerLog[];
+  totalItems: number;
+  totalPages: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface AnalyticsSummary {

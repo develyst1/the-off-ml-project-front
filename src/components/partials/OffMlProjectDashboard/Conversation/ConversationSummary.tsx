@@ -1,19 +1,17 @@
 "use client";
 
-import { ActionIcon, Box, Group, Paper, Select, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Box, Group, Paper, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import { AppIcon } from "@/components/common";
 import { formatConversationDateTime } from "./conversation.config";
-import type { ConversationFilter, ConversationRange } from "./types";
+import type { ConversationFilter } from "./types";
 
 interface ConversationSummaryProps {
   activeFilter: ConversationFilter;
   caseNumber: string;
   lastUpdatedAt?: string;
   counts: Record<"total" | "customer" | "bot" | "system" | "tech" | "ai", number>;
-  range: ConversationRange;
   onFilterChange: (filter: ConversationFilter) => void;
-  onRangeChange: (range: ConversationRange) => void;
 }
 
 const countItems = [
@@ -25,7 +23,7 @@ const countItems = [
   { key: "ai", filter: "ai", label: "AI เรียบเรียง", color: "violet", icon: "brain" },
 ] as const;
 
-export function ConversationSummary({ activeFilter, caseNumber, lastUpdatedAt, counts, onFilterChange, range, onRangeChange }: ConversationSummaryProps) {
+export function ConversationSummary({ activeFilter, caseNumber, lastUpdatedAt, counts, onFilterChange }: ConversationSummaryProps) {
   const [copied, setCopied] = useState(false);
   const copiedTimeout = useRef<number | undefined>(undefined);
   const lastUpdated = formatConversationDateTime(lastUpdatedAt);
@@ -62,23 +60,25 @@ export function ConversationSummary({ activeFilter, caseNumber, lastUpdatedAt, c
           <Text c="dimmed" size="xs">อัปเดตล่าสุด: {hasLastUpdated ? `${lastUpdated.date} ${lastUpdated.time}` : "-"}</Text>
         </Stack>
 
-        <Box className="caseConversationMetrics">
+        <Box aria-label="สรุปจำนวนข้อความ" className="caseConversationMetrics" role="tablist">
           {countItems.map((item) => (
             <UnstyledButton
-              aria-pressed={activeFilter === item.filter}
+              aria-selected={activeFilter === item.filter}
+              aria-label={`${item.label} ${counts[item.key]} รายการ`}
               className={`caseConversationMetric ${activeFilter === item.filter ? "isActive" : ""}`}
               key={item.key}
               onClick={() => onFilterChange(item.filter as ConversationFilter)}
+              role="tab"
               type="button"
             >
               <Group gap={6} wrap="nowrap">
-                <ThemeIcon color={item.color} radius="md" size="md" variant="light">
+                <ThemeIcon color={item.color} radius="md" size="sm" variant="light">
                   <AppIcon name={item.icon} size={15} />
                 </ThemeIcon>
-                <Stack gap={0} justify="center">
-                  <Text c="dimmed" size="xs">{item.label}</Text>
+                <Stack className="caseConversationMetricText" gap={0} justify="center">
+                  <Text c="dimmed" size="xs">{item.label.replace("รายการทั้งหมด", "ทั้งหมด")}</Text>
                   <Group gap={4} wrap="nowrap">
-                    <Text className="caseConversationMetricCount" fw={800} size="lg">{counts[item.key]}</Text>
+                    <Text className="caseConversationMetricCount" fw={800} size="sm">{counts[item.key]}</Text>
                     <Text c="dimmed" size="xs">รายการ</Text>
                   </Group>
                 </Stack>
@@ -86,20 +86,6 @@ export function ConversationSummary({ activeFilter, caseNumber, lastUpdatedAt, c
             </UnstyledButton>
           ))}
         </Box>
-
-        <Select
-          aria-label="ช่วงเวลาประวัติการสนทนา"
-          className="caseConversationRange"
-          data={[
-            { value: "all", label: "ช่วงเวลา: ทั้งหมด" },
-            { value: "today", label: "วันนี้" },
-            { value: "7d", label: "7 วันที่ผ่านมา" },
-            { value: "30d", label: "30 วันที่ผ่านมา" },
-          ]}
-          onChange={(value) => onRangeChange((value as ConversationRange | null) ?? "all")}
-          size="sm"
-          value={range}
-        />
       </Box>
       {copied ? <Box className="caseConversationCopyToast" role="status">คัดลอกหมายเลขเคสแล้ว</Box> : null}
     </Paper>

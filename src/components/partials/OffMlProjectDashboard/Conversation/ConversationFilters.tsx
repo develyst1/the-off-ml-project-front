@@ -1,6 +1,9 @@
-import { Button, Group, Paper, Select, Switch, TextInput } from "@mantine/core";
+"use client";
+
+import { Badge, Button, Group, Paper, Popover, Select, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { useState } from "react";
 import { AppIcon } from "@/components/common";
-import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessageType, ConversationSort } from "./types";
+import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessageType, ConversationRange } from "./types";
 
 interface ConversationFiltersProps {
   deliveryStatus: ConversationDeliveryStatus;
@@ -12,55 +15,106 @@ interface ConversationFiltersProps {
   onFilterChange: (value: ConversationFilter) => void;
   onHideSystemEventsChange: (value: boolean) => void;
   onMessageTypeChange: (value: ConversationMessageType) => void;
+  onRangeChange: (value: ConversationRange) => void;
   onSearchChange: (value: string) => void;
-  onSortChange: (value: ConversationSort) => void;
+  range: ConversationRange;
   search: string;
-  sort: ConversationSort;
 }
 
-export function ConversationFilters({ deliveryStatus, filter, hideSystemEvents, messageType, onClear, onDeliveryStatusChange, onFilterChange, onHideSystemEventsChange, onMessageTypeChange, onSearchChange, onSortChange, search, sort }: ConversationFiltersProps) {
-  const hasFilter = Boolean(search.trim()) || filter !== "all" || messageType !== "all" || deliveryStatus !== "all" || hideSystemEvents;
+const messageTypeLabels: Record<ConversationMessageType, string> = {
+  all: "ประเภทข้อความ: ทั้งหมด",
+  conversation: "ข้อความสนทนา",
+  request_info: "ขอข้อมูลเพิ่ม",
+  customer_reply: "คำตอบลูกค้า",
+  internal: "ข้อความภายใน",
+  system_event: "เหตุการณ์ระบบ",
+};
+
+const deliveryStatusLabels: Record<ConversationDeliveryStatus, string> = {
+  all: "สถานะข้อความ: ทั้งหมด",
+  received: "รับแล้ว",
+  pending: "รอส่ง",
+  sent: "ส่งแล้ว",
+  failed: "ส่งไม่สำเร็จ",
+};
+
+export function ConversationFilters({ deliveryStatus, filter, hideSystemEvents, messageType, onClear, onDeliveryStatusChange, onFilterChange, onHideSystemEventsChange, onMessageTypeChange, onRangeChange, onSearchChange, range, search }: ConversationFiltersProps) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const activeCount = [filter !== "all", messageType !== "all", deliveryStatus !== "all", range !== "all", hideSystemEvents].filter(Boolean).length;
+  const hasAnyFilter = Boolean(search.trim()) || activeCount > 0;
+
+  const activeChips = [
+    search.trim() ? { key: "search", label: `ค้นหา: ${search.trim()}`, onRemove: () => onSearchChange("") } : null,
+    filter !== "all" ? { key: "filter", label: `ผู้ส่ง: ${filter === "customer" ? "ลูกค้า" : filter === "bot" ? "LINE Bot" : filter === "tech" ? "ทีม Tech" : filter === "ai" ? "AI เรียบเรียง" : "ระบบ"}`, onRemove: () => onFilterChange("all") } : null,
+    messageType !== "all" ? { key: "messageType", label: messageTypeLabels[messageType], onRemove: () => onMessageTypeChange("all") } : null,
+    deliveryStatus !== "all" ? { key: "deliveryStatus", label: deliveryStatusLabels[deliveryStatus], onRemove: () => onDeliveryStatusChange("all") } : null,
+    range !== "all" ? { key: "range", label: `ช่วงเวลา: ${range === "today" ? "วันนี้" : range === "7d" ? "7 วันที่ผ่านมา" : "30 วันที่ผ่านมา"}`, onRemove: () => onRangeChange("all") } : null,
+    hideSystemEvents ? { key: "system", label: "เฉพาะบทสนทนา", onRemove: () => onHideSystemEventsChange(false) } : null,
+  ].filter((chip): chip is { key: string; label: string; onRemove: () => void } => Boolean(chip));
+
   return (
-    <Paper className="caseConversationFilters" p="sm" radius="md" withBorder>
-      <TextInput
-        className="caseConversationSearch"
-        leftSection={<AppIcon name="message" size={16} />}
-        onChange={(event) => onSearchChange(event.currentTarget.value)}
-        placeholder="ค้นหาข้อความ, เคส, ผู้ส่ง, ประเภท..."
-        value={search}
-      />
-      <Select
-        aria-label="ประเภทผู้ส่ง"
-        data={[{ value: "all", label: "ผู้ส่ง: ทั้งหมด" }, { value: "customer", label: "ผู้ส่ง: ลูกค้า" }, { value: "bot", label: "ผู้ส่ง: LINE Bot" }, { value: "tech", label: "ผู้ส่ง: ทีม Tech" }, { value: "ai", label: "ผู้ส่ง: AI เรียบเรียง" }, { value: "system", label: "ผู้ส่ง: ระบบ" }]}
-        onChange={(value) => onFilterChange((value as ConversationFilter | null) ?? "all")}
-        size="sm"
-        value={filter}
-      />
-      <Select
-        aria-label="ประเภทข้อความ"
-        data={[{ value: "all", label: "ประเภทข้อความ: ทั้งหมด" }, { value: "conversation", label: "ข้อความสนทนา" }, { value: "request_info", label: "ขอข้อมูลเพิ่ม" }, { value: "customer_reply", label: "คำตอบลูกค้า" }, { value: "internal", label: "ข้อความภายใน" }, { value: "system_event", label: "เหตุการณ์ระบบ" }]}
-        onChange={(value) => onMessageTypeChange((value as ConversationMessageType | null) ?? "all")}
-        size="sm"
-        value={messageType}
-      />
-      <Select
-        aria-label="สถานะการส่ง"
-        data={[{ value: "all", label: "สถานะ: ทั้งหมด" }, { value: "received", label: "รับแล้ว" }, { value: "pending", label: "รอส่ง" }, { value: "sent", label: "ส่งแล้ว" }, { value: "failed", label: "ส่งไม่สำเร็จ" }]}
-        onChange={(value) => onDeliveryStatusChange((value as ConversationDeliveryStatus | null) ?? "all")}
-        size="sm"
-        value={deliveryStatus}
-      />
-      <Select
-        aria-label="การเรียงลำดับ"
-        data={[{ value: "oldest", label: "เก่าสุดก่อน" }, { value: "newest", label: "ล่าสุดก่อน" }]}
-        onChange={(value) => onSortChange((value as ConversationSort | null) ?? "oldest")}
-        size="sm"
-        value={sort}
-      />
-      <Group className="caseConversationFilterActions" gap="sm" wrap="nowrap">
-        <Switch checked={hideSystemEvents} label="ซ่อนเหตุการณ์ระบบ" onChange={(event) => onHideSystemEventsChange(event.currentTarget.checked)} size="sm" />
-        {hasFilter ? <Button onClick={onClear} size="compact-sm" variant="subtle">ล้างตัวกรอง</Button> : null}
-      </Group>
-    </Paper>
+    <Stack gap={6}>
+      <Paper className="caseConversationFilters" p="xs" radius="md" withBorder>
+        <TextInput
+          className="caseConversationSearch"
+          leftSection={<AppIcon name="message" size={16} />}
+          onChange={(event) => onSearchChange(event.currentTarget.value)}
+          placeholder="ค้นหาข้อความ เลขเคส ผู้ส่ง หรือประเภทข้อความ"
+          value={search}
+        />
+        <Select
+          aria-label="ประเภทข้อความ"
+          data={Object.entries(messageTypeLabels).map(([value, label]) => ({ value, label }))}
+          onChange={(value) => onMessageTypeChange((value as ConversationMessageType | null) ?? "all")}
+          size="sm"
+          value={messageType}
+        />
+        <Select
+          aria-label="ช่วงเวลาประวัติการสนทนา"
+          data={[{ value: "all", label: "ช่วงเวลา: ทั้งหมด" }, { value: "today", label: "วันนี้" }, { value: "7d", label: "7 วันที่ผ่านมา" }, { value: "30d", label: "30 วันที่ผ่านมา" }]}
+          onChange={(value) => onRangeChange((value as ConversationRange | null) ?? "all")}
+          size="sm"
+          value={range}
+        />
+        <Popover onChange={setAdvancedOpen} opened={advancedOpen} position="bottom-end" shadow="sm" width={380} withArrow>
+          <Popover.Target>
+            <Button className="caseConversationAdvancedButton" leftSection={<AppIcon name="settings" size={15} />} onClick={() => setAdvancedOpen((opened) => !opened)} size="sm" variant="light">
+              ตัวกรองเพิ่มเติม{activeCount > 0 ? ` (${activeCount})` : ""}
+            </Button>
+          </Popover.Target>
+          <Popover.Dropdown>
+            <Stack gap="sm">
+              <Text fw={700} size="sm">ตัวกรองเพิ่มเติม</Text>
+              <Select
+                aria-label="สถานะข้อความ"
+                data={Object.entries(deliveryStatusLabels).map(([value, label]) => ({ value, label }))}
+                label="สถานะข้อความ"
+                onChange={(value) => onDeliveryStatusChange((value as ConversationDeliveryStatus | null) ?? "all")}
+                size="sm"
+                value={deliveryStatus}
+              />
+              <SegmentedControl
+                data={[{ label: "ทั้งหมด", value: "all" }, { label: "เฉพาะบทสนทนา", value: "conversation" }]}
+                fullWidth
+                onChange={(value) => onHideSystemEventsChange(value === "conversation")}
+                value={hideSystemEvents ? "conversation" : "all"}
+              />
+              <Group justify="flex-end" gap="xs">
+                <Button onClick={() => { onClear(); setAdvancedOpen(false); }} size="xs" variant="subtle">ล้างตัวกรอง</Button>
+                <Button onClick={() => setAdvancedOpen(false)} size="xs">ใช้ตัวกรอง</Button>
+              </Group>
+            </Stack>
+          </Popover.Dropdown>
+        </Popover>
+      </Paper>
+
+      {hasAnyFilter ? (
+        <Group className="caseConversationFilterChips" gap={6} wrap="wrap">
+          <Text c="dimmed" size="xs">ตัวกรองที่ใช้งานอยู่:</Text>
+          {activeChips.map((chip) => <Badge className="caseConversationFilterChip" key={chip.key} rightSection={<button aria-label={`ลบ${chip.label}`} onClick={chip.onRemove} type="button">×</button>} variant="light">{chip.label}</Badge>)}
+          <Button onClick={onClear} size="compact-xs" variant="subtle">ล้างทั้งหมด</Button>
+        </Group>
+      ) : null}
+    </Stack>
   );
 }

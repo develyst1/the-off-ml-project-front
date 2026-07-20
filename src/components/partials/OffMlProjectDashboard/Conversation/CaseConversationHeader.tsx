@@ -24,15 +24,15 @@ export function CaseConversationHeader({ latestCustomerAt, status }: CaseConvers
   const latest = formatConversationDateTime(latestCustomerAt);
   return (
     <Box className="caseConversationHeader">
-      <Group align="flex-start" justify="space-between" gap="md">
+      <Group align="center" justify="space-between" gap="md" wrap="nowrap">
         <Box>
           <Title order={3}>3) ประวัติการสนทนาในเคส</Title>
-          <Text c="dimmed" mt={4} size="sm">แสดงผลการสนทนาทั้งหมดภายในเคส เรียงจากเก่าไปใหม่</Text>
+          <Text c="dimmed" mt={2} size="xs">แสดงผลการสนทนาทั้งหมดภายในเคส เรียงจากเก่าไปใหม่</Text>
         </Box>
         <Stack align="flex-end" gap={2} className="caseConversationCurrentStatus">
           <Text c="dimmed" size="xs">สถานะปัจจุบัน</Text>
           <Badge color="blue" variant="light">{statusLabels[status] ?? "กำลังตรวจสอบ"}</Badge>
-          {latestCustomerAt ? <Text c="dimmed" size="xs">ข้อความล่าสุดจากลูกค้า: {latest.time} น.</Text> : null}
+          <Text c="dimmed" size="xs">ข้อความล่าสุดจากลูกค้า: {latestCustomerAt ? `${latest.time} น.` : "-"}</Text>
         </Stack>
       </Group>
     </Box>

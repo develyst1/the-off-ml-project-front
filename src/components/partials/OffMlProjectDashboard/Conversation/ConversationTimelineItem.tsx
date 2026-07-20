@@ -4,17 +4,18 @@ import { formatConversationDateTime, getConversationContent, getConversationMeta
 import type { ConversationMessage } from "./types";
 
 interface ConversationTimelineItemProps {
+  isLatest?: boolean;
   isLast: boolean;
   message: ConversationMessage;
 }
 
-export function ConversationTimelineItem({ isLast, message }: ConversationTimelineItemProps) {
+export function ConversationTimelineItem({ isLast, isLatest = false, message }: ConversationTimelineItemProps) {
   const meta = getConversationMeta(message);
   const status = getConversationStatus(message, meta);
   const timestamp = formatConversationDateTime(message.createdAt);
 
   return (
-    <Box className={`caseConversationTimelineItem ${meta.isSystemEvent ? "isSystemEvent" : ""}`}>
+    <Box className={`caseConversationTimelineItem ${meta.isSystemEvent ? "isSystemEvent" : ""} ${isLatest ? "isLatest" : ""}`} id={`case-conversation-message-${message.id}`}>
       <Box className="caseConversationTimelineRail">
         {!isLast ? <Box className="caseConversationTimelineLine" /> : null}
         <ThemeIcon color={meta.color} radius="xl" size={32} variant="filled">
@@ -26,6 +27,7 @@ export function ConversationTimelineItem({ isLast, message }: ConversationTimeli
         <Group className="caseConversationTimelineHeader" gap="xs" justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="wrap">
             <Badge color={meta.color} variant="light">{meta.label}</Badge>
+            {isLatest ? <Badge color="blue" variant="filled">ล่าสุด</Badge> : null}
             <Text c="dimmed" size="xs">{meta.actionLabel}</Text>
           </Group>
           <Group className="caseConversationMessageMeta" gap="xs" wrap="nowrap">

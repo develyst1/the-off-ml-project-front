@@ -87,22 +87,22 @@ body {
 
 .caseConversationSummary {
   background: #ffffff;
-  padding: 10px 12px;
+  padding: 8px 10px;
   position: relative;
 }
 
 .caseConversationSummaryLayout {
   align-items: center;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
 .caseConversationCaseIdentity {
   border-right: 1px solid #e8edf3;
   flex: 0 0 auto;
-  min-width: 190px;
-  padding-right: 12px;
+  min-width: 176px;
+  padding-right: 10px;
 }
 
 .caseConversationCaseNumber {
@@ -114,18 +114,20 @@ body {
   align-items: center;
   display: flex;
   flex: 1 1 auto;
-  flex-wrap: wrap;
-  gap: 2px;
+  flex-wrap: nowrap;
+  gap: 4px;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .caseConversationMetric {
   align-items: center;
   border-left: 1px solid #eef1f5;
   border-radius: 6px;
-  flex: 1 1 108px;
-  min-width: 0;
-  padding: 4px 7px;
+  flex: 0 0 auto;
+  min-width: 104px;
+  padding: 5px 8px;
   text-align: left;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
@@ -140,6 +142,10 @@ body {
 
 .caseConversationMetricCount {
   line-height: 1;
+}
+
+.caseConversationMetricText {
+  min-width: 0;
 }
 
 .caseConversationRange {
@@ -163,24 +169,53 @@ body {
 
 .caseConversationFilters {
   display: grid;
-  grid-template-columns: minmax(190px, 1.4fr) repeat(4, minmax(138px, 0.75fr)) minmax(190px, 1fr);
+  grid-template-columns: minmax(240px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   background: #ffffff;
 }
 
 .caseConversationFilterChips {
   min-width: 0;
+  padding: 0 4px;
+}
+
+.caseConversationFilterChip {
+  font-weight: 600;
+}
+
+.caseConversationFilterChip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 0 0 4px;
 }
 
 .caseConversationTimeline {
   position: relative;
 }
 
+.caseConversationTimelineToolbar {
+  align-items: center;
+  border-bottom: 1px solid #eef1f5;
+  padding: 2px 2px 8px;
+}
+
+.caseConversationSort {
+  min-width: 132px;
+}
+
+.caseConversationGoLatest {
+  align-self: center;
+}
+
 .caseConversationTimelineItem {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -207,10 +242,25 @@ body {
   min-width: 0;
 }
 
+.caseConversationTimelineItem.isLatest .caseConversationTimelineCard {
+  background: #f8fbff;
+}
+
 .caseConversationSystemRow {
   background: #f8fafc;
   border-left: 3px solid #a8b0bb;
   min-width: 0;
+}
+
+.caseConversationTimelineCard,
+.caseConversationSystemRow {
+  padding-bottom: 9px !important;
+  padding-top: 9px !important;
+}
+
+.caseConversationTimelineItem.isSystemEvent .caseConversationMessageContent {
+  color: #475569;
+  font-size: 12px;
 }
 
 .caseConversationDateSeparator {
@@ -381,19 +431,15 @@ body {
   }
 
   .caseConversationMetrics {
-    flex-basis: calc(100% - 202px);
+    flex-basis: calc(100% - 190px);
   }
 
   .caseConversationFilters {
-    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    grid-template-columns: minmax(200px, 2fr) repeat(2, minmax(145px, 1fr));
   }
 
   .caseConversationSearch {
-    grid-column: span 3;
-  }
-
-  .caseConversationRange {
-    margin-left: 0;
+    grid-column: span 2;
   }
 }
 
@@ -419,6 +465,10 @@ body {
     grid-column: auto;
   }
 
+  .caseConversationAdvancedButton {
+    width: 100%;
+  }
+
   .caseConversationFilterChips {
     flex-wrap: wrap;
   }
@@ -433,19 +483,12 @@ body {
   }
 
   .caseConversationMetrics {
-    display: grid;
     flex-basis: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 
   .caseConversationMetric {
-    min-width: 0;
-  }
-
-  .caseConversationRange {
-    flex-basis: 100%;
-    width: 100%;
+    min-width: 116px;
   }
 
   .caseConversationTimelineHeader {
@@ -472,6 +515,19 @@ body {
 
   .caseConversationCurrentStatus {
     align-items: flex-start;
+  }
+
+  .caseConversationTimelineToolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .caseConversationTimelineToolbar > div {
+    width: 100%;
+  }
+
+  .caseConversationSort {
+    flex: 1 1 auto;
   }
 
   .caseConversationDateSeparator {

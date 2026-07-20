@@ -14,6 +14,7 @@ import {
   Group,
   Modal,
   NavLink,
+  Pagination,
   Paper,
   Progress,
   ScrollArea,
@@ -55,6 +56,8 @@ import type { AiComposeMode, AiComposeResult } from "@/services/offMlProject.ser
 import type {
   AnalyticsSummary,
   AutoAnswerLog,
+  AutoAnswerLogsPage,
+  AutoAnswerLogsQuery,
   AutoAnswerSolution,
   AutomationSettings,
   CaseStatus,
@@ -116,6 +119,14 @@ const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
     { label: "90-97%", value: 0 },
     { label: "98-100%", value: 0 },
   ],
+};
+
+const EMPTY_AUTO_ANSWER_LOGS_PAGE: AutoAnswerLogsPage = {
+  items: [],
+  totalItems: 0,
+  totalPages: 0,
+  page: 1,
+  pageSize: 10,
 };
 
 function confidenceColor(value: number) {
@@ -1285,11 +1296,17 @@ function AnalyticsDashboard({
 
 function AutomationSettings({
   logs,
+  logsPage,
+  isLoadingLogs,
+  onLoadLogs,
   onUpdateSettings,
   settings,
   solutions,
 }: {
   logs: AutoAnswerLog[];
+  logsPage: AutoAnswerLogsPage;
+  isLoadingLogs: boolean;
+  onLoadLogs: (query: AutoAnswerLogsQuery) => Promise<void>;
   onUpdateSettings: (input: { emergencyDisable?: boolean; enabled?: boolean }) => Promise<void>;
   settings: AutomationSettings | null;
   solutions: AutoAnswerSolution[];
@@ -1299,6 +1316,54 @@ function AutomationSettings({
   const [automationError, setAutomationError] = useState<string>();
   const [isUpdatingAutomation, setIsUpdatingAutomation] = useState(false);
   const [selectedLogSolution, setSelectedLogSolution] = useState<AutoAnswerLog | null>(null);
+  const [logSearch, setLogSearch] = useState("");
+  const [logEventType, setLogEventType] = useState<string | null>(null);
+  const [logStatus, setLogStatus] = useState<string | null>(null);
+  const [logDateFrom, setLogDateFrom] = useState("");
+  const [logDateTo, setLogDateTo] = useState("");
+  const [logPageSize, setLogPageSize] = useState<10 | 20 | 50 | 100>(10);
+  const logSearchTimer = useRef<number | null>(null);
+
+  const loadLogs = (overrides: Partial<AutoAnswerLogsQuery> = {}) => {
+    const query: AutoAnswerLogsQuery = {
+      page: overrides.page ?? 1,
+      pageSize: overrides.pageSize ?? logPageSize,
+      search: overrides.search ?? logSearch,
+      eventType: overrides.eventType ?? logEventType ?? undefined,
+      status: overrides.status ?? logStatus ?? undefined,
+      dateFrom: overrides.dateFrom ?? logDateFrom,
+      dateTo: overrides.dateTo ?? logDateTo,
+    };
+    void onLoadLogs(query);
+  };
+
+  const updateLogFilter = (key: keyof AutoAnswerLogsQuery, value: string) => {
+    if (key === "search") {
+      setLogSearch(value);
+      if (logSearchTimer.current) window.clearTimeout(logSearchTimer.current);
+      logSearchTimer.current = window.setTimeout(() => loadLogs({ search: value, page: 1 }), 350);
+      return;
+    }
+    if (logSearchTimer.current) window.clearTimeout(logSearchTimer.current);
+    if (key === "eventType") setLogEventType(value || null);
+    if (key === "status") setLogStatus(value || null);
+    if (key === "dateFrom") setLogDateFrom(value);
+    if (key === "dateTo") setLogDateTo(value);
+    loadLogs({ [key]: value, page: 1 });
+  };
+
+  useEffect(() => () => {
+    if (logSearchTimer.current) window.clearTimeout(logSearchTimer.current);
+  }, []);
+
+  const clearLogFilters = () => {
+    setLogSearch("");
+    setLogEventType(null);
+    setLogStatus(null);
+    setLogDateFrom("");
+    setLogDateTo("");
+    loadLogs({ page: 1, search: "", eventType: "", status: "", dateFrom: "", dateTo: "" });
+  };
 
   const toggleAutomation = async () => {
     if (isUpdatingAutomation || !settings) return;
@@ -1401,44 +1466,115 @@ function AutomationSettings({
 
       <Card padding="lg" radius="md" withBorder>
         <Title mb="md" order={3}>Auto-answer notification log</Title>
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>เวลา</Table.Th>
-              <Table.Th>ลูกค้า</Table.Th>
-              <Table.Th>ข้อความที่ตอบ</Table.Th>
-              <Table.Th>วิธีแก้</Table.Th>
-              <Table.Th>Teams</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {logs.map((item) => (
-              <Table.Tr key={item.id}>
-                <Table.Td>{formatEventTime(item.time)}</Table.Td>
-                <Table.Td>{item.customer}</Table.Td>
-                <Table.Td>{item.answerText}</Table.Td>
-                <Table.Td>
-                  {item.solutionText ? (
-                    <Button size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
-                      ดูวิธีแก้
-                    </Button>
-                  ) : (
-                    <Text c="dimmed" size="sm">ไม่มีวิธีแก้ที่บันทึกไว้</Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Badge color="green" variant="light">
-                    แจ้งแล้ว
-                  </Badge>
-                </Table.Td>
+        <Flex align="end" gap="sm" mb="md" wrap="wrap">
+          <TextInput
+            flex={1}
+            label="ค้นหา"
+            placeholder="ค้นหาหมายเลขเคส ลูกค้า หรือข้อความ"
+            value={logSearch}
+            onChange={(event) => updateLogFilter("search", event.currentTarget.value)}
+          />
+          <Select
+            clearable
+            data={[
+              { value: "CASE_ACKNOWLEDGEMENT", label: "รับเรื่อง" },
+              { value: "CUSTOMER_REPLY", label: "ตอบลูกค้า" },
+              { value: "REQUEST_MORE_INFO", label: "ขอข้อมูลเพิ่ม" },
+              { value: "STATUS_UPDATE", label: "อัปเดตสถานะ" },
+              { value: "CASE_CLOSED", label: "ปิดเคส" },
+            ]}
+            label="ประเภทข้อความ"
+            placeholder="ทั้งหมด"
+            value={logEventType}
+            onChange={(value) => updateLogFilter("eventType", value ?? "")}
+          />
+          <Select
+            clearable
+            data={[
+              { value: "delivered", label: "ส่งแล้ว" },
+              { value: "sent", label: "ส่งแล้ว" },
+              { value: "pending", label: "รอดำเนินการ" },
+              { value: "failed", label: "ส่งไม่สำเร็จ" },
+            ]}
+            label="สถานะ"
+            placeholder="ทั้งหมด"
+            value={logStatus}
+            onChange={(value) => updateLogFilter("status", value ?? "")}
+          />
+          <TextInput label="ตั้งแต่วันที่" type="date" value={logDateFrom} onChange={(event) => updateLogFilter("dateFrom", event.currentTarget.value)} />
+          <TextInput label="ถึงวันที่" type="date" value={logDateTo} onChange={(event) => updateLogFilter("dateTo", event.currentTarget.value)} />
+          <Button variant="subtle" onClick={clearLogFilters}>ล้างตัวกรอง</Button>
+        </Flex>
+        <ScrollArea type="auto">
+          <Table miw={760}>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>เวลา</Table.Th>
+                <Table.Th>ลูกค้า</Table.Th>
+                <Table.Th>ข้อความที่ตอบ</Table.Th>
+                <Table.Th>วิธีแก้</Table.Th>
+                <Table.Th>Teams</Table.Th>
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {logs.map((item) => (
+                <Table.Tr key={item.id}>
+                  <Table.Td>{formatEventTime(item.time)}</Table.Td>
+                  <Table.Td>{item.customer}</Table.Td>
+                  <Table.Td>{item.answerText}</Table.Td>
+                  <Table.Td>
+                    {item.solutionText ? (
+                      <Button size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
+                        ดูวิธีแก้
+                      </Button>
+                    ) : (
+                      <Text c="dimmed" size="sm">ไม่มีวิธีแก้ที่บันทึกไว้</Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge color="green" variant="light">
+                      แจ้งแล้ว
+                    </Badge>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </ScrollArea>
         {logs.length === 0 ? (
           <Text c="dimmed" mt="md">
-            ยังไม่มี auto-answer notification log จาก backend
+            {isLoadingLogs ? "กำลังโหลด auto-answer notification log..." : "ยังไม่มีข้อมูลที่ตรงกับตัวกรอง"}
           </Text>
+        ) : null}
+        {logsPage.totalItems > 0 ? (
+          <Flex align="center" justify="space-between" mt="md" wrap="wrap" gap="sm">
+            <Text c="dimmed" size="sm">
+              แสดง {((logsPage.page - 1) * logsPage.pageSize) + 1}–{Math.min(logsPage.page * logsPage.pageSize, logsPage.totalItems)} จาก {logsPage.totalItems} รายการ
+            </Text>
+            {logsPage.totalPages > 1 ? (
+              <Group gap="sm" wrap="wrap">
+                <Select
+                  aria-label="จำนวนรายการต่อหน้า"
+                  data={["10", "20", "50", "100"]}
+                  label="รายการ/หน้า"
+                  value={String(logPageSize)}
+                  onChange={(value) => {
+                    const nextPageSize = Number(value) as 10 | 20 | 50 | 100;
+                    setLogPageSize(nextPageSize);
+                    loadLogs({ page: 1, pageSize: nextPageSize });
+                  }}
+                  w={140}
+                />
+                <Pagination
+                  disabled={isLoadingLogs}
+                  onChange={(page) => loadLogs({ page })}
+                  total={logsPage.totalPages}
+                  value={logsPage.page}
+                  withEdges
+                />
+              </Group>
+            ) : null}
+          </Flex>
         ) : null}
       </Card>
       <Modal
@@ -1463,7 +1599,9 @@ export default function OffMlProjectDashboardContent() {
   const [caseError, setCaseError] = useState<string>();
   const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary>(EMPTY_ANALYTICS_SUMMARY);
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
-  const [autoAnswerLogsState, setAutoAnswerLogsState] = useState<AutoAnswerLog[]>([]);
+  const [autoAnswerLogsState, setAutoAnswerLogsState] = useState<AutoAnswerLogsPage>(EMPTY_AUTO_ANSWER_LOGS_PAGE);
+  const [isLoadingAutoAnswerLogs, setIsLoadingAutoAnswerLogs] = useState(true);
+  const autoAnswerLogsRequestId = useRef(0);
   const [autoAnswerSolutionsState, setAutoAnswerSolutionsState] = useState<AutoAnswerSolution[]>([]);
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
@@ -1500,15 +1638,31 @@ export default function OffMlProjectDashboardContent() {
     }
   };
 
+  const loadAutoAnswerLogs = async (query: AutoAnswerLogsQuery) => {
+    const requestId = ++autoAnswerLogsRequestId.current;
+    setIsLoadingAutoAnswerLogs(true);
+    try {
+      const nextLogs = await getAutoAnswerLogs(query);
+      if (requestId === autoAnswerLogsRequestId.current) setAutoAnswerLogsState(nextLogs);
+    } catch (error) {
+      if (requestId === autoAnswerLogsRequestId.current) {
+        setDashboardError(error instanceof Error ? error.message : "โหลด Auto-answer notification log ไม่สำเร็จ");
+      }
+    } finally {
+      if (requestId === autoAnswerLogsRequestId.current) setIsLoadingAutoAnswerLogs(false);
+    }
+  };
+
   const loadDashboardData = async () => {
     setIsLoadingDashboardData(true);
+    const logRequestId = ++autoAnswerLogsRequestId.current;
 
     const results = await Promise.allSettled([
       getConfidenceSuggestions(),
       getAnalyticsSummary(),
       getAutomationSettings(),
       getAutoAnswerSolutions(),
-      getAutoAnswerLogs(),
+      getAutoAnswerLogs({ page: 1, pageSize: 10 }),
     ]);
     const failures: string[] = [];
     const [suggestions, summary, settings, solutions, logs] = results;
@@ -1521,8 +1675,13 @@ export default function OffMlProjectDashboardContent() {
     else failures.push("Automation settings");
     if (solutions.status === "fulfilled") setAutoAnswerSolutionsState(solutions.value);
     else failures.push("Automation solutions");
-    if (logs.status === "fulfilled") setAutoAnswerLogsState(logs.value);
-    else failures.push("Automation logs");
+    if (logs.status === "fulfilled" && logRequestId === autoAnswerLogsRequestId.current) {
+      setAutoAnswerLogsState(logs.value);
+      setIsLoadingAutoAnswerLogs(false);
+    } else {
+      if (logRequestId === autoAnswerLogsRequestId.current) setIsLoadingAutoAnswerLogs(false);
+      failures.push("Automation logs");
+    }
 
     setDashboardError(
       failures.length
@@ -1755,7 +1914,10 @@ export default function OffMlProjectDashboardContent() {
             </Tabs.Panel>
             <Tabs.Panel value="automation">
               <AutomationSettings
-                logs={autoAnswerLogsState}
+                isLoadingLogs={isLoadingAutoAnswerLogs}
+                logs={autoAnswerLogsState.items}
+                logsPage={autoAnswerLogsState}
+                onLoadLogs={loadAutoAnswerLogs}
                 onUpdateSettings={handleUpdateAutomationSettings}
                 settings={automationSettings}
                 solutions={autoAnswerSolutionsState}

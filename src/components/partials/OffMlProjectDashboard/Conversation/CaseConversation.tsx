@@ -41,22 +41,22 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   const [deliveryStatus, setDeliveryStatus] = useState<ConversationDeliveryStatus>("all");
   const [sort, setSort] = useState<ConversationSort>("oldest");
   const [range, setRange] = useState<ConversationRange>("all");
-  const [hideSystemEvents, setHideSystemEvents] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const messages = item.conversation ?? [];
+  const messages = useMemo(() => item.conversation ?? [], [item.conversation]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  useEffect(() => {
+  const [hideSystemEvents, setHideSystemEvents] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
     try {
-      setHideSystemEvents(window.sessionStorage.getItem(HIDE_SYSTEM_EVENTS_KEY) === "true");
+      return window.sessionStorage.getItem(HIDE_SYSTEM_EVENTS_KEY) === "true";
     } catch {
-      setHideSystemEvents(false);
+      return false;
     }
-  }, []);
+  });
 
   useEffect(() => {
     try {
@@ -109,10 +109,17 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
     .filter((message) => message.senderType === "CUSTOMER")
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0]?.createdAt, [messages]);
 
-  useEffect(() => setVisibleCount(PAGE_SIZE), [deliveryStatus, filter, hideSystemEvents, item.id, messageType, range, search, sort]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setVisibleCount(PAGE_SIZE), 0);
+    return () => window.clearTimeout(timer);
+  }, [deliveryStatus, filter, hideSystemEvents, item.id, messageType, range, search, sort]);
 
   const hasActiveFilters = Boolean(searchInput.trim()) || filter !== "all" || messageType !== "all" || deliveryStatus !== "all" || range !== "all" || hideSystemEvents;
   const visibleMessages = filteredMessages.slice(0, visibleCount);
+  const latestMatchingMessageId = filteredMessages.reduce<ConversationMessage | undefined>((latest, message) => {
+    if (!latest || new Date(message.createdAt).getTime() > new Date(latest.createdAt).getTime()) return message;
+    return latest;
+  }, undefined)?.id;
   const clearFilters = () => {
     setSearchInput("");
     setSearch("");
@@ -136,7 +143,7 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
     <Card className="caseConversationSection" padding="md" radius="md" withBorder>
       <Stack gap="sm">
         <CaseConversationHeader latestCustomerAt={latestCustomerAt} status={item.status} />
-        <ConversationSummary activeFilter={filter} caseNumber={item.caseNumber} counts={counts} lastUpdatedAt={lastUpdatedAt} onFilterChange={setFilter} onRangeChange={setRange} range={range} />
+        <ConversationSummary activeFilter={filter} caseNumber={item.caseNumber} counts={counts} lastUpdatedAt={lastUpdatedAt} onFilterChange={setFilter} />
         <ConversationFilters
           deliveryStatus={deliveryStatus}
           filter={filter}
@@ -147,12 +154,26 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
           onFilterChange={setFilter}
           onHideSystemEventsChange={setHideSystemEvents}
           onMessageTypeChange={setMessageType}
+          onRangeChange={setRange}
           onSearchChange={setSearchInput}
-          onSortChange={setSort}
+          range={range}
           search={searchInput}
-          sort={sort}
         />
-        <ConversationTimeline hasActiveFilters={hasActiveFilters} messages={visibleMessages} onLoadMore={() => setVisibleCount((count) => count + PAGE_SIZE)} totalMatching={filteredMessages.length} />
+        <ConversationTimeline
+          hasActiveFilters={hasActiveFilters}
+          hideSystemEvents={hideSystemEvents}
+          latestMessageId={latestMatchingMessageId}
+          messages={visibleMessages}
+          onHideSystemEventsChange={setHideSystemEvents}
+          onGoToLatest={() => {
+            setVisibleCount(filteredMessages.length);
+            window.setTimeout(() => document.getElementById(`case-conversation-message-${latestMatchingMessageId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+          }}
+          onLoadMore={() => setVisibleCount((count) => count + PAGE_SIZE)}
+          onSortChange={setSort}
+          sort={sort}
+          totalMatching={filteredMessages.length}
+        />
       </Stack>
     </Card>
   );

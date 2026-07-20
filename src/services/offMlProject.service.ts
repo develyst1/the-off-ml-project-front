@@ -1,6 +1,7 @@
 ﻿import type {
   AnalyticsSummary,
-  AutoAnswerLog,
+  AutoAnswerLogsPage,
+  AutoAnswerLogsQuery,
   AutoAnswerSolution,
   AutomationSettings,
   CaseStatus,
@@ -315,8 +316,13 @@ export async function getAutoAnswerSolutions(): Promise<AutoAnswerSolution[]> {
   return request<AutoAnswerSolution[]>("/automation/solutions");
 }
 
-export async function getAutoAnswerLogs(): Promise<AutoAnswerLog[]> {
-  return request<AutoAnswerLog[]>("/automation/logs");
+export async function getAutoAnswerLogs(query: AutoAnswerLogsQuery = {}): Promise<AutoAnswerLogsPage> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return request<AutoAnswerLogsPage>(`/automation/logs${suffix}`);
 }
 
 export async function getTeamsStatus(): Promise<{ connected: boolean; mode: "incoming_webhook" | "mock" }> {
