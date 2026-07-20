@@ -1306,7 +1306,7 @@ function AutomationSettings({
               leftSection={isUpdatingAutomation ? undefined : <AppIcon name={enabled ? "stop" : "check"} />}
               onClick={() => void toggleAutomation()}
             >
-              {isUpdatingAutomation ? "กำลังอัปเดต..." : enabled ? "ปิดทันที" : "เปิดใช้งาน"}
+              {isUpdatingAutomation ? "กำลังอัปเดต..." : enabled ? "ปิดใช้งาน" : "เปิดใช้งาน"}
             </Button>
           </Flex>
         </Paper>
