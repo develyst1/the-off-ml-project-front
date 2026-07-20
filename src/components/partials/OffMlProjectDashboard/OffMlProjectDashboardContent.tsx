@@ -776,7 +776,7 @@ function CaseDetail({
         </Stack>
       </Card>
 
-      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
+      <SimpleGrid className="caseDetailLowerGrid" cols={{ base: 1, xl: 2 }} spacing="lg">
         <Stack gap="md" style={{ minWidth: 0, order: 2 }}>
           <Paper bg="blue.0" p="md" radius="md">
             <Group gap="sm" mb="xs">
