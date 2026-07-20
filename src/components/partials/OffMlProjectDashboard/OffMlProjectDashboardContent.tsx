@@ -753,20 +753,50 @@ function CaseDetail({
         </Stack>
       </Card>
 
-      <Card padding="lg" radius="md" withBorder>
-        <Group align="flex-start" justify="space-between" mb="md">
-          <Box>
-            <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
-            <Text c="dimmed" size="sm">
-              แสดงสิ่งที่ระบบส่งเข้า Teams และสถานะหลังทีมส่งคำตอบกลับ
-            </Text>
-          </Box>
-          <Badge color={teamsMeta.color} variant="light">
-            {teamsMeta.label}
-          </Badge>
-        </Group>
+      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
+        <Stack gap="md">
+          <Paper bg="blue.0" p="md" radius="md">
+            <Group gap="sm" mb="xs">
+              <ThemeIcon color="blue" radius="xl" variant="light">
+                <AppIcon name="message" />
+              </ThemeIcon>
+              <Text fw={800}>สถานะการดำเนินงาน</Text>
+            </Group>
+            <OperationStepper status={item.status} />
+          </Paper>
 
-        <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
+          <Paper bg="gray.0" p="md" radius="md">
+            <Text c="dimmed" fw={700} size="sm">
+              วิธีแก้ที่สกัดได้
+            </Text>
+            <Text mt={6}>
+              {item.status === "awaiting_tech" ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ" : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้"}
+            </Text>
+          </Paper>
+
+          <Paper bg="gray.0" p="md" radius="md">
+            <Text c="dimmed" fw={700} size="sm">
+              ข้อความที่จะส่งให้ลูกค้า
+            </Text>
+            <Text mt={6}>
+              {item.status === "awaiting_tech" ? "ยังไม่สร้างข้อความตอบกลับ" : item.customerReply || "ยังไม่สร้างข้อความตอบกลับ"}
+            </Text>
+          </Paper>
+        </Stack>
+
+        <Card padding="lg" radius="md" withBorder>
+          <Group align="flex-start" justify="space-between" mb="md">
+            <Box>
+              <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
+              <Text c="dimmed" size="sm">
+                แสดงสิ่งที่ระบบส่งเข้า Teams และสถานะหลังทีมส่งคำตอบกลับ
+              </Text>
+            </Box>
+            <Badge color={teamsMeta.color} variant="light">
+              {teamsMeta.label}
+            </Badge>
+          </Group>
+
           <Paper className="teamsPreview" radius="lg" withBorder>
             <Box className="teamsHeader">
               <Group gap="sm">
@@ -1064,35 +1094,8 @@ function CaseDetail({
               </Paper>
             </Stack>
           </Paper>
-
-          <Stack gap="md">
-            <Paper bg="blue.0" p="md" radius="md">
-              <Group gap="sm" mb="xs">
-                <ThemeIcon color="blue" radius="xl" variant="light">
-                  <AppIcon name="message" />
-                </ThemeIcon>
-                <Text fw={800}>สถานะการดำเนินงาน</Text>
-              </Group>
-              <OperationStepper status={item.status} />
-            </Paper>
-
-            <SimpleGrid cols={{ base: 1, md: 2 }}>
-              <Paper bg="gray.0" p="md" radius="md">
-                <Text c="dimmed" fw={700} size="sm">
-                  วิธีแก้ที่สกัดได้
-                </Text>
-                <Text>{item.status === "awaiting_tech" ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ" : item.supportSolution}</Text>
-              </Paper>
-              <Paper bg="gray.0" p="md" radius="md">
-                <Text c="dimmed" fw={700} size="sm">
-                  ข้อความที่จะส่งให้ลูกค้า
-                </Text>
-                <Text>{item.status === "awaiting_tech" ? "ยังไม่สร้างข้อความตอบกลับ" : item.customerReply}</Text>
-              </Paper>
-            </SimpleGrid>
-          </Stack>
-        </SimpleGrid>
-      </Card>
+        </Card>
+      </SimpleGrid>
       <Modal
         opened={closeConfirmationOpen}
         onClose={() => actionState === "idle" && setCloseConfirmationOpen(false)}
