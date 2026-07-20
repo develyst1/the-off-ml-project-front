@@ -46,6 +46,8 @@ import {
   updateAutomationSettings,
   requestAdditionalInfo,
   replyToCustomer,
+  rewriteAdditionalInfoRequest,
+  rewriteCustomerReply,
   closeCaseWithReply,
   reopenCase,
 } from "@/services/offMlProject.service";
@@ -471,6 +473,7 @@ function CaseDetail({
   onReply,
   onCloseCase,
   onComposeAi,
+  onRewriteAi,
   onReopenCase,
   onRequestInfo,
 }: {
@@ -481,6 +484,7 @@ function CaseDetail({
   onReply: (text: string) => Promise<void>;
   onCloseCase: (text: string) => Promise<void>;
   onComposeAi: (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => Promise<AiComposeResult>;
+  onRewriteAi: (mode: AiComposeMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string }>;
   onReopenCase: () => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
 }) {
@@ -625,6 +629,18 @@ function CaseDetail({
     setActionNotice(undefined);
     setAiMissingInformation([]);
     try {
+      if (requireDraft) {
+        const rewritten = await onRewriteAi(actionMode, draftText);
+        if (!rewritten.rewrittenMessage.trim()) {
+          throw new Error("AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้");
+        }
+        setReplyText(rewritten.rewrittenMessage);
+        setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? rewritten.rewrittenMessageId : undefined);
+        setMoreInfoReason(undefined);
+        setActionNotice("AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
+        return;
+      }
+
       const draft = await onComposeAi(
         actionMode,
         actionMode === "CUSTOMER_REPLY" ? draftText || undefined : undefined,
@@ -1610,6 +1626,14 @@ export default function OffMlProjectDashboardContent() {
     return composeAiMessage(selectedCase.id, { mode, supportInstruction, requestedInformation });
   };
 
+  const handleRewriteAi = async (mode: AiComposeMode, text: string) => {
+    if (!selectedCase) throw new Error("ยังไม่ได้เลือกเคส");
+    if (mode === "REQUEST_MORE_INFO") {
+      return rewriteAdditionalInfoRequest(selectedCase.id, text);
+    }
+    return rewriteCustomerReply(selectedCase.id, text, "NORMAL_REPLY");
+  };
+
   const handleReopenCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await reopenCase(selectedCase.id);
@@ -1714,6 +1738,7 @@ export default function OffMlProjectDashboardContent() {
                 onReply={handleReply}
                 onCloseCase={handleCloseCase}
                 onComposeAi={handleComposeAi}
+                onRewriteAi={handleRewriteAi}
                 onReopenCase={handleReopenCase}
                 onRequestInfo={handleRequestInfo}
               />
