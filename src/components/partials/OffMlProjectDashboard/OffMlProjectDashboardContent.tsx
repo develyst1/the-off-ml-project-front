@@ -754,7 +754,7 @@ function CaseDetail({
       </Card>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
-        <Stack gap="md">
+        <Stack gap="md" style={{ minWidth: 0, order: 2 }}>
           <Paper bg="blue.0" p="md" radius="md">
             <Group gap="sm" mb="xs">
               <ThemeIcon color="blue" radius="xl" variant="light">
@@ -784,7 +784,7 @@ function CaseDetail({
           </Paper>
         </Stack>
 
-        <Card padding="lg" radius="md" withBorder>
+        <Card padding="lg" radius="md" style={{ minWidth: 0, order: 1 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
               <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
