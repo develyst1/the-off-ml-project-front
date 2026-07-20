@@ -612,10 +612,10 @@ function CaseDetail({
     }
   };
 
-  const composeWithAi = async (draftOverride?: string) => {
+  const composeWithAi = async (draftOverride?: string, requireDraft = false) => {
     if (actionState !== "idle") return;
     const draftText = (draftOverride ?? (replyText.trim() || (actionMode === "CUSTOMER_REPLY" ? supportInstruction : moreInfoGoal))).trim();
-    if (!draftText) {
+    if (requireDraft && !draftText) {
       setActionError("กรุณาพิมพ์ข้อความก่อนให้ AI ช่วยเรียบเรียง");
       return;
     }
@@ -627,8 +627,8 @@ function CaseDetail({
     try {
       const draft = await onComposeAi(
         actionMode,
-        actionMode === "CUSTOMER_REPLY" ? draftText : undefined,
-        actionMode === "REQUEST_MORE_INFO" ? draftText : undefined,
+        actionMode === "CUSTOMER_REPLY" ? draftText || undefined : undefined,
+        actionMode === "REQUEST_MORE_INFO" ? draftText || undefined : undefined,
       );
       if (!draft.suggestedMessage.trim()) {
         throw new Error("AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้");
@@ -976,7 +976,7 @@ function CaseDetail({
                             color="blue"
                             disabled={!replyText.trim() || isActionRunning}
                             loading={actionState === "rewriting"}
-                            onClick={() => void composeWithAi(replyText)}
+                            onClick={() => void composeWithAi(replyText, true)}
                             pos="absolute"
                             right={10}
                             size="lg"
@@ -1066,7 +1066,6 @@ function CaseDetail({
                       </Group>
                     </Paper>
                   ) : null}
-                  {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
                 </Paper>
               </Group>
 
