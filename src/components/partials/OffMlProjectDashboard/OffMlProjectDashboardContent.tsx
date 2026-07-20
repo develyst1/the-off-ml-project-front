@@ -634,6 +634,13 @@ function CaseDetail({
         throw new Error("AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้");
       }
       setReplyText(draft.suggestedMessage);
+      if (!draftOverride) {
+        if (actionMode === "CUSTOMER_REPLY") {
+          setSupportInstruction(draft.suggestedMessage);
+        } else {
+          setMoreInfoGoal(draft.suggestedMessage);
+        }
+      }
       setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? draft.rewrittenMessageId : undefined);
       setMoreInfoReason(draft.reason);
       setAiMissingInformation(actionMode === "CUSTOMER_REPLY" ? draft.missingInformation : []);
