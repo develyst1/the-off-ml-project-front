@@ -44,6 +44,9 @@ export interface SupportCase {
   problemSummaryStatus: "PENDING" | "SUCCESS" | "FAILED";
   problemSummaryGeneratedAt?: string;
   analysisStatus: "AI_SUCCESS" | "AI_LOW_CONFIDENCE" | "AI_FAILED" | "NO_CUSTOMER_MESSAGE";
+  confidenceReviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  confidenceReviewedAt?: string;
+  confidenceReviewedBy?: string;
   assignee?: string | null;
   lastActivityAt: string;
   hasUnreadCustomerMessage: boolean;
@@ -140,6 +143,9 @@ export interface OffMlProjectCaseResponse {
   problemSummarySourceMessageId?: string;
   problemSummaryVersion?: number;
   problemSummaryStatus?: "PENDING" | "SUCCESS" | "FAILED";
+  confidenceReviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  confidenceReviewedAt?: string;
+  confidenceReviewedBy?: string;
   assigneeName?: string;
   hasUnreadCustomerMessage?: boolean;
   status: CaseStatus;

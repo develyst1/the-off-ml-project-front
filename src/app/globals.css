@@ -60,6 +60,26 @@ body {
   background: #fff5f5;
 }
 
+.automationEnablePanel {
+  border: 1px solid #b7e4c7;
+  background: #f2fbf5;
+}
+
+.automationErrorToast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 300;
+  max-width: min(420px, calc(100vw - 40px));
+  padding: 9px 12px;
+  border-radius: 6px;
+  background: #b42318;
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 18%);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .timelineLine {
   border-left: 2px solid #dbeafe;
   padding-left: 16px;

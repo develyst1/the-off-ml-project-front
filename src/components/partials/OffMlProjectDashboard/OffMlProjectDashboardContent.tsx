@@ -1241,11 +1241,28 @@ function AutomationSettings({
 }) {
   const enabled = settings?.enabled ?? false;
   const [automationNotice, setAutomationNotice] = useState("Auto-answer พร้อมทำงานตาม guardrail ที่กำหนด");
+  const [automationError, setAutomationError] = useState<string>();
+  const [isUpdatingAutomation, setIsUpdatingAutomation] = useState(false);
   const [selectedLogSolution, setSelectedLogSolution] = useState<AutoAnswerLog | null>(null);
 
-  const stopAutomationNow = async () => {
-    await onUpdateSettings({ emergencyDisable: true });
-    setAutomationNotice("ปิด auto-answer ทันทีแล้ว เคสใหม่จะกลับเข้าคิวทีม Tech Support");
+  const toggleAutomation = async () => {
+    if (isUpdatingAutomation || !settings) return;
+
+    setIsUpdatingAutomation(true);
+    setAutomationError(undefined);
+    try {
+      if (enabled) {
+        await onUpdateSettings({ emergencyDisable: true });
+        setAutomationNotice("ปิด auto-answer ทันทีแล้ว เคสใหม่จะกลับเข้าคิวทีม Tech Support");
+      } else {
+        await onUpdateSettings({ enabled: true });
+        setAutomationNotice("เปิด auto-answer แล้ว ระบบจะทำงานเฉพาะเคสที่ผ่าน confidence 2 ชั้น");
+      }
+    } catch (error) {
+      setAutomationError(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนสถานะ auto-answer ได้ กรุณาลองใหม่");
+    } finally {
+      setIsUpdatingAutomation(false);
+    }
   };
 
   return (
@@ -1258,28 +1275,12 @@ function AutomationSettings({
       </Alert>
 
       <Card padding="lg" radius="md" withBorder>
-        <Group justify="space-between">
-          <Box>
-            <Title order={3}>Guarded auto-answer</Title>
-            <Text c="dimmed" size="sm">
-              ใช้ threshold ทั้ง case_understanding_confidence และ case_discrimination_confidence
-            </Text>
-          </Box>
-          <Switch
-            checked={enabled}
-            label={enabled ? "เปิดใช้งาน" : "ปิดใช้งาน"}
-            onChange={(event) => {
-              const nextEnabled = event.currentTarget.checked;
-              void onUpdateSettings({ enabled: nextEnabled });
-              setAutomationNotice(
-                nextEnabled
-                  ? "เปิด auto-answer แล้ว ระบบจะทำงานเฉพาะเคสที่ผ่าน confidence 2 ชั้น"
-                  : "ปิด auto-answer แล้ว เคสใหม่จะกลับเข้าคิวทีม Tech Support",
-              );
-            }}
-            size="md"
-          />
-        </Group>
+        <Box>
+          <Title order={3}>Guarded auto-answer</Title>
+          <Text c="dimmed" size="sm">
+            ใช้ threshold ทั้ง case_understanding_confidence และ case_discrimination_confidence
+          </Text>
+        </Box>
         <SimpleGrid cols={{ base: 1, md: 2 }} mt="lg">
           <Paper bg="gray.0" p="md" radius="md">
             <Text c="dimmed" fw={700} size="sm">เข้าใจเคสถูกต้อง</Text>
@@ -1290,19 +1291,26 @@ function AutomationSettings({
             <Title order={2}>{settings?.caseDiscriminationThreshold ?? 98}%</Title>
           </Paper>
         </SimpleGrid>
-        <Paper className="emergencyPanel" mt="lg" p="md" radius="md">
+        <Paper className={enabled ? "emergencyPanel" : "automationEnablePanel"} mt="lg" p="md" radius="md">
           <Flex align={{ base: "stretch", sm: "center" }} direction={{ base: "column", sm: "row" }} gap="md" justify="space-between">
             <Box>
-              <Text c="red.8" fw={800}>หยุดการตอบอัตโนมัติ</Text>
+              <Text c={enabled ? "red.8" : "green.8"} fw={800}>{enabled ? "หยุดการตอบอัตโนมัติ" : "เปิดการตอบอัตโนมัติ"}</Text>
               <Text c="dimmed" size="sm">
-                ปิดทันทีและส่งเคสใหม่ทั้งหมดกลับเข้าคิวทีม Tech Support
+                {enabled ? "ปิดทันทีและส่งเคสใหม่ทั้งหมดกลับเข้าคิวทีม Tech Support" : "เปิดระบบให้ตอบอัตโนมัติเฉพาะเคสที่ผ่าน guardrail"}
               </Text>
             </Box>
-            <Button color="red" leftSection={<AppIcon name="stop" />} onClick={() => void stopAutomationNow()}>
-              ปิดทันที
+            <Button
+              color={enabled ? "red" : "green"}
+              disabled={!settings}
+              loading={isUpdatingAutomation}
+              leftSection={isUpdatingAutomation ? undefined : <AppIcon name={enabled ? "stop" : "check"} />}
+              onClick={() => void toggleAutomation()}
+            >
+              {isUpdatingAutomation ? "กำลังอัปเดต..." : enabled ? "ปิดทันที" : "เปิดใช้งาน"}
             </Button>
           </Flex>
         </Paper>
+        {automationError ? <Box className="automationErrorToast" role="alert">{automationError}</Box> : null}
       </Card>
 
       <Card padding="lg" radius="md" withBorder>
