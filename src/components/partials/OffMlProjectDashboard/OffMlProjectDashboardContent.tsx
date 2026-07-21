@@ -1706,8 +1706,40 @@ function AutomationSettings({
                 })}
                 onChange={(page) => loadLogs({ page })}
                 radius="md"
-                size={25}
+                size="sm"
                 siblings={1}
+                styles={{
+                  root: {
+                    alignItems: "center",
+                  },
+                  control: {
+                    boxSizing: "border-box",
+                    width: 30,
+                    minWidth: 30,
+                    maxWidth: 30,
+                    height: 30,
+                    minHeight: 30,
+                    padding: 0,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    fontVariantNumeric: "tabular-nums",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                  dots: {
+                    width: 22,
+                    minWidth: 22,
+                    height: 30,
+                    padding: 0,
+                    fontSize: 13,
+                    lineHeight: 1,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                }}
                 total={logsPage.totalPages}
                 value={logsPage.page}
                 withEdges

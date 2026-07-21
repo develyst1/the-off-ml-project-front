@@ -439,21 +439,84 @@ body {
 }
 
 .autoAnswerLogsPaginationControls {
+  display: flex;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .autoAnswerLogsPageSize {
+  display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .autoAnswerLogsPageSizeSelect {
   width: 100px;
 }
 
+.autoAnswerLogsPageSizeSelect .mantine-Select-input {
+  min-height: 36px;
+  height: 36px;
+  padding-inline: 12px 32px;
+  font-size: 13px;
+  line-height: 1;
+}
+
 .autoAnswerLogsPaginationNav {
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
+}
+
+.autoAnswerLogsPaginationNav .mantine-Pagination-control {
+  box-sizing: border-box;
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.autoAnswerLogsPaginationNav .mantine-Pagination-control[data-active] {
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.autoAnswerLogsPaginationNav .mantine-Pagination-control svg {
+  width: 14px;
+  height: 14px;
+}
+
+.autoAnswerLogsPaginationNav .mantine-Pagination-dots {
+  width: 22px;
+  min-width: 22px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
 }
 
 @media (max-width: 1180px) and (min-width: 49em) {
@@ -485,11 +548,33 @@ body {
 
   .autoAnswerLogsPaginationControls {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
+    gap: 10px;
   }
 
   .autoAnswerLogsPaginationNav {
     max-width: 100%;
+  }
+
+  .autoAnswerLogsPaginationNav .mantine-Pagination-control {
+    flex-basis: 28px;
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    font-size: 12px;
+  }
+
+  .autoAnswerLogsPaginationNav .mantine-Pagination-control[data-active] {
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    font-size: 12px;
   }
 }
 
