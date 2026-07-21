@@ -286,12 +286,14 @@ export async function getConfidenceSuggestions(): Promise<ConfidenceSuggestion[]
 export async function reviewConfidenceSuggestion(input: {
   caseId: string;
   id: string;
+  solutionId?: string;
   result: "approved" | "rejected";
 }) {
   return request<{ caseId: string; id: string; result: "approved" | "rejected" }>(`/confidence/suggestions/${input.id}/review`, {
     method: "POST",
     body: JSON.stringify({
       caseId: input.caseId,
+      solutionId: input.solutionId,
       result: input.result,
     }),
   });

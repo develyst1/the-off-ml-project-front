@@ -2094,7 +2094,12 @@ export default function OffMlProjectDashboardContent() {
   };
 
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
-    await reviewConfidenceSuggestion({ caseId: item.caseId, id: item.id, result });
+    await reviewConfidenceSuggestion({
+      caseId: item.caseId,
+      id: item.id,
+      solutionId: item.suggestedSolutionId === "-" ? undefined : item.suggestedSolutionId,
+      result,
+    });
     await Promise.all([loadCases(), loadDashboardData()]);
     setActiveTab("confidence");
   };
