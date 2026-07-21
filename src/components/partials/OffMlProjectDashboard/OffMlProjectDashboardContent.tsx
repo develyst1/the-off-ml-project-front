@@ -10,6 +10,7 @@ import {
   Box,
   Button,
   Card,
+  Drawer,
   Flex,
   Group,
   Modal,
@@ -89,6 +90,14 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
 const DEFAULT_CLOSE_CUSTOMER_MESSAGE = "ทีมงานดำเนินการในเรื่องนี้เรียบร้อยแล้ว จึงขอปิดเคสนี้นะคะ\nหากยังพบปัญหา สามารถตอบกลับพร้อมแจ้งหมายเลขเคสได้เลยค่ะ";
 
 const fallbackStatusMeta = { label: "ไม่ทราบสถานะ", color: "gray" };
+
+const autoAnswerLogEventLabels: Record<string, string> = {
+  CASE_ACKNOWLEDGEMENT: "รับเรื่อง",
+  CUSTOMER_REPLY: "ตอบลูกค้า",
+  REQUEST_MORE_INFO: "ขอข้อมูลเพิ่ม",
+  STATUS_UPDATE: "อัปเดตสถานะ",
+  CASE_CLOSED: "ปิดเคส",
+};
 
 function getStatusMeta(status: CaseStatus) {
   return statusMeta[status] ?? fallbackStatusMeta;
@@ -1316,6 +1325,7 @@ function AutomationSettings({
   const [automationError, setAutomationError] = useState<string>();
   const [isUpdatingAutomation, setIsUpdatingAutomation] = useState(false);
   const [selectedLogSolution, setSelectedLogSolution] = useState<AutoAnswerLog | null>(null);
+  const [selectedLogMessage, setSelectedLogMessage] = useState<AutoAnswerLog | null>(null);
   const [logSearch, setLogSearch] = useState("");
   const [logEventType, setLogEventType] = useState<string | null>(null);
   const [logStatus, setLogStatus] = useState<string | null>(null);
@@ -1363,6 +1373,16 @@ function AutomationSettings({
     setLogDateFrom("");
     setLogDateTo("");
     loadLogs({ page: 1, search: "", eventType: "", status: "", dateFrom: "", dateTo: "" });
+  };
+
+  const shouldShowFullMessageAction = (message: string) => {
+    const normalizedMessage = message.trim();
+    const lineCount = normalizedMessage.split(/\r?\n/).length;
+    return normalizedMessage.length > 110 || lineCount > 2;
+  };
+
+  const openLogMessageDrawer = (log: AutoAnswerLog) => {
+    setSelectedLogMessage(log);
   };
 
   const toggleAutomation = async () => {
@@ -1505,12 +1525,12 @@ function AutomationSettings({
           <Button variant="subtle" onClick={clearLogFilters}>ล้างตัวกรอง</Button>
         </Flex>
         <ScrollArea type="auto">
-          <Table miw={760}>
+          <Table miw={860}>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>เวลา</Table.Th>
                 <Table.Th>ลูกค้า</Table.Th>
-                <Table.Th>ข้อความที่ตอบ</Table.Th>
+                <Table.Th style={{ width: "36%" }}>ข้อความที่ตอบ</Table.Th>
                 <Table.Th>วิธีแก้</Table.Th>
                 <Table.Th>Teams</Table.Th>
               </Table.Tr>
@@ -1520,7 +1540,36 @@ function AutomationSettings({
                 <Table.Tr key={item.id}>
                   <Table.Td>{formatEventTime(item.time)}</Table.Td>
                   <Table.Td>{item.customer}</Table.Td>
-                  <Table.Td>{item.answerText}</Table.Td>
+                  <Table.Td>
+                    <Box maw={520} miw={0}>
+                      <Text
+                        className="line-clamp-2 break-words"
+                        component="p"
+                        m={0}
+                        size="sm"
+                        style={{
+                          display: "-webkit-box",
+                          lineHeight: "1.35rem",
+                          overflow: "hidden",
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 2,
+                        }}
+                      >
+                        {item.answerText}
+                      </Text>
+                      {shouldShowFullMessageAction(item.answerText) ? (
+                        <Button
+                          mt={4}
+                          onClick={() => openLogMessageDrawer(item)}
+                          p={0}
+                          size="xs"
+                          variant="transparent"
+                        >
+                          ดูเพิ่มเติม
+                        </Button>
+                      ) : null}
+                    </Box>
+                  </Table.Td>
                   <Table.Td>
                     {item.solutionText ? (
                       <Button size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
@@ -1576,6 +1625,81 @@ function AutomationSettings({
           </Flex>
         ) : null}
       </Card>
+      <Drawer
+        onClose={() => setSelectedLogMessage(null)}
+        opened={Boolean(selectedLogMessage)}
+        padding="lg"
+        position="right"
+        size="min(100%, 540px)"
+        title="รายละเอียดข้อความ"
+        withCloseButton
+        zIndex={210}
+      >
+        <Stack gap="md">
+          <Box>
+            <Text c="dimmed" size="xs">วันที่และเวลา</Text>
+            <Text fw={500}>{formatEventTime(selectedLogMessage?.time)}</Text>
+          </Box>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <Box>
+              <Text c="dimmed" size="xs">ลูกค้า</Text>
+              <Text fw={500}>{selectedLogMessage?.customer ?? "-"}</Text>
+            </Box>
+            <Box>
+              <Text c="dimmed" size="xs">หมายเลขเคส</Text>
+              <Text fw={500}>{selectedLogMessage?.caseNumber || "-"}</Text>
+            </Box>
+            <Box>
+              <Text c="dimmed" size="xs">ประเภทข้อความ</Text>
+              <Text fw={500}>
+                {selectedLogMessage?.eventType
+                  ? autoAnswerLogEventLabels[selectedLogMessage.eventType] ?? selectedLogMessage.eventType
+                  : "-"}
+              </Text>
+            </Box>
+            <Box>
+              <Text c="dimmed" size="xs">Teams</Text>
+              <Badge color={selectedLogMessage?.teamsNotified ? "green" : "gray"} variant="light">
+                {selectedLogMessage?.teamsNotified ? "แจ้งแล้ว" : "ยังไม่แจ้ง"}
+              </Badge>
+            </Box>
+          </SimpleGrid>
+          <Box>
+            <Text c="dimmed" mb={6} size="xs">ข้อความฉบับเต็ม</Text>
+            <Paper bg="gray.0" p="md" radius="md" withBorder>
+              <Text
+                size="sm"
+                style={{
+                  lineHeight: 1.6,
+                  overflowWrap: "break-word",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {selectedLogMessage?.answerText ?? "-"}
+              </Text>
+            </Paper>
+          </Box>
+          {selectedLogMessage?.solutionText ? (
+            <Box>
+              <Text c="dimmed" mb={6} size="xs">วิธีแก้</Text>
+              <Paper bg="gray.0" p="md" radius="md" withBorder>
+                <Text
+                  size="sm"
+                  style={{
+                    lineHeight: 1.6,
+                    overflowWrap: "break-word",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {selectedLogMessage.solutionText}
+                </Text>
+              </Paper>
+            </Box>
+          ) : null}
+        </Stack>
+      </Drawer>
       <Modal
         centered
         onClose={() => setSelectedLogSolution(null)}
