@@ -623,7 +623,7 @@ function CaseDetail({
   const submitReply = async () => {
     const text = replyText.trim();
     if (!text) {
-      setActionError("กรุณากรอกข้อความที่จะส่งให้ลูกค้า");
+      setActionError("กรุณากรอกข้อความที่จะส่ง");
       return;
     }
 
@@ -658,7 +658,7 @@ function CaseDetail({
 
   const composeWithAi = async (draftOverride?: string, requireDraft = false) => {
     if (actionState !== "idle") return;
-    const draftText = (draftOverride ?? (replyText.trim() || (actionMode === "CUSTOMER_REPLY" ? supportInstruction : moreInfoGoal))).trim();
+    const draftText = (draftOverride ?? (actionMode === "CUSTOMER_REPLY" ? supportInstruction : moreInfoGoal)).trim();
     if (requireDraft && !draftText) {
       setActionError("กรุณาพิมพ์ข้อความก่อนให้ AI ช่วยเรียบเรียง");
       return;
@@ -690,13 +690,6 @@ function CaseDetail({
         throw new Error("AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้");
       }
       setReplyText(draft.suggestedMessage);
-      if (!draftOverride) {
-        if (actionMode === "CUSTOMER_REPLY") {
-          setSupportInstruction(draft.suggestedMessage);
-        } else {
-          setMoreInfoGoal(draft.suggestedMessage);
-        }
-      }
       setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? draft.rewrittenMessageId : undefined);
       setMoreInfoReason(draft.reason);
       setAiMissingInformation(actionMode === "CUSTOMER_REPLY" ? draft.missingInformation : []);
@@ -999,7 +992,7 @@ function CaseDetail({
                     <Paper ref={replyComposerRef} className="caseReplyComposer" mt="md" p="md" radius="md" withBorder>
                       <Group align="center" justify="space-between" gap="sm">
                         <Box>
-                          <Text fw={800} size="sm">ตอบกลับลูกค้าทาง LINE</Text>
+                          <Text fw={800} size="sm">ตอบกลับทาง LINE</Text>
                           <Text c="dimmed" size="xs">
                             เลือกโหมดการทำงาน แล้วตรวจสอบข้อความก่อนส่งทุกครั้ง
                           </Text>
@@ -1026,10 +1019,10 @@ function CaseDetail({
                         <Textarea
                           ref={replyTextareaRef}
                           autosize
-                          label="ข้อความที่จะส่งให้ลูกค้า"
+                          label="ข้อความที่จะส่ง"
                           minRows={5}
                           onChange={(event) => setReplyText(event.currentTarget.value)}
-                          placeholder={actionMode === "REQUEST_MORE_INFO" ? "เช่น รบกวนแจ้งเวลาที่พบปัญหาและแนบภาพหน้าจอเพิ่มเติมนะคะ" : "พิมพ์ข้อความที่ต้องการส่งให้ลูกค้า"}
+                          placeholder="ข้อความที่พร้อมส่งจะแสดงที่นี่ และสามารถแก้ไขได้ก่อนส่ง"
                           styles={{ input: { paddingRight: 52 } }}
                           value={replyText}
                         />
@@ -1053,29 +1046,29 @@ function CaseDetail({
                       </Box>
                       <Paper className="caseMoreInfoGoalPanel" mt="sm" p="sm" radius="sm" withBorder>
                         <Text fw={700} size="sm">
-                          {actionMode === "CUSTOMER_REPLY" ? "ให้ AI ช่วยร่างคำตอบลูกค้า" : "ระบุข้อมูลที่ต้องการขอเพิ่มเติม"}
+                          {actionMode === "CUSTOMER_REPLY" ? "ใช้ AI ช่วยเรียบเรียงคำตอบ" : "ใช้ AI ช่วยสร้างคำขอข้อมูล"}
                         </Text>
                         <Text c="dimmed" size="xs" mt={4}>
                           {actionMode === "CUSTOMER_REPLY"
-                            ? "AI จะอ่านข้อความล่าสุดและประวัติในเคส เพื่อช่วยร่างคำตอบที่เหมาะสม"
-                            : "AI จะดูบริบทของเคสและช่วยสร้างคำถาม โดยไม่ถามข้อมูลซ้ำ"}
+                            ? "ใส่ใจความหรือแนวทางจากทีม Tech แล้วให้ AI ช่วยเรียบเรียงเป็นข้อความพร้อมส่ง"
+                            : "ระบุข้อมูลที่ต้องการ แล้วให้ AI ช่วยเรียบเรียงเป็นคำถามสั้น ๆ"}
                         </Text>
                         {actionMode === "CUSTOMER_REPLY" ? (
                           <Textarea
                             autosize
-                            label="แนวทางที่ต้องการให้ AI ช่วยตอบ"
+                            label="ใจความที่ต้องการสื่อ"
                             minRows={2}
                             mt="sm"
                             onChange={(event) => setSupportInstruction(event.currentTarget.value)}
-                            placeholder="เช่น แนะนำให้ตรวจสอบสาย LAN และสถานะ Network Adapter"
+                            placeholder="พิมพ์ใจความ ผลตรวจสอบ หรือแนวทางที่ต้องการแจ้ง..."
                             value={supportInstruction}
                           />
                         ) : (
                           <TextInput
-                            label="ระบุข้อมูลที่ต้องการขอเพิ่มเติม"
+                            label="ข้อมูลที่ต้องการ"
                             mt="sm"
                             onChange={(event) => setMoreInfoGoal(event.currentTarget.value)}
-                            placeholder="เช่น ขอภาพหน้าจอ เวลาที่พบปัญหา หรือรุ่นอุปกรณ์"
+                            placeholder="ระบุข้อมูลที่ต้องการ เช่น รุ่นเครื่อง ภาพหน้าจอ หรือข้อความแจ้งเตือน..."
                             value={moreInfoGoal}
                           />
                         )}
@@ -1089,7 +1082,7 @@ function CaseDetail({
                           onClick={() => void composeWithAi()}
                           variant="light"
                         >
-                          {actionMode === "CUSTOMER_REPLY" ? "สร้างคำตอบด้วย AI" : "สร้างคำขอข้อมูลด้วย AI"}
+                          {actionMode === "CUSTOMER_REPLY" ? "เรียบเรียงด้วย AI" : "สร้างคำขอด้วย AI"}
                         </Button>
                       </Paper>
                       {actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
@@ -1105,7 +1098,7 @@ function CaseDetail({
                       {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
                       <Group className="caseReplyComposerActions" justify="space-between" mt="md">
                         <Text c="dimmed" size="xs">
-                          {actionMode === "REQUEST_MORE_INFO" ? "เมื่อส่งแล้ว ระบบจะรอข้อมูลจากลูกค้าในเคสนี้" : "การส่งข้อความจะคงสถานะเคสเดิมไว้"}
+                          {actionMode === "REQUEST_MORE_INFO" ? "เมื่อส่งแล้ว ระบบจะรอข้อมูลเพิ่มเติมในเคสนี้" : "การส่งข้อความจะคงสถานะเคสเดิมไว้"}
                         </Text>
                         <Group className="caseReplyComposerSubmit" gap="sm">
                           <Button
