@@ -164,9 +164,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     isSlaBreached,
     category: caseItem.aiStatus === "AI_FAILED"
       ? "AI วิเคราะห์ไม่สำเร็จ"
-      : caseItem.dataStatus === "DATA_INCOMPLETE"
-        ? "ต้องการข้อมูลเพิ่มเติม"
-        : customerAnalysis?.category ?? caseItem.category ?? "-",
+      : customerAnalysis?.category
+        ?? caseItem.category
+        ?? (caseItem.dataStatus === "DATA_INCOMPLETE" ? "ยังไม่ระบุหมวดหมู่" : "-"),
     aiConfidence: caseItem.aiStatus === "AI_FAILED" ? 0 : customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),
