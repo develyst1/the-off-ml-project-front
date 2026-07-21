@@ -363,6 +363,109 @@ body {
   border-color: #bfdbfe;
 }
 
+.autoAnswerLogsFilters {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 200px 200px 145px 145px auto;
+  gap: 10px 12px;
+  align-items: end;
+}
+
+.autoAnswerLogsFilters > * {
+  min-width: 0;
+}
+
+.autoAnswerLogsClear {
+  align-self: end;
+  white-space: nowrap;
+}
+
+.autoAnswerLogsTableScroll {
+  max-width: 100%;
+}
+
+.autoAnswerLogsTableHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+}
+
+.autoAnswerLogsTableHead th {
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.autoAnswerLogsTableRow > td {
+  vertical-align: middle;
+}
+
+.autoAnswerLogsTableRow:hover > td {
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.autoAnswerLogMessage {
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px;
+  transition: background-color 120ms ease;
+}
+
+.autoAnswerLogMessage:hover,
+.autoAnswerLogMessage:focus-visible {
+  background: #f1f5f9;
+  outline: none;
+}
+
+.autoAnswerLogMessageText {
+  overflow-wrap: anywhere;
+}
+
+.autoAnswerLogMoreButton {
+  line-height: 1.1;
+}
+
+.autoAnswerLogsCenteredCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.autoAnswerLogsPagination {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+@media (max-width: 1180px) and (min-width: 49em) {
+  .autoAnswerLogsFilters {
+    grid-template-columns: minmax(260px, 1fr) 180px 180px 140px 140px auto;
+  }
+}
+
+@media (max-width: 48em) {
+  .autoAnswerLogsFilters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .autoAnswerLogsSearch {
+    grid-column: 1 / -1;
+  }
+
+  .autoAnswerLogsClear {
+    justify-self: start;
+  }
+
+  .autoAnswerLogsTableScroll {
+    margin-inline: -4px;
+  }
+
+  .autoAnswerLogsPagination {
+    align-items: flex-start;
+  }
+}
+
 @media (max-width: 48em) {
   .caseReplyComposer > .mantine-Group-root {
     align-items: stretch;

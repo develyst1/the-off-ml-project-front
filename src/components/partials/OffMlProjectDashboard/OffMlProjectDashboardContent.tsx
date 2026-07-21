@@ -1501,17 +1501,18 @@ function AutomationSettings({
         ) : null}
       </Card>
 
-      <Card padding="lg" radius="md" withBorder>
-        <Title mb="md" order={3}>Auto-answer notification log</Title>
-        <Flex align="end" gap="sm" mb="md" wrap="wrap">
+      <Card className="autoAnswerLogsCard" padding="md" radius="md" withBorder>
+        <Title mb="sm" order={3}>Auto-answer notification log</Title>
+        <Box className="autoAnswerLogsFilters" mb="sm">
           <TextInput
-            flex={1}
+            className="autoAnswerLogsSearch"
             label="ค้นหา"
             placeholder="ค้นหาหมายเลขเคส ลูกค้า หรือข้อความ"
             value={logSearch}
             onChange={(event) => updateLogFilter("search", event.currentTarget.value)}
           />
           <Select
+            className="autoAnswerLogsEventType"
             clearable
             data={[
               { value: "CASE_ACKNOWLEDGEMENT", label: "รับเรื่อง" },
@@ -1526,6 +1527,7 @@ function AutomationSettings({
             onChange={(value) => updateLogFilter("eventType", value ?? "")}
           />
           <Select
+            className="autoAnswerLogsStatus"
             clearable
             data={[
               { value: "sent", label: "ส่งสำเร็จ" },
@@ -1537,36 +1539,37 @@ function AutomationSettings({
             value={logStatus}
             onChange={(value) => updateLogFilter("status", value ?? "")}
           />
-          <TextInput label="ตั้งแต่วันที่" type="date" value={logDateFrom} onChange={(event) => updateLogFilter("dateFrom", event.currentTarget.value)} />
-          <TextInput label="ถึงวันที่" type="date" value={logDateTo} onChange={(event) => updateLogFilter("dateTo", event.currentTarget.value)} />
-          <Button variant="subtle" onClick={clearLogFilters}>ล้างตัวกรอง</Button>
-        </Flex>
-        <ScrollArea type="auto">
+          <TextInput className="autoAnswerLogsDateFrom" label="ตั้งแต่วันที่" type="date" value={logDateFrom} onChange={(event) => updateLogFilter("dateFrom", event.currentTarget.value)} />
+          <TextInput className="autoAnswerLogsDateTo" label="ถึงวันที่" type="date" value={logDateTo} onChange={(event) => updateLogFilter("dateTo", event.currentTarget.value)} />
+          <Button className="autoAnswerLogsClear" disabled={!logSearch && !logEventType && !logStatus && !logDateFrom && !logDateTo} variant="subtle" onClick={clearLogFilters}>ล้างตัวกรอง</Button>
+        </Box>
+        <ScrollArea className="autoAnswerLogsTableScroll" type="auto">
           <Table
+            className="autoAnswerLogsTable"
             horizontalSpacing="sm"
             layout="fixed"
-            miw={760}
-            verticalSpacing="xs"
+            miw={950}
+            verticalSpacing="sm"
           >
-            <Table.Thead>
+            <Table.Thead className="autoAnswerLogsTableHead">
               <Table.Tr>
-                <Table.Th style={{ width: 118 }}>เวลา</Table.Th>
-                <Table.Th style={{ width: 175 }}>ลูกค้า</Table.Th>
-                <Table.Th style={{ width: "36%" }}>ข้อความที่ตอบ</Table.Th>
-                <Table.Th style={{ width: 105 }}>วิธีแก้</Table.Th>
-                <Table.Th style={{ width: 130 }}>Teams</Table.Th>
+                <Table.Th style={{ width: 120 }}>เวลา</Table.Th>
+                <Table.Th style={{ width: 190 }}>ลูกค้า</Table.Th>
+                <Table.Th>ข้อความที่ตอบ</Table.Th>
+                <Table.Th style={{ width: 110 }}>วิธีแก้</Table.Th>
+                <Table.Th style={{ width: 145 }}>Teams</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {logs.map((item) => (
-                <Table.Tr key={item.id}>
-                  <Table.Td>
+                <Table.Tr className="autoAnswerLogsTableRow" key={item.id}>
+                  <Table.Td className="autoAnswerLogsCell">
                     <Box style={{ whiteSpace: "nowrap" }}>
                       <Text fw={500} size="sm">{formatEventDate(item.time)}</Text>
                       <Text c="dimmed" mt={2} size="xs">{formatEventClock(item.time)} น.</Text>
                     </Box>
                   </Table.Td>
-                  <Table.Td>
+                  <Table.Td className="autoAnswerLogsCell">
                     <Box miw={0}>
                       <Text fw={500} size="sm" truncate>{item.customer}</Text>
                       {item.caseNumber ? (
@@ -1577,7 +1580,7 @@ function AutomationSettings({
                           onClick={() => void (item.caseId ? onOpenCase(item.caseId) : onOpenCaseByNumber(item.caseNumber))}
                           p={0}
                           size="xs"
-                          styles={{ label: { overflow: "visible" } }}
+                          styles={{ label: { overflow: "visible", whiteSpace: "nowrap" } }}
                           variant="transparent"
                         >
                           {item.caseNumber}
@@ -1585,10 +1588,23 @@ function AutomationSettings({
                       ) : null}
                     </Box>
                   </Table.Td>
-                  <Table.Td>
-                    <Box maw={520} miw={0}>
+                  <Table.Td className="autoAnswerLogsCell">
+                    <Box
+                      aria-label={`เปิดรายละเอียดข้อความของ ${item.caseNumber}`}
+                      className="autoAnswerLogMessage"
+                      miw={0}
+                      onClick={() => openLogMessageDrawer(item)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openLogMessageDrawer(item);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
                       <Text
-                        className="line-clamp-2 break-words"
+                        className="line-clamp-2 break-words autoAnswerLogMessageText"
                         component="p"
                         m={0}
                         size="sm"
@@ -1604,8 +1620,12 @@ function AutomationSettings({
                       </Text>
                       {shouldShowFullMessageAction(item.answerText) ? (
                         <Button
-                          mt={4}
-                          onClick={() => openLogMessageDrawer(item)}
+                          className="autoAnswerLogMoreButton"
+                          mt={2}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openLogMessageDrawer(item);
+                          }}
                           p={0}
                           size="xs"
                           variant="transparent"
@@ -1615,19 +1635,23 @@ function AutomationSettings({
                       ) : null}
                     </Box>
                   </Table.Td>
-                  <Table.Td>
-                    {item.solutionText ? (
-                      <Button size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
-                        ดูวิธีแก้
-                      </Button>
-                    ) : (
-                      <Text c="dimmed" size="sm" ta="center">—</Text>
-                    )}
+                  <Table.Td className="autoAnswerLogsCell autoAnswerLogsSolutionCell">
+                    <Box className="autoAnswerLogsCenteredCell">
+                      {item.solutionText ? (
+                        <Button size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
+                          ดูวิธีแก้
+                        </Button>
+                      ) : (
+                        <Text c="dimmed" size="sm" ta="center">—</Text>
+                      )}
+                    </Box>
                   </Table.Td>
-                  <Table.Td>
-                    <Badge color={item.teamsNotified ? "green" : "gray"} variant="light" style={{ whiteSpace: "nowrap" }}>
-                      {item.teamsNotified ? "แจ้ง Teams แล้ว" : "ยังไม่แจ้ง"}
-                    </Badge>
+                  <Table.Td className="autoAnswerLogsCell">
+                    <Box className="autoAnswerLogsCenteredCell">
+                      <Badge color={item.teamsNotified ? "green" : "gray"} variant="light" style={{ whiteSpace: "nowrap" }}>
+                        {item.teamsNotified ? "แจ้ง Teams แล้ว" : "ยังไม่แจ้ง"}
+                      </Badge>
+                    </Box>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -1640,7 +1664,7 @@ function AutomationSettings({
           </Text>
         ) : null}
         {logsPage.totalItems > 0 ? (
-          <Flex align="center" justify="space-between" mt="md" wrap="wrap" gap="sm">
+          <Flex className="autoAnswerLogsPagination" align="center" justify="space-between" mt="sm" wrap="wrap" gap="sm">
             <Text c="dimmed" size="sm">
               แสดง {((logsPage.page - 1) * logsPage.pageSize) + 1}–{Math.min(logsPage.page * logsPage.pageSize, logsPage.totalItems)} จาก {logsPage.totalItems} รายการ
             </Text>
