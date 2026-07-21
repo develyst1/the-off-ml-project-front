@@ -1706,7 +1706,7 @@ function AutomationSettings({
                 })}
                 onChange={(page) => loadLogs({ page })}
                 radius="md"
-                size={36}
+                size={15}
                 siblings={1}
                 total={logsPage.totalPages}
                 value={logsPage.page}
