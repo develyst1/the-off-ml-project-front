@@ -214,8 +214,8 @@ export async function requestAdditionalInfo(caseId: string, text: string, source
   return mapCaseResponse(caseItem);
 }
 
-export async function rewriteAdditionalInfoRequest(caseId: string, text: string): Promise<{ rewrittenMessage: string; rewrittenMessageId: string }> {
-  return request<{ rewrittenMessage: string; rewrittenMessageId: string }>(`/cases/${caseId}/rewrite-request-info`, {
+export async function rewriteAdditionalInfoRequest(caseId: string, text: string): Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }> {
+  return request<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>(`/cases/${caseId}/rewrite-request-info`, {
     method: "POST",
     body: JSON.stringify({ text }),
   });

@@ -524,7 +524,7 @@ function CaseDetail({
   onReply: (text: string) => Promise<void>;
   onCloseCase: (text: string) => Promise<void>;
   onComposeAi: (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => Promise<AiComposeResult>;
-  onRewriteAi: (mode: AiComposeMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string }>;
+  onRewriteAi: (mode: AiComposeMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
   onReopenCase: () => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
 }) {
@@ -677,7 +677,9 @@ function CaseDetail({
         setReplyText(rewritten.rewrittenMessage);
         setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? rewritten.rewrittenMessageId : undefined);
         setMoreInfoReason(undefined);
-        setActionNotice("AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
+        setActionNotice(rewritten.usedFallback
+          ? "AI ยังไม่พร้อม จึงคงข้อความเดิมไว้ กรุณาตรวจสอบก่อนส่ง"
+          : "AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
         return;
       }
 
