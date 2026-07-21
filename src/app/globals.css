@@ -379,6 +379,12 @@ body {
   white-space: nowrap;
 }
 
+.autoAnswerLogsClear:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .autoAnswerLogsTableScroll {
   max-width: 100%;
 }
@@ -391,13 +397,20 @@ body {
 }
 
 .autoAnswerLogsTableHead th {
+  padding: 10px 12px;
   color: #475569;
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
 }
 
+.autoAnswerLogsCenteredHeader,
+.autoAnswerLogsCenteredColumn {
+  text-align: center;
+}
+
 .autoAnswerLogsTableRow > td {
+  padding: 10px 12px;
   vertical-align: middle;
 }
 
@@ -409,7 +422,7 @@ body {
   min-width: 0;
   cursor: pointer;
   border-radius: 6px;
-  padding: 4px;
+  padding: 2px 4px;
   transition: background-color 120ms ease;
 }
 
@@ -420,6 +433,9 @@ body {
 }
 
 .autoAnswerLogMessageText {
+  color: #1e293b;
+  font-size: 13px;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -429,8 +445,32 @@ body {
 
 .autoAnswerLogsCenteredCell {
   display: flex;
+  min-height: 32px;
   align-items: center;
   justify-content: center;
+}
+
+.autoAnswerLogsSolutionButton,
+.autoAnswerLogsSolutionEmpty {
+  min-width: 76px;
+}
+
+.autoAnswerLogsSolutionButton {
+  height: 32px;
+}
+
+.autoAnswerLogsSolutionEmpty {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+}
+
+.autoAnswerLogsTeamsBadge {
+  min-width: 108px;
+  height: 28px;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .autoAnswerLogsPagination {

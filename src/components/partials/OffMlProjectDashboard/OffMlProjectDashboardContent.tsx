@@ -1354,6 +1354,8 @@ function AutomationSettings({
   const [logDateTo, setLogDateTo] = useState("");
   const [logPageSize, setLogPageSize] = useState<10 | 20 | 50 | 100>(10);
   const logSearchTimer = useRef<number | null>(null);
+  const messageElements = useRef(new Map<string, HTMLParagraphElement>());
+  const [truncatedMessageIds, setTruncatedMessageIds] = useState<Set<string>>(new Set());
 
   const loadLogs = (overrides: Partial<AutoAnswerLogsQuery> = {}) => {
     const query: AutoAnswerLogsQuery = {
@@ -1396,11 +1398,21 @@ function AutomationSettings({
     loadLogs({ page: 1, search: "", eventType: "", status: "", dateFrom: "", dateTo: "" });
   };
 
-  const shouldShowFullMessageAction = (message: string) => {
-    const normalizedMessage = message.trim();
-    const lineCount = normalizedMessage.split(/\r?\n/).length;
-    return normalizedMessage.length > 110 || lineCount > 2;
-  };
+  useEffect(() => {
+    const measureTruncatedMessages = () => {
+      const nextIds = new Set<string>();
+      messageElements.current.forEach((element, id) => {
+        if (element.scrollHeight > element.clientHeight) nextIds.add(id);
+      });
+      setTruncatedMessageIds(nextIds);
+    };
+
+    measureTruncatedMessages();
+    window.addEventListener("resize", measureTruncatedMessages);
+    return () => window.removeEventListener("resize", measureTruncatedMessages);
+  }, [logs]);
+
+  const hasRecordedSolution = (log: AutoAnswerLog) => Boolean(log.solutionText?.trim());
 
   const openLogMessageDrawer = (log: AutoAnswerLog) => {
     setSelectedLogMessage(log);
@@ -1550,18 +1562,18 @@ function AutomationSettings({
         <ScrollArea className="autoAnswerLogsTableScroll" type="auto">
           <Table
             className="autoAnswerLogsTable"
-            horizontalSpacing="sm"
+            horizontalSpacing={0}
             layout="fixed"
             miw={950}
-            verticalSpacing="sm"
+            verticalSpacing={0}
           >
             <Table.Thead className="autoAnswerLogsTableHead">
               <Table.Tr>
                 <Table.Th style={{ width: 120 }}>เวลา</Table.Th>
                 <Table.Th style={{ width: 190 }}>ลูกค้า</Table.Th>
                 <Table.Th>ข้อความที่ตอบ</Table.Th>
-                <Table.Th style={{ width: 110 }}>วิธีแก้</Table.Th>
-                <Table.Th style={{ width: 145 }}>Teams</Table.Th>
+                <Table.Th className="autoAnswerLogsCenteredHeader" style={{ width: 120 }}>วิธีแก้</Table.Th>
+                <Table.Th className="autoAnswerLogsCenteredHeader" style={{ width: 160 }}>Teams</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -1611,6 +1623,10 @@ function AutomationSettings({
                         className="line-clamp-2 break-words autoAnswerLogMessageText"
                         component="p"
                         m={0}
+                        ref={(element) => {
+                          if (element) messageElements.current.set(item.id, element);
+                          else messageElements.current.delete(item.id);
+                        }}
                         size="sm"
                         style={{
                           display: "-webkit-box",
@@ -1622,7 +1638,7 @@ function AutomationSettings({
                       >
                         {item.answerText}
                       </Text>
-                      {shouldShowFullMessageAction(item.answerText) ? (
+                      {truncatedMessageIds.has(item.id) ? (
                         <Button
                           className="autoAnswerLogMoreButton"
                           mt={2}
@@ -1639,20 +1655,20 @@ function AutomationSettings({
                       ) : null}
                     </Box>
                   </Table.Td>
-                  <Table.Td className="autoAnswerLogsCell autoAnswerLogsSolutionCell">
+                  <Table.Td className="autoAnswerLogsCell autoAnswerLogsCenteredColumn">
                     <Box className="autoAnswerLogsCenteredCell">
-                      {item.solutionText ? (
-                        <Button size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
+                      {hasRecordedSolution(item) ? (
+                        <Button className="autoAnswerLogsSolutionButton" size="xs" variant="light" onClick={() => setSelectedLogSolution(item)}>
                           ดูวิธีแก้
                         </Button>
                       ) : (
-                        <Text c="dimmed" size="sm" ta="center">—</Text>
+                        <Text className="autoAnswerLogsSolutionEmpty" c="dimmed" size="sm" ta="center">—</Text>
                       )}
                     </Box>
                   </Table.Td>
-                  <Table.Td className="autoAnswerLogsCell">
+                  <Table.Td className="autoAnswerLogsCell autoAnswerLogsCenteredColumn">
                     <Box className="autoAnswerLogsCenteredCell">
-                      <Badge color={item.teamsNotified ? "green" : "gray"} variant="light" style={{ whiteSpace: "nowrap" }}>
+                      <Badge className="autoAnswerLogsTeamsBadge" color={item.teamsNotified ? "green" : "gray"} variant="light">
                         {item.teamsNotified ? "แจ้ง Teams แล้ว" : "ยังไม่แจ้ง"}
                       </Badge>
                     </Box>
