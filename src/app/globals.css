@@ -438,6 +438,24 @@ body {
   padding-top: 12px;
 }
 
+.autoAnswerLogsPaginationControls {
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.autoAnswerLogsPageSize {
+  align-items: center;
+}
+
+.autoAnswerLogsPageSizeSelect {
+  width: 100px;
+}
+
+.autoAnswerLogsPaginationNav {
+  flex-shrink: 0;
+}
+
 @media (max-width: 1180px) and (min-width: 49em) {
   .autoAnswerLogsFilters {
     grid-template-columns: minmax(260px, 1fr) 180px 180px 140px 140px auto;
@@ -463,6 +481,15 @@ body {
 
   .autoAnswerLogsPagination {
     align-items: flex-start;
+  }
+
+  .autoAnswerLogsPaginationControls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .autoAnswerLogsPaginationNav {
+    max-width: 100%;
   }
 }
 

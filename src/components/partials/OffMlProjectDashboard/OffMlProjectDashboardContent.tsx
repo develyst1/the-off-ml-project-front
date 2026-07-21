@@ -1663,36 +1663,59 @@ function AutomationSettings({
             {isLoadingLogs ? "กำลังโหลด auto-answer notification log..." : "ยังไม่มีข้อมูลที่ตรงกับตัวกรอง"}
           </Text>
         ) : null}
-        {logsPage.totalItems > 0 ? (
-          <Flex className="autoAnswerLogsPagination" align="center" justify="space-between" mt="sm" wrap="wrap" gap="sm">
-            <Text c="dimmed" size="sm">
-              แสดง {((logsPage.page - 1) * logsPage.pageSize) + 1}–{Math.min(logsPage.page * logsPage.pageSize, logsPage.totalItems)} จาก {logsPage.totalItems} รายการ
-            </Text>
-            {logsPage.totalPages > 1 ? (
-              <Group gap="sm" wrap="wrap">
+        <Flex className="autoAnswerLogsPagination" align="center" justify="space-between" mt="xs" wrap="wrap" gap="sm">
+          <Text c="dimmed" size="sm">
+            แสดง {logsPage.totalItems === 0 ? 0 : ((logsPage.page - 1) * logsPage.pageSize) + 1}–{logsPage.totalItems === 0 ? 0 : Math.min(logsPage.page * logsPage.pageSize, logsPage.totalItems)} จาก {logsPage.totalItems} รายการ
+          </Text>
+          {logsPage.totalPages > 1 ? (
+            <Group className="autoAnswerLogsPaginationControls" gap="sm" wrap="wrap">
+              <Group className="autoAnswerLogsPageSize" gap="xs" wrap="nowrap">
+                <Text c="dimmed" fw={500} size="xs" style={{ whiteSpace: "nowrap" }}>
+                  รายการต่อหน้า
+                </Text>
                 <Select
                   aria-label="จำนวนรายการต่อหน้า"
+                  className="autoAnswerLogsPageSizeSelect"
                   data={["10", "20", "50", "100"]}
-                  label="รายการ/หน้า"
                   value={String(logPageSize)}
                   onChange={(value) => {
                     const nextPageSize = Number(value) as 10 | 20 | 50 | 100;
                     setLogPageSize(nextPageSize);
                     loadLogs({ page: 1, pageSize: nextPageSize });
                   }}
-                  w={140}
-                />
-                <Pagination
-                  disabled={isLoadingLogs}
-                  onChange={(page) => loadLogs({ page })}
-                  total={logsPage.totalPages}
-                  value={logsPage.page}
-                  withEdges
+                  w={100}
                 />
               </Group>
-            ) : null}
-          </Flex>
-        ) : null}
+              <Pagination
+                className="autoAnswerLogsPaginationNav"
+                boundaries={1}
+                disabled={isLoadingLogs}
+                gap={4}
+                getControlProps={(control) => {
+                  const labels = {
+                    first: "ไปหน้าแรก",
+                    previous: "หน้าก่อนหน้า",
+                    next: "หน้าถัดไป",
+                    last: "ไปหน้าสุดท้าย",
+                  } as const;
+                  return { "aria-label": labels[control], title: labels[control] };
+                }}
+                getItemProps={(page) => ({
+                  "aria-label": `ไปหน้า ${page}`,
+                  ...(page === logsPage.page ? { "aria-current": "page" } : {}),
+                })}
+                onChange={(page) => loadLogs({ page })}
+                radius="md"
+                size={36}
+                siblings={1}
+                total={logsPage.totalPages}
+                value={logsPage.page}
+                withEdges
+              />
+            </Group>
+          ) : null}
+        </Flex>
+
       </Card>
       <Drawer
         onClose={() => setSelectedLogMessage(null)}
