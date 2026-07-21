@@ -679,7 +679,7 @@ function CaseDetail({
         setMoreInfoReason(undefined);
         setActionNotice(rewritten.usedFallback
           ? "AI ยังไม่พร้อม จึงคงข้อความเดิมไว้ กรุณาตรวจสอบก่อนส่ง"
-          : "AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
+          : "AI ขยายความจากข้อความที่พิมพ์แล้ว กรุณาตรวจสอบก่อนส่ง");
         return;
       }
 
@@ -695,7 +695,9 @@ function CaseDetail({
       setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? draft.rewrittenMessageId : undefined);
       setMoreInfoReason(draft.reason);
       setAiMissingInformation(actionMode === "CUSTOMER_REPLY" ? draft.missingInformation : []);
-      setActionNotice("AI เรียบเรียงข้อความแล้ว กรุณาตรวจสอบก่อนส่ง");
+      setActionNotice(actionMode === "CUSTOMER_REPLY"
+        ? "AI วิเคราะห์บริบทและสร้างร่างคำตอบแล้ว กรุณาตรวจสอบก่อนส่ง"
+        : "AI สร้างคำขอข้อมูลแล้ว กรุณาตรวจสอบก่อนส่ง");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "AI ไม่สามารถสร้างข้อความได้ในขณะนี้ คุณยังสามารถพิมพ์ข้อความและส่งด้วยตนเองได้");
     } finally {
@@ -1028,9 +1030,9 @@ function CaseDetail({
                           styles={{ input: { paddingRight: 52 } }}
                           value={replyText}
                         />
-                        <Tooltip label="ช่วยเรียบเรียงด้วย AI" withArrow>
+                        <Tooltip label="ช่วยขยายความจากข้อความที่พิมพ์" withArrow>
                           <ActionIcon
-                            aria-label="ช่วยเรียบเรียงด้วย AI"
+                            aria-label="ช่วยขยายความจากข้อความที่พิมพ์ด้วย AI"
                             color="blue"
                             disabled={!replyText.trim() || isActionRunning}
                             loading={actionState === "rewriting"}
@@ -1048,21 +1050,21 @@ function CaseDetail({
                       </Box>
                       <Paper className="caseMoreInfoGoalPanel" mt="sm" p="sm" radius="sm" withBorder>
                         <Text fw={700} size="sm">
-                          {actionMode === "CUSTOMER_REPLY" ? "ใช้ AI ช่วยเรียบเรียงคำตอบ" : "ใช้ AI ช่วยสร้างคำขอข้อมูล"}
+                          {actionMode === "CUSTOMER_REPLY" ? "ใช้ AI ช่วยสร้างคำตอบ" : "ใช้ AI ช่วยสร้างคำขอข้อมูล"}
                         </Text>
                         <Text c="dimmed" size="xs" mt={4}>
                           {actionMode === "CUSTOMER_REPLY"
-                            ? "ใส่ใจความหรือแนวทางจากทีม Tech แล้วให้ AI ช่วยเรียบเรียงเป็นข้อความพร้อมส่ง"
+                            ? "AI จะวิเคราะห์ประวัติแชท หัวข้อ และข้อมูลในเคส เพื่อร่างคำตอบให้เหมาะสม"
                             : "ระบุข้อมูลที่ต้องการ แล้วให้ AI ช่วยเรียบเรียงเป็นคำถามสั้น ๆ"}
                         </Text>
                         {actionMode === "CUSTOMER_REPLY" ? (
                           <Textarea
                             autosize
-                            label="ใจความที่ต้องการสื่อ"
+                            label="แนวทางเพิ่มเติม (ถ้ามี)"
                             minRows={2}
                             mt="sm"
                             onChange={(event) => setSupportInstruction(event.currentTarget.value)}
-                            placeholder="พิมพ์ใจความ ผลตรวจสอบ หรือแนวทางที่ต้องการแจ้ง..."
+                            placeholder="ระบุผลตรวจสอบหรือแนวทางที่ต้องการให้ AI นำไปใช้เพิ่มเติม..."
                             value={supportInstruction}
                           />
                         ) : (
@@ -1084,7 +1086,7 @@ function CaseDetail({
                           onClick={() => void composeWithAi()}
                           variant="light"
                         >
-                          {actionMode === "CUSTOMER_REPLY" ? "เรียบเรียงด้วย AI" : "สร้างคำขอด้วย AI"}
+                          {actionMode === "CUSTOMER_REPLY" ? "สร้างคำตอบด้วย AI" : "สร้างคำขอด้วย AI"}
                         </Button>
                       </Paper>
                       {actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
