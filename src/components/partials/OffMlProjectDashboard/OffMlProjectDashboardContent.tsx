@@ -116,6 +116,26 @@ function formatEventTime(value?: string) {
   }).format(date);
 }
 
+function formatEventDate(value?: string) {
+  if (!value) return "ยังไม่มีข้อมูล";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "ข้อมูลเวลาไม่ถูกต้อง";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+}
+
+function formatEventClock(value?: string) {
+  if (!value) return "ยังไม่มีข้อมูล";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "ข้อมูลเวลาไม่ถูกต้อง";
+  return new Intl.DateTimeFormat("th-TH", {
+    timeStyle: "short",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+}
+
 const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
   total: 0,
   solvedFromExistingSolutionPct: 0,
@@ -1309,6 +1329,8 @@ function AutomationSettings({
   isLoadingLogs,
   onLoadLogs,
   onUpdateSettings,
+  onOpenCase,
+  onOpenCaseByNumber,
   settings,
   solutions,
 }: {
@@ -1319,6 +1341,8 @@ function AutomationSettings({
   onUpdateSettings: (input: { emergencyDisable?: boolean; enabled?: boolean }) => Promise<void>;
   settings: AutomationSettings | null;
   solutions: AutoAnswerSolution[];
+  onOpenCase: (caseId: string) => Promise<void>;
+  onOpenCaseByNumber: (caseNumber: string) => Promise<void>;
 }) {
   const enabled = settings?.enabled ?? false;
   const [automationNotice, setAutomationNotice] = useState("Auto-answer พร้อมทำงานตาม guardrail ที่กำหนด");
@@ -1525,21 +1549,49 @@ function AutomationSettings({
           <Button variant="subtle" onClick={clearLogFilters}>ล้างตัวกรอง</Button>
         </Flex>
         <ScrollArea type="auto">
-          <Table miw={860}>
+          <Table
+            horizontalSpacing="sm"
+            layout="fixed"
+            miw={760}
+            verticalSpacing="xs"
+          >
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>เวลา</Table.Th>
-                <Table.Th>ลูกค้า</Table.Th>
+                <Table.Th style={{ width: 118 }}>เวลา</Table.Th>
+                <Table.Th style={{ width: 175 }}>ลูกค้า</Table.Th>
                 <Table.Th style={{ width: "36%" }}>ข้อความที่ตอบ</Table.Th>
-                <Table.Th>วิธีแก้</Table.Th>
-                <Table.Th>Teams</Table.Th>
+                <Table.Th style={{ width: 105 }}>วิธีแก้</Table.Th>
+                <Table.Th style={{ width: 130 }}>Teams</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {logs.map((item) => (
                 <Table.Tr key={item.id}>
-                  <Table.Td>{formatEventTime(item.time)}</Table.Td>
-                  <Table.Td>{item.customer}</Table.Td>
+                  <Table.Td>
+                    <Box style={{ whiteSpace: "nowrap" }}>
+                      <Text fw={500} size="sm">{formatEventDate(item.time)}</Text>
+                      <Text c="dimmed" mt={2} size="xs">{formatEventClock(item.time)} น.</Text>
+                    </Box>
+                  </Table.Td>
+                  <Table.Td>
+                    <Box miw={0}>
+                      <Text fw={500} size="sm" truncate>{item.customer}</Text>
+                      {item.caseNumber ? (
+                        <Button
+                          color="blue"
+                          fw={600}
+                          mt={2}
+                          onClick={() => void (item.caseId ? onOpenCase(item.caseId) : onOpenCaseByNumber(item.caseNumber))}
+                          p={0}
+                          size="xs"
+                          styles={{ label: { overflow: "visible" } }}
+                          variant="transparent"
+                        >
+                          {item.caseNumber}
+                        </Button>
+                      ) : null}
+                    </Box>
+                  </Table.Td>
                   <Table.Td>
                     <Box maw={520} miw={0}>
                       <Text
@@ -1576,12 +1628,12 @@ function AutomationSettings({
                         ดูวิธีแก้
                       </Button>
                     ) : (
-                      <Text c="dimmed" size="sm">ไม่มีวิธีแก้ที่บันทึกไว้</Text>
+                      <Text c="dimmed" size="sm" ta="center">—</Text>
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Badge color="green" variant="light">
-                      แจ้งแล้ว
+                    <Badge color={item.teamsNotified ? "green" : "gray"} variant="light" style={{ whiteSpace: "nowrap" }}>
+                      {item.teamsNotified ? "แจ้ง Teams แล้ว" : "ยังไม่แจ้ง"}
                     </Badge>
                   </Table.Td>
                 </Table.Tr>
@@ -1660,7 +1712,7 @@ function AutomationSettings({
             <Box>
               <Text c="dimmed" size="xs">Teams</Text>
               <Badge color={selectedLogMessage?.teamsNotified ? "green" : "gray"} variant="light">
-                {selectedLogMessage?.teamsNotified ? "แจ้งแล้ว" : "ยังไม่แจ้ง"}
+                {selectedLogMessage?.teamsNotified ? "แจ้ง Teams แล้ว" : "ยังไม่แจ้ง"}
               </Badge>
             </Box>
           </SimpleGrid>
@@ -1707,7 +1759,7 @@ function AutomationSettings({
         title={`วิธีแก้ของ ${selectedLogSolution?.caseNumber ?? ""}`}
       >
         <Text style={{ whiteSpace: "pre-wrap" }}>
-          {selectedLogSolution?.solutionText ?? "ไม่มีวิธีแก้ที่บันทึกไว้"}
+          {selectedLogSolution?.solutionText ?? "—"}
         </Text>
       </Modal>
     </Stack>
@@ -1869,6 +1921,32 @@ export default function OffMlProjectDashboardContent() {
     } catch (error) {
       setCaseError(error instanceof Error ? error.message : "โหลดรายละเอียดเคสจาก backend ไม่สำเร็จ");
     }
+  };
+
+  const handleOpenCaseById = async (caseId: string) => {
+    const existingCase = cases.find((item) => item.id === caseId);
+    if (existingCase) {
+      await handleOpenCase(existingCase);
+      return;
+    }
+
+    try {
+      const latestCase = await getCase(caseId);
+      setSelectedCase(latestCase);
+      setActiveTab("detail");
+      window.history.replaceState({}, "", `/?caseId=${encodeURIComponent(latestCase.id)}`);
+    } catch (error) {
+      setCaseError(error instanceof Error ? error.message : "โหลดรายละเอียดเคสจาก backend ไม่สำเร็จ");
+    }
+  };
+
+  const handleOpenCaseByNumber = async (caseNumber: string) => {
+    const matchingCase = cases.find((item) => item.caseNumber === caseNumber);
+    if (!matchingCase) {
+      setCaseError(`ไม่พบเคส ${caseNumber} ในข้อมูลปัจจุบัน`);
+      return;
+    }
+    await handleOpenCase(matchingCase);
   };
 
   const handleOpenConfidence = () => {
@@ -2041,6 +2119,8 @@ export default function OffMlProjectDashboardContent() {
                 logs={autoAnswerLogsState.items}
                 logsPage={autoAnswerLogsState}
                 onLoadLogs={loadAutoAnswerLogs}
+                onOpenCase={handleOpenCaseById}
+                onOpenCaseByNumber={handleOpenCaseByNumber}
                 onUpdateSettings={handleUpdateAutomationSettings}
                 settings={automationSettings}
                 solutions={autoAnswerSolutionsState}

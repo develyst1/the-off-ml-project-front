@@ -186,6 +186,7 @@ export interface AutoAnswerSolution {
 export interface AutoAnswerLog {
   id: string;
   time: string;
+  caseId?: string;
   caseNumber: string;
   customer: string;
   answerText: string;
