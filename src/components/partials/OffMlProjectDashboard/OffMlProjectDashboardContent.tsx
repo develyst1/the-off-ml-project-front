@@ -403,9 +403,9 @@ function CaseInbox({
               ความมั่นใจในตารางอิงจาก analysis.confidence ของ API AI CENTER ตอนวิเคราะห์ข้อความลูกค้า
             </Text>
           </Box>
-          <Badge color="gray" variant="light">
+          {/* <Badge color="gray" variant="light">
             {isLoading ? "กำลังโหลดจาก Backend" : ""}
-          </Badge>
+          </Badge> */}
         </Group>
 
         <Group align="flex-end" gap="sm" mb="md" wrap="wrap">
