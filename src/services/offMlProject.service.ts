@@ -287,6 +287,7 @@ export async function reviewConfidenceSuggestion(input: {
   caseId: string;
   id: string;
   solutionId?: string;
+  reviewStage: "QUALITY" | "AUTO_ANSWER";
   result: "approved" | "rejected";
 }) {
   return request<{ caseId: string; id: string; result: "approved" | "rejected" }>(`/confidence/suggestions/${input.id}/review`, {
@@ -294,6 +295,7 @@ export async function reviewConfidenceSuggestion(input: {
     body: JSON.stringify({
       caseId: input.caseId,
       solutionId: input.solutionId,
+      reviewStage: input.reviewStage,
       result: input.result,
     }),
   });

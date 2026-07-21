@@ -1236,6 +1236,9 @@ function ConfidenceReview({
                   {reviewedSuggestions[item.id] === "approved" ? "ยืนยันแล้ว" : "ปฏิเสธแล้ว"}
                 </Badge>
               ) : null}
+              <Badge color={item.reviewStage === "AUTO_ANSWER" ? "green" : "yellow"} variant="light">
+                {item.reviewStage === "AUTO_ANSWER" ? "พร้อมพิจารณา Auto-answer" : "ตรวจคุณภาพ AI"}
+              </Badge>
               <Badge color="blue" variant="light">{item.category}</Badge>
             </Group>
           </Group>
@@ -1262,12 +1265,15 @@ function ConfidenceReview({
               </Box>
             </Stack>
           </SimpleGrid>
+          <Text c={item.reviewStage === "AUTO_ANSWER" ? "green.7" : "dimmed"} mt="md" size="sm">
+            {item.reviewHint}
+          </Text>
           <Group justify="flex-end" mt="md">
             <Button color="red" onClick={() => void reviewSuggestion(item, "rejected")} variant="light">
-              ไม่ใช่
+              {item.reviewStage === "AUTO_ANSWER" ? "ไม่อนุมัติ" : "ไม่ถูกต้อง"}
             </Button>
             <Button onClick={() => void reviewSuggestion(item, "approved")}>
-              ใช่ ใช้วิธีนี้
+              {item.reviewStage === "AUTO_ANSWER" ? "อนุมัติให้ตอบอัตโนมัติ" : "ยืนยันความถูกต้อง"}
             </Button>
           </Group>
         </Card>
@@ -2098,6 +2104,7 @@ export default function OffMlProjectDashboardContent() {
       caseId: item.caseId,
       id: item.id,
       solutionId: item.suggestedSolutionId === "-" ? undefined : item.suggestedSolutionId,
+      reviewStage: item.reviewStage,
       result,
     });
     await Promise.all([loadCases(), loadDashboardData()]);

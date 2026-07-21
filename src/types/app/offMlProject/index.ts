@@ -172,6 +172,8 @@ export interface ConfidenceSuggestion {
   solutionText: string;
   caseUnderstandingConfidence: number;
   caseDiscriminationConfidence: number;
+  reviewStage: "QUALITY" | "AUTO_ANSWER";
+  reviewHint: string;
 }
 
 export interface AutoAnswerSolution {
