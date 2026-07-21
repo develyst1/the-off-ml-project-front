@@ -26,8 +26,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => undefined) as { error?: string } | undefined;
-    throw new Error(error?.error || `Off ML Project API error ${response.status}`);
+    const error = await response.json().catch(() => undefined) as { error?: string; message?: string } | undefined;
+    throw new Error(error?.message || error?.error || `Off ML Project API error ${response.status}`);
   }
 
   const body = (await response.json()) as ApiResponse<T>;
