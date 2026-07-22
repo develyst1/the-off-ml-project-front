@@ -442,8 +442,8 @@ function CaseInbox({
             <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); }} value={timeFilter} />
             <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="ขอบเขตการแสดง" onChange={(value) => setCaseScope(value ?? "open")} value={caseScope} />
           </Box>
-          <Group className="caseInboxFilterSecondaryRow" justify="space-between" wrap="wrap">
-            <Group gap="md" wrap="wrap">
+          <Group align="flex-end" className="caseInboxFilterSecondaryRow" justify="space-between" wrap="wrap">
+            <Group align="flex-end" gap="md" wrap="wrap">
               <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => setSortMode(value ?? "priority")} value={sortMode} />
               <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => setUnreadOnly(event.currentTarget.checked)} />
               <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => setSlaOnly(event.currentTarget.checked)} />
@@ -467,10 +467,10 @@ function CaseInbox({
               <Table.Tr>
                 <Table.Th>ลูกค้า</Table.Th>
                 <Table.Th>ปัญหาที่แจ้ง</Table.Th>
-                <Table.Th>หมวดหมู่</Table.Th>
-                <Table.Th>ความมั่นใจจาก AI</Table.Th>
-                <Table.Th>สถานะ</Table.Th>
-                <Table.Th>Action</Table.Th>
+                <Table.Th ta="center">หมวดหมู่</Table.Th>
+                <Table.Th ta="center">ความมั่นใจจาก AI</Table.Th>
+                <Table.Th ta="center">สถานะ</Table.Th>
+                <Table.Th ta="center">Action</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -494,24 +494,24 @@ function CaseInbox({
                     ) : null}
                     {item.latestCustomerMessageAt ? <Text c="dimmed" size="xs" title={formatEventTime(item.latestCustomerMessageAt)}>ลูกค้าตอบล่าสุด {relativeTime(item.latestCustomerMessageAt)}</Text> : null}
                   </Table.Td>
-                  <Table.Td>
+                  <Table.Td ta="center">
                     <Badge variant="light">{item.category}</Badge>
                   </Table.Td>
                   <Table.Td>
                     {item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE" ? <Text c="dimmed">-</Text> : (
-                      <Group gap="xs" wrap="nowrap">
+                      <Group justify="center" gap="xs" wrap="nowrap">
                         <Progress color={confidenceColor(item.aiConfidence)} miw={72} size="sm" value={item.aiConfidence} />
                         <Text fw={700} size="sm">{item.aiConfidence}%</Text>
                       </Group>
                     )}
                   </Table.Td>
-                  <Table.Td>
+                  <Table.Td ta="center">
                     <Badge color={caseStatusMeta.color} variant="light">
                       {caseStatusMeta.label}
                     </Badge>
                     {item.isSlaBreached && item.status !== "sla_breach" ? <Badge color="red" mt={4} size="xs" variant="light">เกิน SLA</Badge> : null}
                   </Table.Td>
-                  <Table.Td>
+                  <Table.Td ta="center">
                     <Button aria-label={`เปิดเคส ${item.caseNumber}`} fullWidth onClick={() => onOpenCase(item)} size="xs" variant="light">
                       ดูเคส
                     </Button>
