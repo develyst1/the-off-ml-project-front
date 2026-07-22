@@ -298,6 +298,7 @@ function CaseInbox({
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
+  const [timeFilterReference, setTimeFilterReference] = useState<number | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [slaOnly, setSlaOnly] = useState(false);
   const [caseScope, setCaseScope] = useState("open");
@@ -341,7 +342,7 @@ function CaseInbox({
       }
       if (timeFilter !== "all") {
         const days = Number(timeFilter);
-        if (Date.now() - new Date(item.lastActivityAt).getTime() > days * 24 * 60 * 60 * 1000) return false;
+        if (timeFilterReference !== null && timeFilterReference - new Date(item.lastActivityAt).getTime() > days * 24 * 60 * 60 * 1000) return false;
       }
       return true;
     })
@@ -360,6 +361,7 @@ function CaseInbox({
     setCategoryFilter(null);
     setConfidenceFilter("all");
     setTimeFilter("all");
+    setTimeFilterReference(null);
     setUnreadOnly(false);
     setSlaOnly(false);
     setCaseScope("open");
@@ -420,7 +422,7 @@ function CaseInbox({
           <Select clearable data={statusOptions} label="สถานะ" onChange={setStatusFilter} placeholder="ทั้งหมด" value={statusFilter} />
           <Select clearable data={categories} label="หมวดหมู่" onChange={setCategoryFilter} placeholder="ทั้งหมด" value={categoryFilter} />
           <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => setConfidenceFilter(value ?? "all")} value={confidenceFilter} />
-          <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => setTimeFilter(value ?? "all")} value={timeFilter} />
+          <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); }} value={timeFilter} />
           <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="การแสดงผล" onChange={(value) => setCaseScope(value ?? "open")} value={caseScope} />
           <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => setSortMode(value ?? "priority")} value={sortMode} />
           {hasFilters ? <Button onClick={resetFilters} variant="subtle">ล้างตัวกรอง</Button> : null}
