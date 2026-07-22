@@ -73,6 +73,27 @@ function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCa
   return latestByCreatedAt(caseItem.analyses.filter((analysis) => analysis.analysisType === type))[0];
 }
 
+function teamActionsFromAnalysis(analysis: OffMlProjectCaseResponse["analyses"][number] | undefined) {
+  const rawJson = analysis?.rawJson;
+  if (!rawJson || typeof rawJson !== "object" || Array.isArray(rawJson)) return [];
+
+  const actions = (rawJson as { teamActions?: unknown }).teamActions;
+  if (!Array.isArray(actions)) return [];
+
+  return [...new Set(actions
+    .filter((action): action is string => typeof action === "string")
+    .map((action) => action.trim())
+    .filter(Boolean))];
+}
+
+function legacyTeamActionFromReply(techReply: string | undefined) {
+  const text = techReply?.trim();
+  if (!text) return [];
+
+  const completedActionPattern = /(รีเซ็ต|แก้ไข|ปรับ(?:การ)?ตั้งค่า|อัปเดต(?:ค่า|ข้อมูล)|บันทึก(?:ค่า|ข้อมูล)(?:ใหม่)?|reset|updated?|configured?)/iu;
+  return completedActionPattern.test(text) ? [text] : [];
+}
+
 const SLA_HOURS = 4;
 const SLA_MONITORED_STATUSES = new Set<SupportCase["status"]>([
   "new",
@@ -109,6 +130,10 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
+  const analyzedTeamActions = teamActionsFromAnalysis(techAnalysis);
+  const teamActions = analyzedTeamActions.length > 0
+    ? analyzedTeamActions
+    : legacyTeamActionFromReply(techReply);
   const analysisStatus = !customerMessage
     ? "NO_CUSTOMER_MESSAGE"
     : caseItem.aiStatus ?? "AI_LOW_CONFIDENCE";
@@ -178,6 +203,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     ],
     conversation: [...caseItem.messages].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()),
     supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary,
+    teamActions,
     customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
   };
 }

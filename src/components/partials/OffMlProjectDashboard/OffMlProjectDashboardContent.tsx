@@ -617,6 +617,7 @@ function CaseDetail({
     : item.supportSolution === "NO_ACTIONABLE_SOLUTION"
       ? "ไม่พบแนวทางแก้ไขเพิ่มเติม"
       : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้";
+  const extractedTeamActions = item.teamActions ?? [];
   const timelineSteps = [
     { label: "สร้างเคส", at: item.caseCreatedAt },
     { label: "ส่งเข้า Microsoft Teams", at: item.teamsSentAt },
@@ -1191,6 +1192,26 @@ function CaseDetail({
             <Text className="compactText" size="sm">
               {extractedSolution}
             </Text>
+          </Paper>
+        </Card>
+
+        <Card padding="md" radius="md" withBorder>
+          <Group gap="sm">
+            <ThemeIcon color="orange" radius="xl" variant="light">
+              <AppIcon name="settings" />
+            </ThemeIcon>
+            <Text c="dimmed" fw={700} size="sm">การดำเนินการโดยทีม Tech</Text>
+          </Group>
+          <Paper bg="orange.0" mt="sm" p="md" radius="sm">
+            {extractedTeamActions.length > 0 ? (
+              <Stack gap={6}>
+                {extractedTeamActions.map((action) => (
+                  <Text className="compactText" key={action} size="sm">• {action}</Text>
+                ))}
+              </Stack>
+            ) : (
+              <Text className="compactText" size="sm">ยังไม่มีการดำเนินการจากทีม Tech ที่สกัดได้</Text>
+            )}
           </Paper>
         </Card>
 

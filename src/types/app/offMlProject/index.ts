@@ -60,6 +60,7 @@ export interface SupportCase {
   teamsThread: string[];
   conversation: OffMlProjectMessageResponse[];
   supportSolution?: string;
+  teamActions?: string[];
   customerReply?: string;
 }
 
