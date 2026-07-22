@@ -742,37 +742,50 @@ body {
 }
 
 .caseTimelineSteps {
+  --timeline-icon-size: 30px;
+  --timeline-line-size: 2px;
   display: flex;
+  align-items: flex-start;
   min-width: 0;
   overflow-x: auto;
   padding: 4px 2px 2px;
+  position: relative;
+}
+
+.caseTimelineSteps::before {
+  background: #40c463;
+  border-radius: 999px;
+  content: "";
+  height: var(--timeline-line-size);
+  left: var(--timeline-line-inset);
+  pointer-events: none;
+  position: absolute;
+  right: var(--timeline-line-inset);
+  top: calc((var(--timeline-icon-size) / 2) - (var(--timeline-line-size) / 2) + 4px);
+  z-index: 0;
 }
 
 .caseTimelineStep {
+  align-items: center;
+  display: flex;
   flex: 1 0 145px;
+  flex-direction: column;
   min-width: 0;
+  position: relative;
   text-align: center;
+  z-index: 1;
 }
 
 .caseTimelineStepMarker {
   align-items: center;
   display: flex;
-  margin-bottom: 8px;
+  height: var(--timeline-icon-size);
+  justify-content: center;
+  margin-bottom: 10px;
 }
 
 .caseTimelineStepMarker > .mantine-ThemeIcon-root {
   flex: none;
-}
-
-.caseTimelineConnector {
-  background: #e2e8f0;
-  height: 2px;
-  min-width: 24px;
-  width: 100%;
-}
-
-.caseTimelineConnector.done {
-  background: #51cf66;
 }
 
 .caseCurrentStatus {
@@ -832,6 +845,16 @@ body {
 
   .caseConversationSearch {
     grid-column: span 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .caseTimelineSteps {
+    min-width: 800px;
+  }
+
+  .caseTimelineStep {
+    flex-basis: 160px;
   }
 }
 

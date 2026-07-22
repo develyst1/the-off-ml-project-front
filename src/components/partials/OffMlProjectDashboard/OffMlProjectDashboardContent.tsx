@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   Alert,
   ActionIcon,
@@ -611,6 +612,16 @@ function CaseDetail({
   const latestLineReply = [...item.conversation]
     .reverse()
     .find((message) => message.channel === "line" && message.direction === "OUTBOUND" && message.isVisibleToCustomer !== false);
+  const timelineSteps = [
+    { label: "สร้างเคส", at: item.caseCreatedAt },
+    { label: "ส่งเข้า Microsoft Teams", at: item.teamsSentAt },
+    { label: "ทีม Tech ตอบกลับ", at: item.techRepliedAt },
+    { label: "ส่งคำตอบกลับ LINE", at: item.lineSentAt || item.lineDeliveredAt },
+    ...(item.closedAt ? [{ label: "ปิดเคส", at: item.closedAt, by: item.closedBy }] : []),
+  ];
+  const timelineStyle = {
+    "--timeline-line-inset": `${100 / (timelineSteps.length * 2)}%`,
+  } as CSSProperties;
 
   const runAction = async (action: "accepting" | "requesting" | "replying" | "closing" | "reopening", successMessage: string, handler: () => Promise<void>) => {
     setActionState(action);
@@ -815,14 +826,8 @@ function CaseDetail({
       <Box className="caseTimelineStatusGrid">
         <Card className="caseTimelineCard" padding="lg" radius="md" withBorder>
           <Title order={3} mb={20}>ลำดับเวลาของเคส</Title>
-          <Box className="caseTimelineSteps">
-            {[
-              { label: "สร้างเคส", at: item.caseCreatedAt },
-              { label: "ส่งเข้า Microsoft Teams", at: item.teamsSentAt },
-              { label: "ทีม Tech ตอบกลับ", at: item.techRepliedAt },
-              { label: "ส่งคำตอบกลับ LINE", at: item.lineSentAt || item.lineDeliveredAt },
-              ...(item.closedAt ? [{ label: "ปิดเคส", at: item.closedAt, by: item.closedBy }] : []),
-            ].map((step, index, steps) => {
+          <Box className="caseTimelineSteps" style={timelineStyle}>
+            {timelineSteps.map((step, index, steps) => {
               const isDone = Boolean(step.at);
               const isCurrent = !isDone && steps.slice(index + 1).every((nextStep) => !nextStep.at);
               return (
@@ -831,7 +836,6 @@ function CaseDetail({
                     <ThemeIcon color={isDone ? "green" : isCurrent ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isCurrent ? "filled" : "light"}>
                       {isDone ? <AppIcon name="check" size={15} /> : index + 1}
                     </ThemeIcon>
-                    {index < steps.length - 1 ? <Box className={`caseTimelineConnector ${isDone ? "done" : ""}`} /> : null}
                   </Box>
                   <Text fw={isCurrent ? 800 : 600} size="sm">{step.label}</Text>
                   <Text c="dimmed" size="xs">{formatEventTime(step.at)}</Text>
