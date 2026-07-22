@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, Button, Group, Paper, Popover, Select, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { Badge, Button, Group, Paper, Popover, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useState } from "react";
 import { AppIcon } from "@/components/common";
 import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessageType, ConversationRange } from "./types";
@@ -8,12 +8,10 @@ import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessag
 interface ConversationFiltersProps {
   deliveryStatus: ConversationDeliveryStatus;
   filter: ConversationFilter;
-  hideSystemEvents: boolean;
   messageType: ConversationMessageType;
   onClear: () => void;
   onDeliveryStatusChange: (value: ConversationDeliveryStatus) => void;
   onFilterChange: (value: ConversationFilter) => void;
-  onHideSystemEventsChange: (value: boolean) => void;
   onMessageTypeChange: (value: ConversationMessageType) => void;
   onRangeChange: (value: ConversationRange) => void;
   onSearchChange: (value: string) => void;
@@ -38,9 +36,9 @@ const deliveryStatusLabels: Record<ConversationDeliveryStatus, string> = {
   failed: "ส่งไม่สำเร็จ",
 };
 
-export function ConversationFilters({ deliveryStatus, filter, hideSystemEvents, messageType, onClear, onDeliveryStatusChange, onFilterChange, onHideSystemEventsChange, onMessageTypeChange, onRangeChange, onSearchChange, range, search }: ConversationFiltersProps) {
+export function ConversationFilters({ deliveryStatus, filter, messageType, onClear, onDeliveryStatusChange, onFilterChange, onMessageTypeChange, onRangeChange, onSearchChange, range, search }: ConversationFiltersProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const activeCount = [filter !== "all", messageType !== "all", deliveryStatus !== "all", range !== "all", hideSystemEvents].filter(Boolean).length;
+  const activeCount = [filter !== "all", messageType !== "all", deliveryStatus !== "all", range !== "all"].filter(Boolean).length;
   const hasAnyFilter = Boolean(search.trim()) || activeCount > 0;
 
   const activeChips = [
@@ -49,7 +47,6 @@ export function ConversationFilters({ deliveryStatus, filter, hideSystemEvents, 
     messageType !== "all" ? { key: "messageType", label: messageTypeLabels[messageType], onRemove: () => onMessageTypeChange("all") } : null,
     deliveryStatus !== "all" ? { key: "deliveryStatus", label: deliveryStatusLabels[deliveryStatus], onRemove: () => onDeliveryStatusChange("all") } : null,
     range !== "all" ? { key: "range", label: `ช่วงเวลา: ${range === "today" ? "วันนี้" : range === "7d" ? "7 วันที่ผ่านมา" : "30 วันที่ผ่านมา"}`, onRemove: () => onRangeChange("all") } : null,
-    hideSystemEvents ? { key: "system", label: "เฉพาะบทสนทนา", onRemove: () => onHideSystemEventsChange(false) } : null,
   ].filter((chip): chip is { key: string; label: string; onRemove: () => void } => Boolean(chip));
 
   return (
@@ -92,12 +89,6 @@ export function ConversationFilters({ deliveryStatus, filter, hideSystemEvents, 
                 onChange={(value) => onDeliveryStatusChange((value as ConversationDeliveryStatus | null) ?? "all")}
                 size="sm"
                 value={deliveryStatus}
-              />
-              <SegmentedControl
-                data={[{ label: "ทั้งหมด", value: "all" }, { label: "เฉพาะบทสนทนา", value: "conversation" }]}
-                fullWidth
-                onChange={(value) => onHideSystemEventsChange(value === "conversation")}
-                value={hideSystemEvents ? "conversation" : "all"}
               />
               <Group justify="flex-end" gap="xs">
                 <Button onClick={() => { onClear(); setAdvancedOpen(false); }} size="xs" variant="subtle">ล้างตัวกรอง</Button>

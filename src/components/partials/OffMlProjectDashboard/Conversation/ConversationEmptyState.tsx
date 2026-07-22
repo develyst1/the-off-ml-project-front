@@ -2,13 +2,14 @@ import { Button, Paper, Stack, Text, ThemeIcon } from "@mantine/core";
 import { AppIcon } from "@/components/common";
 
 interface ConversationEmptyStateProps {
-  kind: "empty" | "search" | "error";
+  kind: "empty" | "conversation" | "search" | "error";
   onRetry?: () => void;
 }
 
 export function ConversationEmptyState({ kind, onRetry }: ConversationEmptyStateProps) {
   const content = {
     empty: { title: "ยังไม่มีประวัติการสนทนาในเคสนี้", detail: "ข้อความใหม่ของเคสนี้จะแสดงที่นี่" },
+    conversation: { title: "ยังไม่มีข้อความสนทนาในเคสนี้", detail: "เลือก “เหตุการณ์ทั้งหมด” เพื่อดูบันทึกการทำงานของระบบ" },
     search: { title: "ไม่พบข้อความที่ค้นหา", detail: "ลองเปลี่ยนคำค้นหา ตัวกรอง หรือช่วงเวลา" },
     error: { title: "ไม่สามารถแสดงประวัติการสนทนาได้", detail: "กรุณาลองโหลดข้อมูลอีกครั้ง" },
   }[kind];

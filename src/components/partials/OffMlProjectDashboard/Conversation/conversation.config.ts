@@ -54,6 +54,18 @@ function isSystemEvent(message: ConversationMessage) {
   return message.senderType === "SYSTEM" || ["CASE_FORWARDED", "STATUS_UPDATE", "CASE_REOPENED", "CASE_CLOSED", "SYSTEM_EVENT"].includes(message.messageType ?? "");
 }
 
+function wasSentToCustomer(message: ConversationMessage) {
+  if (message.direction !== "OUTBOUND") return false;
+  if (message.isVisibleToCustomer === true) return true;
+  return ["SENT", "API_ACCEPTED", "DELIVERED"].includes(message.deliveryStatus?.toUpperCase() ?? "");
+}
+
+export function isConversationMessage(message: ConversationMessage) {
+  if (message.senderType === "CUSTOMER" || message.senderType === "TECH") return true;
+  if (message.senderType === "BOT" || message.senderType === "AI") return wasSentToCustomer(message);
+  return false;
+}
+
 export function getConversationMeta(message: ConversationMessage): ConversationMeta {
   const filter = getMessageFilter(message);
   return {

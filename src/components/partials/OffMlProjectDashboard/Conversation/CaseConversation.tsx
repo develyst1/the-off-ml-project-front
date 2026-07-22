@@ -6,13 +6,11 @@ import type { SupportCase } from "@/types/app/offMlProject";
 import { CaseConversationHeader } from "./CaseConversationHeader";
 import { ConversationEmptyState } from "./ConversationEmptyState";
 import { ConversationFilters } from "./ConversationFilters";
-import { ConversationSummary } from "./ConversationSummary";
 import { ConversationTimeline } from "./ConversationTimeline";
-import { getConversationContent, getConversationMeta, matchesDeliveryStatus, matchesMessageType } from "./conversation.config";
-import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessage, ConversationMessageType, ConversationRange, ConversationSort } from "./types";
+import { getConversationContent, getConversationMeta, isConversationMessage, matchesDeliveryStatus, matchesMessageType } from "./conversation.config";
+import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessage, ConversationMessageType, ConversationRange, ConversationSort, ConversationViewMode } from "./types";
 
 const PAGE_SIZE = 10;
-const HIDE_SYSTEM_EVENTS_KEY = "off-ml-hide-system-events";
 
 interface CaseConversationProps {
   error?: string;
@@ -41,6 +39,7 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   const [deliveryStatus, setDeliveryStatus] = useState<ConversationDeliveryStatus>("all");
   const [sort, setSort] = useState<ConversationSort>("oldest");
   const [range, setRange] = useState<ConversationRange>("all");
+  const [viewMode, setViewMode] = useState<ConversationViewMode>("CONVERSATION_ONLY");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const messages = useMemo(() => item.conversation ?? [], [item.conversation]);
 
@@ -49,31 +48,17 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  const [hideSystemEvents, setHideSystemEvents] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.sessionStorage.getItem(HIDE_SYSTEM_EVENTS_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      window.sessionStorage.setItem(HIDE_SYSTEM_EVENTS_KEY, String(hideSystemEvents));
-    } catch {
-      // Session storage may be unavailable in private browsing.
-    }
-  }, [hideSystemEvents]);
-
   const rangedMessages = useMemo(() => messages.filter((message) => isInRange(message, range)), [messages, range]);
+  const visibleViewMessages = useMemo(
+    () => viewMode === "CONVERSATION_ONLY" ? rangedMessages.filter(isConversationMessage) : rangedMessages,
+    [rangedMessages, viewMode],
+  );
 
   const filteredMessages = useMemo(() => {
     const normalizedSearch = search.toLocaleLowerCase();
-    return rangedMessages
+    return visibleViewMessages
       .filter((message) => {
         const meta = getConversationMeta(message);
-        if (hideSystemEvents && meta.isSystemEvent) return false;
         if (filter !== "all" && meta.filter !== filter) return false;
         if (!matchesMessageType(message, messageType) || !matchesDeliveryStatus(message, deliveryStatus)) return false;
         if (!normalizedSearch) return true;
@@ -88,34 +73,17 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
         const rightTime = new Date(right.createdAt).getTime() || 0;
         return sort === "oldest" ? leftTime - rightTime : rightTime - leftTime;
       });
-  }, [deliveryStatus, filter, hideSystemEvents, item.caseNumber, messageType, rangedMessages, search, sort]);
-
-  const counts = useMemo(() => {
-    const initial = { total: 0, customer: 0, bot: 0, system: 0, tech: 0, ai: 0 };
-    return rangedMessages.reduce((result, message) => {
-      result.total += 1;
-      const key = getConversationMeta(message).filter;
-      if (key !== "other") result[key] += 1;
-      return result;
-    }, initial);
-  }, [rangedMessages]);
-
-  const lastUpdatedAt = useMemo(() => messages.reduce<string | undefined>((latest, message) => {
-    if (!latest || new Date(message.createdAt).getTime() > new Date(latest).getTime()) return message.createdAt;
-    return latest;
-  }, item.createdAt), [item.createdAt, messages]);
-
-  const latestCustomerAt = useMemo(() => messages
-    .filter((message) => message.senderType === "CUSTOMER")
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0]?.createdAt, [messages]);
+  }, [deliveryStatus, filter, item.caseNumber, messageType, search, sort, visibleViewMessages]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setVisibleCount(PAGE_SIZE), 0);
     return () => window.clearTimeout(timer);
-  }, [deliveryStatus, filter, hideSystemEvents, item.id, messageType, range, search, sort]);
+  }, [deliveryStatus, filter, item.id, messageType, range, search, sort, viewMode]);
 
-  const hasActiveFilters = Boolean(searchInput.trim()) || filter !== "all" || messageType !== "all" || deliveryStatus !== "all" || range !== "all" || hideSystemEvents;
-  const visibleMessages = filteredMessages.slice(0, visibleCount);
+  const hasActiveFilters = Boolean(searchInput.trim()) || filter !== "all" || messageType !== "all" || deliveryStatus !== "all" || range !== "all";
+  const visibleMessages = sort === "oldest"
+    ? filteredMessages.slice(Math.max(filteredMessages.length - visibleCount, 0))
+    : filteredMessages.slice(0, visibleCount);
   const latestMatchingMessageId = filteredMessages.reduce<ConversationMessage | undefined>((latest, message) => {
     if (!latest || new Date(message.createdAt).getTime() > new Date(latest.createdAt).getTime()) return message;
     return latest;
@@ -128,7 +96,7 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
     setDeliveryStatus("all");
     setRange("all");
     setSort("oldest");
-    setHideSystemEvents(false);
+    setViewMode("CONVERSATION_ONLY");
   };
 
   if (isLoading) {
@@ -136,23 +104,20 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   }
 
   if (error) {
-    return <Card padding="md" radius="md" withBorder><Stack gap="sm"><CaseConversationHeader status={item.status} latestCustomerAt={latestCustomerAt} /><ConversationEmptyState kind="error" onRetry={onRetry} /></Stack></Card>;
+    return <Card padding="md" radius="md" withBorder><Stack gap="sm"><CaseConversationHeader totalCount={messages.length} /><ConversationEmptyState kind="error" onRetry={onRetry} /></Stack></Card>;
   }
 
   return (
     <Card className="caseConversationSection" padding="md" radius="md" withBorder>
       <Stack gap="sm">
-        <CaseConversationHeader latestCustomerAt={latestCustomerAt} status={item.status} />
-        <ConversationSummary activeFilter={filter} caseNumber={item.caseNumber} counts={counts} lastUpdatedAt={lastUpdatedAt} onFilterChange={setFilter} />
+        <CaseConversationHeader totalCount={messages.length} />
         <ConversationFilters
           deliveryStatus={deliveryStatus}
           filter={filter}
-          hideSystemEvents={hideSystemEvents}
           messageType={messageType}
           onClear={clearFilters}
           onDeliveryStatusChange={setDeliveryStatus}
           onFilterChange={setFilter}
-          onHideSystemEventsChange={setHideSystemEvents}
           onMessageTypeChange={setMessageType}
           onRangeChange={setRange}
           onSearchChange={setSearchInput}
@@ -161,18 +126,18 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
         />
         <ConversationTimeline
           hasActiveFilters={hasActiveFilters}
-          hideSystemEvents={hideSystemEvents}
+          isConversationOnly={viewMode === "CONVERSATION_ONLY"}
           latestMessageId={latestMatchingMessageId}
           messages={visibleMessages}
-          onHideSystemEventsChange={setHideSystemEvents}
+          onViewModeChange={setViewMode}
           onGoToLatest={() => {
-            setVisibleCount(filteredMessages.length);
             window.setTimeout(() => document.getElementById(`case-conversation-message-${latestMatchingMessageId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
           }}
-          onLoadMore={() => setVisibleCount((count) => count + PAGE_SIZE)}
+          onLoadMore={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filteredMessages.length))}
           onSortChange={setSort}
           sort={sort}
           totalMatching={filteredMessages.length}
+          viewMode={viewMode}
         />
       </Stack>
     </Card>

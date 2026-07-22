@@ -3,22 +3,23 @@ import { useEffect, useState } from "react";
 import { ConversationEmptyState } from "./ConversationEmptyState";
 import { conversationDateKey, formatConversationDateLabel } from "./conversation.config";
 import { ConversationTimelineItem } from "./ConversationTimelineItem";
-import type { ConversationMessage, ConversationSort } from "./types";
+import type { ConversationMessage, ConversationSort, ConversationViewMode } from "./types";
 
 interface ConversationTimelineProps {
   hasActiveFilters: boolean;
-  hideSystemEvents: boolean;
+  isConversationOnly: boolean;
   latestMessageId?: string;
   messages: ConversationMessage[];
   onGoToLatest: () => void;
-  onHideSystemEventsChange: (value: boolean) => void;
   onLoadMore: () => void;
   onSortChange: (value: ConversationSort) => void;
+  onViewModeChange: (value: ConversationViewMode) => void;
   sort: ConversationSort;
   totalMatching: number;
+  viewMode: ConversationViewMode;
 }
 
-export function ConversationTimeline({ hasActiveFilters, hideSystemEvents, latestMessageId, messages, onGoToLatest, onHideSystemEventsChange, onLoadMore, onSortChange, sort, totalMatching }: ConversationTimelineProps) {
+export function ConversationTimeline({ hasActiveFilters, isConversationOnly, latestMessageId, messages, onGoToLatest, onLoadMore, onSortChange, onViewModeChange, sort, totalMatching, viewMode }: ConversationTimelineProps) {
   const [showGoToLatest, setShowGoToLatest] = useState(false);
 
   useEffect(() => {
@@ -37,14 +38,13 @@ export function ConversationTimeline({ hasActiveFilters, hideSystemEvents, lates
 
   const toolbar = (
     <Group className="caseConversationTimelineToolbar" justify="space-between" gap="sm" wrap="wrap">
-      <Text c="dimmed" size="sm"><Text component="span" fw={800} c="dark">{totalMatching}</Text> รายการ</Text>
       <Group gap="xs" wrap="wrap">
         <SegmentedControl
-          aria-label="การแสดงเหตุการณ์ระบบ"
-          data={[{ label: "ทั้งหมด", value: "all" }, { label: "เฉพาะบทสนทนา", value: "conversation" }]}
-          onChange={(value) => onHideSystemEventsChange(value === "conversation")}
+          aria-label="มุมมองประวัติการสนทนา"
+          data={[{ label: "เฉพาะบทสนทนา", value: "CONVERSATION_ONLY" }, { label: "เหตุการณ์ทั้งหมด", value: "ALL_EVENTS" }]}
+          onChange={(value) => onViewModeChange(value as ConversationViewMode)}
           size="xs"
-          value={hideSystemEvents ? "conversation" : "all"}
+          value={viewMode}
         />
         <Select
           aria-label="เรียงลำดับข้อความ"
@@ -58,11 +58,19 @@ export function ConversationTimeline({ hasActiveFilters, hideSystemEvents, lates
     </Group>
   );
 
-  if (totalMatching === 0) return <Stack gap="xs">{toolbar}<ConversationEmptyState kind={hasActiveFilters ? "search" : "empty"} /></Stack>;
+  if (totalMatching === 0) return <Stack gap="xs">{toolbar}<ConversationEmptyState kind={hasActiveFilters ? "search" : isConversationOnly ? "conversation" : "empty"} /></Stack>;
+
+  const remainingCount = totalMatching - messages.length;
+  const loadPreviousButton = remainingCount > 0 ? (
+    <Button onClick={onLoadMore} size="sm" variant="subtle">
+      โหลดข้อความก่อนหน้าอีก {Math.min(10, remainingCount)} รายการ
+    </Button>
+  ) : null;
 
   return (
     <Stack className="caseConversationTimeline" gap={6}>
       {toolbar}
+      {sort === "oldest" ? loadPreviousButton : null}
       {messages.map((message, index) => {
         const previous = messages[index - 1];
         const showDateSeparator = !previous || conversationDateKey(previous.createdAt) !== conversationDateKey(message.createdAt);
@@ -73,7 +81,7 @@ export function ConversationTimeline({ hasActiveFilters, hideSystemEvents, lates
           </Box>
         );
       })}
-      {messages.length < totalMatching ? <Button onClick={onLoadMore} size="sm" variant="subtle">แสดงเพิ่มเติม ({totalMatching - messages.length} รายการ)</Button> : null}
+      {sort === "newest" ? loadPreviousButton : null}
       {showGoToLatest && latestMessageId ? <Button className="caseConversationGoLatest" leftSection={<Text component="span">↓</Text>} onClick={onGoToLatest} size="xs" variant="light">ไปข้อความล่าสุด</Button> : null}
     </Stack>
   );
