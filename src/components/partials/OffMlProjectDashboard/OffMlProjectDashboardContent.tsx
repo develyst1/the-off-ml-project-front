@@ -860,7 +860,7 @@ function CaseDetail({
 
       <Box className="teamsThreadSection">
       <Box className="caseDetailBottomGrid">
-      <Card padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
+      <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
               <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
