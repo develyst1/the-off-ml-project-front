@@ -612,12 +612,14 @@ function CaseDetail({
   const latestLineReply = [...item.conversation]
     .reverse()
     .find((message) => message.channel === "line" && message.direction === "OUTBOUND" && message.isVisibleToCustomer !== false);
+  const extractedTeamActions = item.teamActions ?? [];
   const extractedSolution = item.status === "awaiting_tech"
     ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ"
     : item.supportSolution === "NO_ACTIONABLE_SOLUTION"
-      ? "ไม่พบแนวทางแก้ไขเพิ่มเติม"
+      ? extractedTeamActions.length > 0
+        ? "ไม่มีขั้นตอนเพิ่มเติมที่ต้องให้ลูกค้าดำเนินการเอง"
+        : "ไม่พบแนวทางแก้ไขเพิ่มเติม"
       : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้";
-  const extractedTeamActions = item.teamActions ?? [];
   const timelineSteps = [
     { label: "สร้างเคส", at: item.caseCreatedAt },
     { label: "ส่งเข้า Microsoft Teams", at: item.teamsSentAt },
@@ -1200,7 +1202,7 @@ function CaseDetail({
             <ThemeIcon color="orange" radius="xl" variant="light">
               <AppIcon name="settings" />
             </ThemeIcon>
-            <Text c="dimmed" fw={700} size="sm">การดำเนินการโดยทีม Tech</Text>
+            <Text c="dimmed" fw={700} size="sm">ทีม Tech ดำเนินการ</Text>
           </Group>
           <Paper bg="orange.0" mt="sm" p="md" radius="sm">
             {extractedTeamActions.length > 0 ? (
