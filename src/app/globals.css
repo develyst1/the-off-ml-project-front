@@ -682,7 +682,7 @@ body {
 }
 
 .caseDetailSections {
-  align-items: stretch;
+  align-items: start;
   display: grid;
   grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
   gap: 16px;
