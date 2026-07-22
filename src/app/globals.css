@@ -673,7 +673,7 @@ body {
 }
 
 .caseTimelineStatusGrid {
-  align-items: stretch;
+  align-items: start;
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
@@ -692,14 +692,21 @@ body {
 
 .caseTimelineCard,
 .caseOperationStatusCard {
+  height: auto;
+  min-height: 0;
   min-width: 0;
+  width: 100%;
+}
+
+.caseTimelineCard {
+  padding-bottom: 16px;
 }
 
 .caseTimelineSteps {
   display: flex;
   min-width: 0;
   overflow-x: auto;
-  padding: 4px 2px 8px;
+  padding: 4px 2px 2px;
 }
 
 .caseTimelineStep {

@@ -812,7 +812,7 @@ function CaseDetail({
 
       <Box className="caseTimelineStatusGrid">
         <Card className="caseTimelineCard" padding="lg" radius="md" withBorder>
-          <Title order={3} mb="md">ลำดับเวลาของเคส</Title>
+          <Title order={3} mb={20}>ลำดับเวลาของเคส</Title>
           <Box className="caseTimelineSteps">
             {[
               { label: "สร้างเคส", at: item.caseCreatedAt },
