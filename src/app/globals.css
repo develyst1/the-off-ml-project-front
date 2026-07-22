@@ -303,16 +303,6 @@ body {
   background: #f6f7fb;
 }
 
-.caseDetailLowerGrid {
-  grid-template-columns: minmax(0, 1fr) !important;
-}
-
-@media (min-width: 75em) {
-  .caseDetailLowerGrid {
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) !important;
-  }
-}
-
 .teamsHeader {
   border-bottom: 1px solid #e2e8f0;
   background: #ffffff;
@@ -642,9 +632,9 @@ body {
 }
 
 .operationStepper {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .operationStep {
@@ -652,8 +642,8 @@ body {
   border: 1px solid #e2e8f0;
   background: #ffffff;
   color: #334155;
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 8px;
+  padding: 9px 10px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -682,7 +672,61 @@ body {
   flex: none;
 }
 
+.caseTimelineStatusGrid {
+  align-items: stretch;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
+}
+
+.caseTimelineCard,
+.caseOperationStatusCard {
+  min-width: 0;
+}
+
+.caseTimelineSteps {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+}
+
+.caseTimelineStep {
+  flex: 1 0 145px;
+  min-width: 0;
+  text-align: center;
+}
+
+.caseTimelineStepMarker {
+  align-items: center;
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.caseTimelineStepMarker > .mantine-ThemeIcon-root {
+  flex: none;
+}
+
+.caseTimelineConnector {
+  background: #e2e8f0;
+  height: 2px;
+  min-width: 24px;
+  width: 100%;
+}
+
+.caseTimelineConnector.done {
+  background: #51cf66;
+}
+
+.caseCurrentStatus {
+  border: 1px solid #e2e8f0;
+}
+
 @media (max-width: 1180px) {
+  .caseTimelineStatusGrid {
+    grid-template-columns: 1fr;
+  }
+
   .caseConversationSummaryLayout {
     flex-wrap: wrap;
   }
@@ -715,10 +759,6 @@ body {
   .teamsHeader {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .operationStepper {
-    grid-template-columns: 1fr;
   }
 
   .caseConversationFilters {

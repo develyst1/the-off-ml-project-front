@@ -239,19 +239,20 @@ function MetricCard({
 }
 
 function OperationStepper({ status }: { status: CaseStatus }) {
+  const isClosed = status === "closed" || status === "resolved";
   const activeStep =
     status === "new" || status === "analyzing" ? 0 :
     status === "awaiting_tech" || status === "assigned" || status === "awaiting_customer_info" || status === "awaiting_tech_review" ? 1 :
     status === "tech_replied" || status === "analyzing_solution" ? 2 : 3;
 
   const steps = [
-    "ส่งเคสเข้า Microsoft Teams แล้ว",
-    WAITING_TECH_STATUS,
-    "AI วิเคราะห์คำตอบจากทีม",
+    "ส่งเคสเข้า Microsoft Teams",
+    "ได้รับคำตอบจากทีม Tech",
+    "AI เรียบเรียงคำตอบ",
     "ส่งคำตอบกลับลูกค้า",
   ].map((label, index) => ({
     label,
-    state: index < activeStep ? "done" : index === activeStep ? "current" : "todo",
+    state: isClosed || index < activeStep ? "done" : index === activeStep ? "current" : "todo",
   } as const));
 
   return (
@@ -267,9 +268,12 @@ function OperationStepper({ status }: { status: CaseStatus }) {
           >
             {step.state === "done" ? <AppIcon name="check" size={16} /> : index + 1}
           </ThemeIcon>
-          <Text fw={step.state === "current" ? 800 : 600} size="sm">
-            {step.label}
-          </Text>
+          <Box>
+            <Text fw={step.state === "current" ? 800 : 600} size="sm">{step.label}</Text>
+            <Text c="dimmed" size="xs">
+              {step.state === "done" ? "ดำเนินการแล้ว" : step.state === "current" ? "กำลังดำเนินการ" : "รอดำเนินการ"}
+            </Text>
+          </Box>
         </Box>
       ))}
     </Box>
@@ -803,50 +807,52 @@ function CaseDetail({
 
       <CaseConversation item={item} />
 
-      <Card padding="lg" radius="md" withBorder>
-        <Title order={3} mb="sm">ลำดับเวลาของเคส</Title>
-        <Stack gap="xs">
-          <Text size="sm">สร้างเคส: {formatEventTime(item.caseCreatedAt)}</Text>
-          <Text size="sm">ส่งเข้า Microsoft Teams: {formatEventTime(item.teamsSentAt)}</Text>
-          <Text size="sm">ทีม Tech ตอบกลับ: {formatEventTime(item.techRepliedAt)}</Text>
-          <Text size="sm">ส่งคำตอบกลับ LINE: {formatEventTime(item.lineSentAt)}</Text>
-          <Text size="sm">ยืนยันการส่ง LINE: {formatEventTime(item.lineDeliveredAt)}</Text>
-          {item.closedAt ? <Text size="sm">ปิดเคส: {formatEventTime(item.closedAt)}{item.closedBy ? ` โดย ${item.closedBy}` : ""}</Text> : null}
-        </Stack>
-      </Card>
+      <Box className="caseTimelineStatusGrid">
+        <Card className="caseTimelineCard" padding="lg" radius="md" withBorder>
+          <Title order={3} mb="md">ลำดับเวลาของเคส</Title>
+          <Box className="caseTimelineSteps">
+            {[
+              { label: "สร้างเคส", at: item.caseCreatedAt },
+              { label: "ส่งเข้า Microsoft Teams", at: item.teamsSentAt },
+              { label: "ทีม Tech ตอบกลับ", at: item.techRepliedAt },
+              { label: "ส่งคำตอบกลับ LINE", at: item.lineSentAt || item.lineDeliveredAt },
+              ...(item.closedAt ? [{ label: "ปิดเคส", at: item.closedAt, by: item.closedBy }] : []),
+            ].map((step, index, steps) => {
+              const isDone = Boolean(step.at);
+              const isCurrent = !isDone && steps.slice(index + 1).every((nextStep) => !nextStep.at);
+              return (
+                <Box className="caseTimelineStep" key={step.label}>
+                  <Box className="caseTimelineStepMarker">
+                    <ThemeIcon color={isDone ? "green" : isCurrent ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isCurrent ? "filled" : "light"}>
+                      {isDone ? <AppIcon name="check" size={15} /> : index + 1}
+                    </ThemeIcon>
+                    {index < steps.length - 1 ? <Box className={`caseTimelineConnector ${isDone ? "done" : ""}`} /> : null}
+                  </Box>
+                  <Text fw={isCurrent ? 800 : 600} size="sm">{step.label}</Text>
+                  <Text c="dimmed" size="xs">{formatEventTime(step.at)}</Text>
+                  {step.by ? <Text c="dimmed" size="xs">โดย {step.by}</Text> : null}
+                </Box>
+              );
+            })}
+          </Box>
+        </Card>
 
-      <SimpleGrid className="caseDetailLowerGrid" cols={{ base: 1, xl: 2 }} spacing="lg">
-        <Stack gap="md" style={{ minWidth: 0, order: 2 }}>
-          <Paper bg="blue.0" p="md" radius="md">
-            <Group gap="sm" mb="xs">
-              <ThemeIcon color="blue" radius="xl" variant="light">
-                <AppIcon name="message" />
-              </ThemeIcon>
-              <Text fw={800}>สถานะการดำเนินงาน</Text>
-            </Group>
-            <OperationStepper status={item.status} />
+        <Card className="caseOperationStatusCard" padding="lg" radius="md" withBorder>
+          <Group gap="sm" mb="sm">
+            <ThemeIcon color="blue" radius="xl" variant="light">
+              <AppIcon name="message" />
+            </ThemeIcon>
+            <Text fw={800}>สถานะการดำเนินงาน</Text>
+          </Group>
+          <OperationStepper status={item.status} />
+          <Paper bg="gray.0" className="caseCurrentStatus" mt="md" p="sm" radius="sm">
+            <Text c="dimmed" fw={700} size="xs">สถานะปัจจุบัน</Text>
+            <Badge color={currentStatusMeta.color} mt={4} variant="light">{statusLabel}</Badge>
           </Paper>
+        </Card>
+      </Box>
 
-          <Paper bg="gray.0" p="md" radius="md">
-            <Text c="dimmed" fw={700} size="sm">
-              วิธีแก้ที่สกัดได้
-            </Text>
-            <Text mt={6}>
-              {item.status === "awaiting_tech" ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ" : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้"}
-            </Text>
-          </Paper>
-
-          <Paper bg="gray.0" p="md" radius="md">
-            <Text c="dimmed" fw={700} size="sm">
-              ข้อความที่จะส่งให้ลูกค้า
-            </Text>
-            <Text mt={6}>
-              {item.status === "awaiting_tech" ? "ยังไม่สร้างข้อความตอบกลับ" : item.customerReply || "ยังไม่สร้างข้อความตอบกลับ"}
-            </Text>
-          </Paper>
-        </Stack>
-
-        <Card padding="lg" radius="md" style={{ minWidth: 0, order: 1 }} withBorder>
+      <Card padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
               <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
@@ -1155,8 +1161,7 @@ function CaseDetail({
               </Paper>
             </Stack>
           </Paper>
-        </Card>
-      </SimpleGrid>
+      </Card>
       <Modal
         opened={closeConfirmationOpen}
         onClose={() => actionState === "idle" && setCloseConfirmationOpen(false)}
