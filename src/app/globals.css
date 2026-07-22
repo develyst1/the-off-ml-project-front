@@ -674,8 +674,10 @@ body {
 
 .caseTimelineStatusGrid {
   align-items: start;
+  align-content: start;
   display: grid;
   gap: 16px;
+  grid-auto-rows: max-content;
   grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
 }
 
@@ -693,11 +695,17 @@ body {
 
 .caseTimelineSection,
 .teamsThreadSection {
+  display: block;
   flex: none;
   height: auto;
   margin: 0;
   min-height: 0;
+  padding: 0;
   width: 100%;
+}
+
+.caseTimelineSection + .teamsThreadSection {
+  margin-top: 0;
 }
 
 .caseDetailBottomGrid {
