@@ -810,6 +810,8 @@ function CaseDetail({
 
       <CaseConversation item={item} />
 
+      <Box className="caseDetailSections">
+      <Box className="caseTimelineSection">
       <Box className="caseTimelineStatusGrid">
         <Card className="caseTimelineCard" padding="lg" radius="md" withBorder>
           <Title order={3} mb={20}>ลำดับเวลาของเคส</Title>
@@ -854,7 +856,9 @@ function CaseDetail({
           </Paper>
         </Card>
       </Box>
+      </Box>
 
+      <Box className="teamsThreadSection">
       <Box className="caseDetailBottomGrid">
       <Card padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
@@ -1197,6 +1201,8 @@ function CaseDetail({
           </Stack>
         </Card>
       </Stack>
+      </Box>
+      </Box>
       </Box>
       <Modal
         opened={closeConfirmationOpen}
