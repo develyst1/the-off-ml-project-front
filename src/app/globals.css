@@ -632,59 +632,74 @@ body {
 }
 
 .operationStepper {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .operationStep {
-  min-width: 0;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #334155;
-  border-radius: 8px;
-  padding: 9px 10px;
-  display: flex;
   align-items: center;
-  gap: 10px;
+  background: transparent;
+  border: 0;
+  color: #334155;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 4px 8px;
+  position: relative;
+  text-align: center;
 }
 
-.operationStep.done {
-  color: #166534;
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+.operationStep:not(:last-child)::after {
+  background: #dbe5f1;
+  content: "";
+  height: 2px;
+  left: calc(50% + 24px);
+  position: absolute;
+  right: calc(-50% + 24px);
+  top: 20px;
 }
 
-.operationStep.current {
-  color: #0f4c81;
-  background: #ffffff;
-  border-color: #74c0fc;
-  box-shadow: 0 0 0 3px rgba(34, 139, 230, 0.12);
+.operationStep > * {
+  position: relative;
+  z-index: 1;
 }
 
-.operationStep.todo {
-  color: #475569;
-  background: #f8fafc;
-  border-color: #e2e8f0;
+.operationStep > .mantine-Box-root {
+  min-width: 0;
+}
+
+.operationStep .mantine-Text-root {
+  line-height: 1.35;
 }
 
 .operationStepIcon {
   flex: none;
 }
 
+.operationStep.done {
+  color: #166534;
+}
+
+.operationStep.current {
+  color: #0f4c81;
+}
+
+.operationStep.todo {
+  color: #64748b;
+}
+
 .caseTimelineStatusGrid {
   align-items: start;
   align-content: start;
-  display: grid;
-  gap: 16px;
-  grid-auto-rows: max-content;
-  grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
+  min-width: 0;
 }
 
 .caseDetailSections {
-  align-items: start;
-  display: grid;
-  grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   height: auto;
   min-height: 0;
@@ -692,37 +707,24 @@ body {
 }
 
 .caseTimelineSection,
-.teamsThreadSection,
-.caseTimelineStatusGrid,
-.caseDetailBottomGrid {
-  display: contents;
+.teamsThreadSection {
+  flex: none;
+  min-width: 0;
+  width: 100%;
 }
 
 .caseTimelineCard {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.caseOperationStatusCard {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.caseTeamsThreadCard {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.caseDetailInsightStack {
-  grid-column: 2;
-  grid-row: 2;
+  height: auto;
+  min-height: 0;
+  width: 100%;
 }
 
 .caseDetailBottomGrid {
   align-items: start;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: max-content;
 }
 
 .caseDetailInsightStack {
@@ -739,6 +741,10 @@ body {
 
 .caseTimelineCard {
   padding-bottom: 16px;
+}
+
+.caseOperationStatusCard {
+  min-width: 0;
 }
 
 .caseTimelineSteps {
@@ -793,35 +799,17 @@ body {
 }
 
 @media (max-width: 1180px) {
-  .caseDetailSections {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .caseTimelineSection,
-  .teamsThreadSection {
-    display: block;
-    height: auto;
-    min-height: 0;
-    width: 100%;
-  }
-
-  .caseTimelineStatusGrid {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
   .caseDetailBottomGrid {
     display: grid;
     grid-template-columns: 1fr;
   }
 
-  .caseTimelineCard,
-  .caseOperationStatusCard,
-  .caseTeamsThreadCard,
-  .caseDetailInsightStack {
-    grid-column: auto;
-    grid-row: auto;
+  .operationStepper {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operationStep::after {
+    display: none;
   }
 
   .caseConversationSummaryLayout {

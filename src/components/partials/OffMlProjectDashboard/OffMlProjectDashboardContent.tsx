@@ -612,6 +612,11 @@ function CaseDetail({
   const latestLineReply = [...item.conversation]
     .reverse()
     .find((message) => message.channel === "line" && message.direction === "OUTBOUND" && message.isVisibleToCustomer !== false);
+  const extractedSolution = item.status === "awaiting_tech"
+    ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ"
+    : item.supportSolution === "NO_ACTIONABLE_SOLUTION"
+      ? "ไม่พบแนวทางแก้ไขเพิ่มเติม"
+      : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้";
   const timelineSteps = [
     { label: "สร้างเคส", at: item.caseCreatedAt },
     { label: "ส่งเข้า Microsoft Teams", at: item.teamsSentAt },
@@ -822,8 +827,7 @@ function CaseDetail({
       <CaseConversation item={item} />
 
       <Box className="caseDetailSections">
-      <Box className="caseTimelineSection">
-      <Box className="caseTimelineStatusGrid">
+        <Box className="caseTimelineSection">
         <Card className="caseTimelineCard" padding="lg" radius="md" withBorder>
           <Title order={3} mb={20}>ลำดับเวลาของเคส</Title>
           <Box className="caseTimelineSteps" style={timelineStyle}>
@@ -845,26 +849,11 @@ function CaseDetail({
             })}
           </Box>
         </Card>
+        </Box>
 
-        <Card className="caseOperationStatusCard" padding="lg" radius="md" withBorder>
-          <Group gap="sm" mb="sm">
-            <ThemeIcon color="blue" radius="xl" variant="light">
-              <AppIcon name="message" />
-            </ThemeIcon>
-            <Text fw={800}>สถานะการดำเนินงาน</Text>
-          </Group>
-          <OperationStepper status={item.status} />
-          <Paper bg="gray.0" className="caseCurrentStatus" mt="md" p="sm" radius="sm">
-            <Text c="dimmed" fw={700} size="xs">สถานะปัจจุบัน</Text>
-            <Badge color={currentStatusMeta.color} mt={4} variant="light">{statusLabel}</Badge>
-          </Paper>
-        </Card>
-      </Box>
-      </Box>
-
-      <Box className="teamsThreadSection">
-      <Box className="caseDetailBottomGrid">
-      <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
+        <Box className="caseDetailBottomGrid">
+        <Box className="teamsThreadSection">
+        <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
               <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
@@ -1174,19 +1163,44 @@ function CaseDetail({
             </Stack>
           </Paper>
       </Card>
+      </Box>
 
       <Stack className="caseDetailInsightStack" gap="md">
+        <Card className="caseOperationStatusCard" padding="md" radius="md" withBorder>
+          <Group gap="sm" mb="md">
+            <ThemeIcon color="blue" radius="xl" variant="light">
+              <AppIcon name="message" />
+            </ThemeIcon>
+            <Text fw={800}>สถานะการดำเนินงาน</Text>
+          </Group>
+          <OperationStepper status={item.status} />
+          <Paper bg="gray.0" className="caseCurrentStatus" mt="md" p="sm" radius="sm">
+            <Text c="dimmed" fw={700} size="xs">สถานะปัจจุบัน</Text>
+            <Badge color={currentStatusMeta.color} mt={4} variant="light">{statusLabel}</Badge>
+          </Paper>
+        </Card>
+
         <Card padding="md" radius="md" withBorder>
-          <Text c="dimmed" fw={700} size="sm">วิธี AI สกัดได้</Text>
-          <Paper bg="gray.0" mt="sm" p="sm" radius="sm">
+          <Group gap="sm">
+            <ThemeIcon color="blue" radius="xl" variant="light">
+              <AppIcon name="brain" />
+            </ThemeIcon>
+            <Text c="dimmed" fw={700} size="sm">วิธี AI สกัดได้</Text>
+          </Group>
+          <Paper bg="blue.0" mt="sm" p="md" radius="sm">
             <Text className="compactText" size="sm">
-              {item.status === "awaiting_tech" ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ" : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้"}
+              {extractedSolution}
             </Text>
           </Paper>
         </Card>
 
         <Card padding="md" radius="md" withBorder>
-          <Text c="dimmed" fw={700} size="sm">ข้อความล่าสุดที่ส่งทาง LINE</Text>
+          <Group gap="sm">
+            <ThemeIcon color="green" radius="xl" variant="light">
+              <AppIcon name="message" />
+            </ThemeIcon>
+            <Text c="dimmed" fw={700} size="sm">ข้อความล่าสุดที่ส่งทาง LINE</Text>
+          </Group>
           <Paper bg="green.0" mt="sm" p="sm" radius="sm">
             <Text className="compactText" size="sm">
               {latestLineReply?.displayText || latestLineReply?.originalText || item.customerReply || "ยังไม่มีข้อความที่ส่งกลับลูกค้า"}
@@ -1205,7 +1219,6 @@ function CaseDetail({
           </Stack>
         </Card>
       </Stack>
-      </Box>
       </Box>
       </Box>
       <Modal
