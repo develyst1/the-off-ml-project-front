@@ -44,6 +44,79 @@ body {
 
 .metricCard {
   height: 100%;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.metricCard[role="button"]:hover {
+  border-color: #bfdbfe;
+  background: #f8fafc;
+}
+
+.metricCardActive {
+  border-color: #60a5fa;
+  background: rgb(239 246 255 / 72%);
+  box-shadow: 0 0 0 1px rgb(147 197 253 / 55%);
+}
+
+.caseInboxFilters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.caseInboxFilterPrimaryGrid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.5fr) repeat(5, minmax(0, 190px));
+  gap: 10px;
+}
+
+.caseInboxFilterPrimaryGrid .mantine-Input-input,
+.caseInboxFilterPrimaryGrid .mantine-Select-input {
+  min-height: 38px;
+}
+
+.caseInboxFilterSecondaryRow {
+  min-height: 38px;
+}
+
+.caseInboxFilterSecondaryRow [data-mantine-component="Select"] {
+  min-width: 190px;
+}
+
+.caseInboxTable thead {
+  background: #f8fafc;
+}
+
+.caseInboxTable th {
+  border-bottom-color: #e2e8f0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.caseInboxTable td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  vertical-align: middle;
+}
+
+.caseInboxRow {
+  border-left: 3px solid transparent;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.caseInboxRow:hover {
+  background: #f8fafc;
+}
+
+.caseInboxRow.hasUnread {
+  border-left-color: #60a5fa;
+  background: #f8fbff;
+}
+
+.caseInboxRow.isSelected {
+  border-left-color: #2563eb;
+  background: rgb(239 246 255 / 58%);
 }
 
 .compactText {
@@ -53,6 +126,42 @@ body {
 .tableCellText {
   max-width: 420px;
   white-space: normal;
+}
+
+@media (max-width: 1450px) {
+  .caseInboxFilterPrimaryGrid {
+    grid-template-columns: minmax(280px, 1.5fr) repeat(3, minmax(170px, 1fr));
+  }
+}
+
+@media (max-width: 1050px) {
+  .caseInboxFilterPrimaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .caseInboxFilterPrimaryGrid > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .caseInboxFilterPrimaryGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .caseInboxFilterPrimaryGrid > :first-child {
+    grid-column: auto;
+  }
+
+  .caseInboxFilterSecondaryRow,
+  .caseInboxFilterSecondaryRow > .mantine-Group-root {
+    align-items: stretch;
+  }
+
+  .caseInboxFilterSecondaryRow [data-mantine-component="Select"] {
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 .emergencyPanel {

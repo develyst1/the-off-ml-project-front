@@ -194,12 +194,14 @@ function teamsDeliveryMeta(item: SupportCase) {
 }
 
 function MetricCard({
+  active = false,
   icon,
   label,
   onClick,
   value,
   color,
 }: {
+  active?: boolean;
   icon: IconName;
   label: string;
   onClick?: () => void;
@@ -208,7 +210,8 @@ function MetricCard({
 }) {
   return (
     <Card
-      className="metricCard"
+      aria-pressed={onClick ? active : undefined}
+      className={`metricCard ${active ? "metricCardActive" : ""}`}
       onClick={onClick}
       onKeyDown={(event) => {
         if (!onClick) return;
@@ -286,7 +289,6 @@ function CaseInbox({
   error,
   isLoading,
   onOpenCase,
-  onOpenConfidence,
   onRefresh,
   selectedCaseId,
 }: {
@@ -294,7 +296,6 @@ function CaseInbox({
   error?: string;
   isLoading: boolean;
   onOpenCase: (item: SupportCase) => void;
-  onOpenConfidence: () => void;
   onRefresh: () => void;
   selectedCaseId?: string;
 }) {
@@ -373,22 +374,34 @@ function CaseInbox({
     setSortMode("priority");
   };
 
-  const awaitingTechCase = cases.find((item) => item.status === "awaiting_tech") ?? cases[0];
-  const awaitingConfirmationCase = cases.find((item) => item.status === "awaiting_confirmation");
-  const resolvedCase = cases.find((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status));
-  const slaCase = cases.find((item) => item.isSlaBreached);
   const waitingCount = cases.filter((item) => item.status === "awaiting_tech").length;
   const confirmationCount = cases.filter((item) => item.status === "awaiting_confirmation").length;
   const closedCount = cases.filter((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status)).length;
   const slaCount = cases.filter((item) => item.isSlaBreached).length;
 
+  const handleSummaryFilter = (filter: "waiting-tech" | "awaiting-confirmation" | "closed" | "sla") => {
+    if (filter === "waiting-tech") {
+      setStatusFilter((current) => current === "awaiting_tech" ? null : "awaiting_tech");
+      return;
+    }
+    if (filter === "awaiting-confirmation") {
+      setStatusFilter((current) => current === "awaiting_confirmation" ? null : "awaiting_confirmation");
+      return;
+    }
+    if (filter === "closed") {
+      setCaseScope((current) => current === "closed" ? "open" : "closed");
+      return;
+    }
+    setSlaOnly((current) => !current);
+  };
+
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        <MetricCard color="blue" icon="inbox" label="รอทีมตอบ" onClick={awaitingTechCase ? () => onOpenCase(awaitingTechCase) : undefined} value={String(waitingCount)} />
-        <MetricCard color="yellow" icon="brain" label="รอยืนยัน AI แนะนำ" onClick={awaitingConfirmationCase ? () => onOpenCase(awaitingConfirmationCase) : onOpenConfidence} value={String(confirmationCount)} />
-        <MetricCard color="green" icon="check" label="ปิดเคสแล้วเดือนนี้" onClick={resolvedCase ? () => onOpenCase(resolvedCase) : undefined} value={String(closedCount)} />
-        <MetricCard color="red" icon="alert" label="เกิน SLA" onClick={slaCase ? () => onOpenCase(slaCase) : undefined} value={String(slaCount)} />
+        <MetricCard active={statusFilter === "awaiting_tech"} color="blue" icon="inbox" label="รอทีมตอบ" onClick={() => handleSummaryFilter("waiting-tech")} value={String(waitingCount)} />
+        <MetricCard active={statusFilter === "awaiting_confirmation"} color="yellow" icon="brain" label="รอยืนยัน AI แนะนำ" onClick={() => handleSummaryFilter("awaiting-confirmation")} value={String(confirmationCount)} />
+        <MetricCard active={caseScope === "closed"} color="green" icon="check" label="ปิดเคสแล้วเดือนนี้" onClick={() => handleSummaryFilter("closed")} value={String(closedCount)} />
+        <MetricCard active={slaOnly} color="red" icon="alert" label="เกิน SLA" onClick={() => handleSummaryFilter("sla")} value={String(slaCount)} />
       </SimpleGrid>
 
       {error ? (
@@ -415,39 +428,49 @@ function CaseInbox({
           </Badge> */}
         </Group>
 
-        <Group align="flex-end" gap="sm" mb="md" wrap="wrap">
-          <TextInput
-            flex={1}
-            label="ค้นหา"
-            miw={320}
-            onChange={(event) => setSearch(event.currentTarget.value)}
-            placeholder="เลขเคส ชื่อลูกค้า หรือปัญหาที่แจ้ง"
-            value={search}
-          />
-          <Select clearable data={statusOptions} label="สถานะ" onChange={setStatusFilter} placeholder="ทั้งหมด" value={statusFilter} />
-          <Select clearable data={categories} label="หมวดหมู่" onChange={setCategoryFilter} placeholder="ทั้งหมด" value={categoryFilter} />
-          <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => setConfidenceFilter(value ?? "all")} value={confidenceFilter} />
-          <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); }} value={timeFilter} />
-          <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="การแสดงผล" onChange={(value) => setCaseScope(value ?? "open")} value={caseScope} />
-          <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => setSortMode(value ?? "priority")} value={sortMode} />
-          {hasFilters ? <Button onClick={resetFilters} variant="subtle">ล้างตัวกรอง</Button> : null}
-        </Group>
-        <Group gap="lg" mb="md">
-          <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => setUnreadOnly(event.currentTarget.checked)} />
-          <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => setSlaOnly(event.currentTarget.checked)} />
-          <Text c="dimmed" size="sm">แสดง {visibleCases.length} จาก {cases.length} เคส</Text>
-        </Group>
+        <Box className="caseInboxFilters" mb="md">
+          <Box className="caseInboxFilterPrimaryGrid">
+            <TextInput
+              label="ค้นหา"
+              onChange={(event) => setSearch(event.currentTarget.value)}
+              placeholder="เลขเคส ชื่อลูกค้า หรือปัญหาที่แจ้ง"
+              value={search}
+            />
+            <Select clearable data={statusOptions} label="สถานะ" onChange={setStatusFilter} placeholder="ทั้งหมด" value={statusFilter} />
+            <Select clearable data={categories} label="หมวดหมู่" onChange={setCategoryFilter} placeholder="ทั้งหมด" value={categoryFilter} />
+            <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => setConfidenceFilter(value ?? "all")} value={confidenceFilter} />
+            <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); }} value={timeFilter} />
+            <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="ขอบเขตการแสดง" onChange={(value) => setCaseScope(value ?? "open")} value={caseScope} />
+          </Box>
+          <Group className="caseInboxFilterSecondaryRow" justify="space-between" wrap="wrap">
+            <Group gap="md" wrap="wrap">
+              <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => setSortMode(value ?? "priority")} value={sortMode} />
+              <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => setUnreadOnly(event.currentTarget.checked)} />
+              <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => setSlaOnly(event.currentTarget.checked)} />
+              {hasFilters ? <Button onClick={resetFilters} size="xs" variant="subtle">ล้างตัวกรอง</Button> : null}
+            </Group>
+            <Text c="dimmed" size="xs">แสดง {visibleCases.length} จาก {cases.length} เคส</Text>
+          </Group>
+        </Box>
 
         <ScrollArea>
-          <Table highlightOnHover verticalSpacing="sm" style={{ tableLayout: "fixed", width: "100%" }}>
+          <Table className="caseInboxTable" highlightOnHover verticalSpacing="sm" style={{ tableLayout: "fixed", width: "100%" }}>
+            <colgroup>
+              <col style={{ width: 180 }} />
+              <col />
+              <col style={{ width: 220 }} />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 120 }} />
+            </colgroup>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th style={{ width: "13%" }}>ลูกค้า</Table.Th>
-                <Table.Th style={{ width: "30%" }}>ปัญหาที่แจ้ง</Table.Th>
-                <Table.Th style={{ width: "16%" }}>หมวดหมู่</Table.Th>
-                <Table.Th style={{ width: "15%" }}>ความมั่นใจจาก AI</Table.Th>
-                <Table.Th style={{ width: "18%" }}>สถานะ</Table.Th>
-                <Table.Th style={{ width: "8%" }}>Action</Table.Th>
+                <Table.Th>ลูกค้า</Table.Th>
+                <Table.Th>ปัญหาที่แจ้ง</Table.Th>
+                <Table.Th>หมวดหมู่</Table.Th>
+                <Table.Th>ความมั่นใจจาก AI</Table.Th>
+                <Table.Th>สถานะ</Table.Th>
+                <Table.Th>Action</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -455,7 +478,7 @@ function CaseInbox({
                 const caseStatusMeta = getStatusMeta(item.status);
 
                 return (
-                <Table.Tr key={item.id} style={{ backgroundColor: selectedCaseId === item.id ? "var(--mantine-color-blue-0)" : item.hasUnreadCustomerMessage ? "#f5fbff" : undefined, borderLeft: selectedCaseId === item.id ? "3px solid var(--mantine-color-blue-6)" : item.hasUnreadCustomerMessage ? "3px solid var(--mantine-color-blue-4)" : undefined }}>
+                <Table.Tr className={`caseInboxRow${selectedCaseId === item.id ? " isSelected" : ""}${item.hasUnreadCustomerMessage ? " hasUnread" : ""}`} key={item.id}>
                   <Table.Td>
                     <Text fw={700}>{item.customerName}</Text>
                     <Text c="dimmed" size="xs">
@@ -465,7 +488,7 @@ function CaseInbox({
                   </Table.Td>
                   <Table.Td className="tableCellText">
                     <Text fw={item.hasUnreadCustomerMessage ? 700 : 500} lineClamp={2} style={{ overflowWrap: "anywhere" }} title={item.problemSummary}>{item.problemSummary}</Text>
-                    {item.problemSummaryStatus === "SUCCESS" ? <Badge color="violet" mt={4} size="xs" variant="light">สรุปโดย AI</Badge> : null}
+                    {item.problemSummaryStatus === "SUCCESS" ? <Badge color="violet" mt={4} size="xs" variant="light">AI สรุป</Badge> : null}
                     {item.latestCustomerMessage && item.latestCustomerMessage !== item.problemSummary && item.latestCustomerMessage !== item.initialCustomerMessage ? (
                       <Text c="dimmed" lineClamp={1} mt={4} size="xs" title={item.latestCustomerMessage}>ล่าสุด: {item.latestCustomerMessage}</Text>
                     ) : null}
@@ -489,7 +512,7 @@ function CaseInbox({
                     {item.isSlaBreached && item.status !== "sla_breach" ? <Badge color="red" mt={4} size="xs" variant="light">เกิน SLA</Badge> : null}
                   </Table.Td>
                   <Table.Td>
-                    <Button fullWidth onClick={() => onOpenCase(item)} size="xs" variant="light">
+                    <Button aria-label={`เปิดเคส ${item.caseNumber}`} fullWidth onClick={() => onOpenCase(item)} size="xs" variant="light">
                       ดูเคส
                     </Button>
                   </Table.Td>
@@ -2154,10 +2177,6 @@ export default function OffMlProjectDashboardContent() {
     await handleOpenCase(matchingCase);
   };
 
-  const handleOpenConfidence = () => {
-    setActiveTab("confidence");
-  };
-
   const handleAcceptCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await acceptCase(selectedCase.id);
@@ -2293,7 +2312,6 @@ export default function OffMlProjectDashboardContent() {
                 onOpenCase={(item) => {
                   void handleOpenCase(item);
                 }}
-                onOpenConfidence={handleOpenConfidence}
                 onRefresh={() => {
                   void loadCases();
                 }}
