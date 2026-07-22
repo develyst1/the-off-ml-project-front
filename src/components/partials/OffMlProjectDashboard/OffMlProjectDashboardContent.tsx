@@ -1217,6 +1217,24 @@ function CaseDetail({
           </Paper>
         </Card>
 
+        {item.customerOutcome ? (
+          <Card padding="md" radius="md" withBorder>
+            <Group gap="sm">
+              <ThemeIcon color="green" radius="xl" variant="light">
+                <AppIcon name="check" />
+              </ThemeIcon>
+              <Text c="dimmed" fw={700} size="sm">ผลการตรวจสอบจากลูกค้า</Text>
+            </Group>
+            <Paper bg="green.0" mt="sm" p="md" radius="sm">
+              <Text className="compactText" size="sm">{item.customerOutcome.text}</Text>
+            </Paper>
+            <Text c="dimmed" mt="xs" size="xs">
+              {item.customerOutcome.type === "RESOLVED" ? "ลูกค้ายืนยันว่าใช้งานได้แล้ว" : "ลูกค้าแจ้งว่าอาการดีขึ้น"}
+              {item.customerOutcome.confirmedAt ? ` · ${formatEventTime(item.customerOutcome.confirmedAt)}` : ""}
+            </Text>
+          </Card>
+        ) : null}
+
         <Card padding="md" radius="md" withBorder>
           <Group gap="sm">
             <ThemeIcon color="green" radius="xl" variant="light">

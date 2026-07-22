@@ -86,6 +86,24 @@ function teamActionsFromAnalysis(analysis: OffMlProjectCaseResponse["analyses"][
     .filter(Boolean))];
 }
 
+function customerOutcomeFromAnalysis(
+  analysis: OffMlProjectCaseResponse["analyses"][number] | undefined,
+): SupportCase["customerOutcome"] {
+  const rawJson = analysis?.rawJson;
+  if (!rawJson || typeof rawJson !== "object" || Array.isArray(rawJson)) return undefined;
+
+  const { outcome, customerConfirmation } = rawJson as { outcome?: unknown; customerConfirmation?: unknown };
+  if ((outcome !== "RESOLVED" && outcome !== "IMPROVED") || typeof customerConfirmation !== "string" || !customerConfirmation.trim()) {
+    return undefined;
+  }
+
+  return {
+    type: outcome as "RESOLVED" | "IMPROVED",
+    text: customerConfirmation.trim(),
+    confirmedAt: analysis?.createdAt ?? "",
+  };
+}
+
 const SLA_HOURS = 4;
 const SLA_MONITORED_STATUSES = new Set<SupportCase["status"]>([
   "new",
@@ -121,8 +139,10 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const outboundReply = firstText(caseItem, "BOT");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
+  const customerOutcomeAnalysis = latestAnalysis(caseItem, "customer_outcome");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
   const teamActions = teamActionsFromAnalysis(techAnalysis);
+  const customerOutcome = customerOutcomeFromAnalysis(customerOutcomeAnalysis);
   const analysisStatus = !customerMessage
     ? "NO_CUSTOMER_MESSAGE"
     : caseItem.aiStatus ?? "AI_LOW_CONFIDENCE";
@@ -193,6 +213,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     conversation: [...caseItem.messages].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()),
     supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary,
     teamActions,
+    customerOutcome,
     customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
   };
 }

@@ -61,6 +61,11 @@ export interface SupportCase {
   conversation: OffMlProjectMessageResponse[];
   supportSolution?: string;
   teamActions?: string[];
+  customerOutcome?: {
+    type: "RESOLVED" | "IMPROVED";
+    text: string;
+    confirmedAt: string;
+  };
   customerReply?: string;
 }
 
@@ -97,7 +102,7 @@ export interface OffMlProjectAnalysisResponse {
   id: string;
   caseId: string;
   messageId: string;
-  analysisType: "customer_message" | "tech_solution" | "customer_rewrite" | "case_match" | "tech_message_review";
+  analysisType: "customer_message" | "customer_outcome" | "tech_solution" | "customer_rewrite" | "case_match" | "tech_message_review";
   summary?: string;
   category?: string;
   confidence: number;
