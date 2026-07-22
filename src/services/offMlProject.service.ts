@@ -86,14 +86,6 @@ function teamActionsFromAnalysis(analysis: OffMlProjectCaseResponse["analyses"][
     .filter(Boolean))];
 }
 
-function legacyTeamActionFromReply(techReply: string | undefined) {
-  const text = techReply?.trim();
-  if (!text) return [];
-
-  const completedActionPattern = /(รีเซ็ต|แก้ไข|ปรับ(?:การ)?ตั้งค่า|อัปเดต(?:ค่า|ข้อมูล)|บันทึก(?:ค่า|ข้อมูล)(?:ใหม่)?|reset|updated?|configured?)/iu;
-  return completedActionPattern.test(text) ? [text] : [];
-}
-
 const SLA_HOURS = 4;
 const SLA_MONITORED_STATUSES = new Set<SupportCase["status"]>([
   "new",
@@ -130,10 +122,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
-  const analyzedTeamActions = teamActionsFromAnalysis(techAnalysis);
-  const teamActions = analyzedTeamActions.length > 0
-    ? analyzedTeamActions
-    : legacyTeamActionFromReply(techReply);
+  const teamActions = teamActionsFromAnalysis(techAnalysis);
   const analysisStatus = !customerMessage
     ? "NO_CUSTOMER_MESSAGE"
     : caseItem.aiStatus ?? "AI_LOW_CONFIDENCE";
