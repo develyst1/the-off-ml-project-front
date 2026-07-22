@@ -679,6 +679,17 @@ body {
   grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
 }
 
+.caseDetailBottomGrid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr);
+}
+
+.caseDetailInsightStack {
+  min-width: 0;
+}
+
 .caseTimelineCard,
 .caseOperationStatusCard {
   min-width: 0;
@@ -724,6 +735,10 @@ body {
 
 @media (max-width: 1180px) {
   .caseTimelineStatusGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .caseDetailBottomGrid {
     grid-template-columns: 1fr;
   }
 

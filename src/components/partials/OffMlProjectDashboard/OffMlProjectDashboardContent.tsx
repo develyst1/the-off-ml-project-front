@@ -608,6 +608,9 @@ function CaseDetail({
   const teamsMeta = teamsDeliveryMeta(item);
   const isActionRunning = actionState !== "idle";
   const isClosed = item.status === "closed";
+  const latestLineReply = [...item.conversation]
+    .reverse()
+    .find((message) => message.channel === "line" && message.direction === "OUTBOUND" && message.isVisibleToCustomer !== false);
 
   const runAction = async (action: "accepting" | "requesting" | "replying" | "closing" | "reopening", successMessage: string, handler: () => Promise<void>) => {
     setActionState(action);
@@ -852,6 +855,7 @@ function CaseDetail({
         </Card>
       </Box>
 
+      <Box className="caseDetailBottomGrid">
       <Card padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
@@ -1162,6 +1166,38 @@ function CaseDetail({
             </Stack>
           </Paper>
       </Card>
+
+      <Stack className="caseDetailInsightStack" gap="md">
+        <Card padding="md" radius="md" withBorder>
+          <Text c="dimmed" fw={700} size="sm">วิธี AI สกัดได้</Text>
+          <Paper bg="gray.0" mt="sm" p="sm" radius="sm">
+            <Text className="compactText" size="sm">
+              {item.status === "awaiting_tech" ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ" : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้"}
+            </Text>
+          </Paper>
+        </Card>
+
+        <Card padding="md" radius="md" withBorder>
+          <Text c="dimmed" fw={700} size="sm">ข้อความล่าสุดที่ส่งทาง LINE</Text>
+          <Paper bg="green.0" mt="sm" p="sm" radius="sm">
+            <Text className="compactText" size="sm">
+              {latestLineReply?.displayText || latestLineReply?.originalText || item.customerReply || "ยังไม่มีข้อความที่ส่งกลับลูกค้า"}
+            </Text>
+          </Paper>
+          {latestLineReply ? <Text c="dimmed" mt="xs" size="xs">ส่งเมื่อ: {formatEventTime(latestLineReply.sentAt || latestLineReply.createdAt)}</Text> : null}
+        </Card>
+
+        <Card padding="md" radius="md" withBorder>
+          <Text c="dimmed" fw={700} size="sm">ข้อมูลสรุปของเคส</Text>
+          <Stack gap={6} mt="sm">
+            <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">สถานะเคส</Text><Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge></Group>
+            <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">ผู้รับผิดชอบ</Text><Text size="xs">{item.assignee || "ยังไม่มีผู้รับผิดชอบ"}</Text></Group>
+            <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">อัปเดตล่าสุด</Text><Text size="xs">{formatEventTime(item.lastActivityAt)}</Text></Group>
+            {item.closedAt ? <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">วันที่ปิดเคส</Text><Text size="xs">{formatEventTime(item.closedAt)}</Text></Group> : null}
+          </Stack>
+        </Card>
+      </Stack>
+      </Box>
       <Modal
         opened={closeConfirmationOpen}
         onClose={() => actionState === "idle" && setCloseConfirmationOpen(false)}
