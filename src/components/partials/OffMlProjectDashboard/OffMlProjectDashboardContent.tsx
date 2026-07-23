@@ -94,6 +94,10 @@ const DEFAULT_CLOSE_CUSTOMER_MESSAGE = "ทีมงานดำเนินก�
 
 const fallbackStatusMeta = { label: "ไม่ทราบสถานะ", color: "gray" };
 
+function getRootTab(value: string | null) {
+  return OFF_ML_PROJECT_TABS.some((tab) => tab.value === value) ? value : "inbox";
+}
+
 const autoAnswerLogEventLabels: Record<string, string> = {
   CASE_ACKNOWLEDGEMENT: "รับเรื่อง",
   CUSTOMER_REPLY: "ตอบลูกค้า",
@@ -2231,9 +2235,16 @@ function AutomationSettings({
   );
 }
 
-export default function OffMlProjectDashboardContent({ caseId }: { caseId?: string }) {
+export default function OffMlProjectDashboardContent({
+  caseId,
+  initialTab,
+}: {
+  caseId?: string;
+  initialTab?: string;
+}) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<string | null>(caseId ? "detail" : "inbox");
+  const requestedRootTab = getRootTab(initialTab ?? null);
+  const [activeTab, setActiveTab] = useState<string | null>(caseId ? "detail" : requestedRootTab);
   const [cases, setCases] = useState<SupportCase[]>([]);
   const [selectedCase, setSelectedCase] = useState<SupportCase | null>(null);
   const [isLoadingCases, setIsLoadingCases] = useState(true);
@@ -2509,15 +2520,8 @@ export default function OffMlProjectDashboardContent({ caseId }: { caseId?: stri
                 label={tab.label}
                 leftSection={<AppIcon name={icon} />}
                 onClick={() => {
-                  if (tab.value === "inbox") {
-                    if (caseId) {
-                      router.push("/");
-                    } else {
-                      setActiveTab("inbox");
-                    }
-                    return;
-                  }
-                  setActiveTab(tab.value);
+                  const target = tab.value === "inbox" ? "/" : `/?tab=${tab.value}`;
+                  router.push(target);
                 }}
                 variant="light"
               />
