@@ -309,6 +309,8 @@ function CaseInbox({
   const [slaOnly, setSlaOnly] = useState(false);
   const [caseScope, setCaseScope] = useState("open");
   const [sortMode, setSortMode] = useState("priority");
+  const [casePage, setCasePage] = useState(1);
+  const [casePageSize, setCasePageSize] = useState<10 | 20 | 50>(10);
 
   const closedStatuses = new Set<CaseStatus>(["resolved", "closed", "sent_to_customer", "sent"]);
   const priorityOrder: Partial<Record<CaseStatus, number>> = {
@@ -326,7 +328,7 @@ function CaseInbox({
   const categories = [...new Set(cases.map((item) => item.category).filter((value) => value && value !== "-"))];
   const statusOptions = Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }));
 
-  const visibleCases = cases
+  const filteredCases = cases
     .filter((item) => {
       const searchable = [item.caseNumber, item.customerName, item.problemSummary, item.initialCustomerMessage, item.latestCustomerMessage, item.category]
         .join(" ")
@@ -360,6 +362,10 @@ function CaseInbox({
       return priorityDifference || new Date(right.lastActivityAt).getTime() - new Date(left.lastActivityAt).getTime();
     });
 
+  const caseTotalPages = Math.max(1, Math.ceil(filteredCases.length / casePageSize));
+  const currentCasePage = Math.min(casePage, caseTotalPages);
+  const visibleCases = filteredCases.slice((currentCasePage - 1) * casePageSize, currentCasePage * casePageSize);
+
   const hasFilters = Boolean(search || statusFilter || categoryFilter || unreadOnly || slaOnly || confidenceFilter !== "all" || timeFilter !== "all" || caseScope !== "open" || sortMode !== "priority");
   const resetFilters = () => {
     setSearch("");
@@ -372,6 +378,7 @@ function CaseInbox({
     setSlaOnly(false);
     setCaseScope("open");
     setSortMode("priority");
+    setCasePage(1);
   };
 
   const waitingCount = cases.filter((item) => item.status === "awaiting_tech").length;
@@ -382,17 +389,21 @@ function CaseInbox({
   const handleSummaryFilter = (filter: "waiting-tech" | "awaiting-confirmation" | "closed" | "sla") => {
     if (filter === "waiting-tech") {
       setStatusFilter((current) => current === "awaiting_tech" ? null : "awaiting_tech");
+      setCasePage(1);
       return;
     }
     if (filter === "awaiting-confirmation") {
       setStatusFilter((current) => current === "awaiting_confirmation" ? null : "awaiting_confirmation");
+      setCasePage(1);
       return;
     }
     if (filter === "closed") {
       setCaseScope((current) => current === "closed" ? "open" : "closed");
+      setCasePage(1);
       return;
     }
     setSlaOnly((current) => !current);
+    setCasePage(1);
   };
 
   return (
@@ -432,24 +443,24 @@ function CaseInbox({
           <Box className="caseInboxFilterPrimaryGrid">
             <TextInput
               label="ค้นหา"
-              onChange={(event) => setSearch(event.currentTarget.value)}
+              onChange={(event) => { setSearch(event.currentTarget.value); setCasePage(1); }}
               placeholder="เลขเคส ชื่อลูกค้า หรือปัญหาที่แจ้ง"
               value={search}
             />
-            <Select clearable data={statusOptions} label="สถานะ" onChange={setStatusFilter} placeholder="ทั้งหมด" value={statusFilter} />
-            <Select clearable data={categories} label="หมวดหมู่" onChange={setCategoryFilter} placeholder="ทั้งหมด" value={categoryFilter} />
-            <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => setConfidenceFilter(value ?? "all")} value={confidenceFilter} />
-            <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); }} value={timeFilter} />
-            <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="ขอบเขตการแสดง" onChange={(value) => setCaseScope(value ?? "open")} value={caseScope} />
+            <Select clearable data={statusOptions} label="สถานะ" onChange={(value) => { setStatusFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={statusFilter} />
+            <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={categoryFilter} />
+            <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? "all"); setCasePage(1); }} value={confidenceFilter} />
+            <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
+            <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="ขอบเขตการแสดง" onChange={(value) => { setCaseScope(value ?? "open"); setCasePage(1); }} value={caseScope} />
           </Box>
           <Group align="flex-end" className="caseInboxFilterSecondaryRow" justify="space-between" wrap="wrap">
             <Group align="flex-end" gap="md" wrap="wrap">
-              <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => setSortMode(value ?? "priority")} value={sortMode} />
-              <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => setUnreadOnly(event.currentTarget.checked)} />
-              <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => setSlaOnly(event.currentTarget.checked)} />
+              <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => { setSortMode(value ?? "priority"); setCasePage(1); }} value={sortMode} />
+              <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => { setUnreadOnly(event.currentTarget.checked); setCasePage(1); }} />
+              <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => { setSlaOnly(event.currentTarget.checked); setCasePage(1); }} />
               {hasFilters ? <Button onClick={resetFilters} size="xs" variant="subtle">ล้างตัวกรอง</Button> : null}
             </Group>
-            <Text c="dimmed" size="xs">แสดง {visibleCases.length} จาก {cases.length} เคส</Text>
+            <Text c="dimmed" size="xs">แสดง {filteredCases.length === 0 ? 0 : ((currentCasePage - 1) * casePageSize) + 1}–{Math.min(currentCasePage * casePageSize, filteredCases.length)} จากทั้งหมด {filteredCases.length} เคส</Text>
           </Group>
         </Box>
 
@@ -529,6 +540,50 @@ function CaseInbox({
               {cases.length === 0 ? "เมื่อมีข้อมูลจาก POST /webhooks/line รายการเคสจะแสดงในตารางนี้" : "ลองเปลี่ยนตัวกรองหรือล้างตัวกรองเพื่อดูรายการอื่น"}
             </Text>
           </Paper>
+        ) : null}
+        {caseTotalPages > 1 ? (
+          <Flex className="caseInboxPagination" align="center" justify="space-between" mt="md" gap="sm" wrap="wrap">
+            <Text c="dimmed" size="sm">
+              แสดง {((currentCasePage - 1) * casePageSize) + 1}–{Math.min(currentCasePage * casePageSize, filteredCases.length)} จากทั้งหมด {filteredCases.length} เคส
+            </Text>
+            <Group className="caseInboxPaginationControls" gap="sm" wrap="wrap">
+              <Select
+                aria-label="จำนวนเคสต่อหน้า"
+                data={["10", "20", "50"]}
+                onChange={(value) => {
+                  setCasePageSize((Number(value) || 10) as 10 | 20 | 50);
+                  setCasePage(1);
+                }}
+                value={String(casePageSize)}
+                w={92}
+              />
+              <Pagination
+                boundaries={1}
+                className="caseInboxPaginationNav"
+                disabled={isLoading}
+                getControlProps={(control) => {
+                  const labels = {
+                    first: "ไปหน้าแรก",
+                    previous: "หน้าก่อนหน้า",
+                    next: "หน้าถัดไป",
+                    last: "ไปหน้าสุดท้าย",
+                  } as const;
+                  return { "aria-label": labels[control], title: labels[control] };
+                }}
+                getItemProps={(page) => ({
+                  "aria-label": `ไปหน้า ${page}`,
+                  ...(page === currentCasePage ? { "aria-current": "page" } : {}),
+                })}
+                onChange={setCasePage}
+                radius="md"
+                siblings={1}
+                size="sm"
+                total={caseTotalPages}
+                value={currentCasePage}
+                withEdges
+              />
+            </Group>
+          </Flex>
         ) : null}
       </Card>
     </Stack>

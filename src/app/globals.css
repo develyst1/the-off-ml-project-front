@@ -119,6 +119,28 @@ body {
   background: rgb(239 246 255 / 58%);
 }
 
+.caseInboxPagination {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.caseInboxPaginationControls {
+  justify-content: flex-end;
+}
+
+.caseInboxPaginationNav .mantine-Pagination-control {
+  box-sizing: border-box;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 13px;
+}
+
+.caseInboxPaginationNav .mantine-Pagination-control[data-active] {
+  background: #2563eb;
+  color: #ffffff;
+}
+
 .compactText {
   line-height: 1.45;
 }
@@ -161,6 +183,21 @@ body {
   .caseInboxFilterSecondaryRow [data-mantine-component="Select"] {
     min-width: 0;
     width: 100%;
+  }
+
+  .caseInboxPagination,
+  .caseInboxPaginationControls {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .caseInboxPaginationControls {
+    justify-content: space-between;
+  }
+
+  .caseInboxPaginationNav {
+    max-width: 100%;
+    overflow-x: auto;
   }
 }
 
