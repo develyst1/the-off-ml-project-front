@@ -2507,9 +2507,7 @@ export default function OffMlProjectDashboardContent() {
             const icon: IconName =
               tab.value === "inbox"
                 ? "inbox"
-                : tab.value === "detail"
-                  ? "message"
-                  : tab.value === "confidence"
+                : tab.value === "confidence"
                     ? "check"
                     : tab.value === "analytics"
                       ? "chart"
