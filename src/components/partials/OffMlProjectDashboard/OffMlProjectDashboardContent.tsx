@@ -1416,7 +1416,7 @@ function CaseDetail({
         </Box>
         )}
 
-        <Box className="caseOperationPanelSection">
+        {/* <Box className="caseOperationPanelSection">
           <Group gap="sm">
             <ThemeIcon color="blue" radius="xl" variant="light">
               <AppIcon name="brain" />
@@ -1492,7 +1492,7 @@ function CaseDetail({
             </Button>
           ) : null}
           {latestLineReply ? <Text c="dimmed" mt="xs" size="xs">ส่งเมื่อ: {formatEventTime(latestLineReply.sentAt || latestLineReply.createdAt)}</Text> : null}
-        </Box>
+        </Box> */}
         </Stack>
       </Card>
       </Box>
