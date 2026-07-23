@@ -90,8 +90,6 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   sla_breach: { label: "เกิน SLA", color: "red" },
 };
 
-const DEFAULT_CLOSE_CUSTOMER_MESSAGE = "ทีมงานดำเนินการในเรื่องนี้เรียบร้อยแล้ว จึงขอปิดเคสนี้นะคะ\nหากยังพบปัญหา สามารถตอบกลับพร้อมแจ้งหมายเลขเคสได้เลยค่ะ";
-
 const fallbackStatusMeta = { label: "ไม่ทราบสถานะ", color: "gray" };
 
 function getRootTab(value: string | null) {
@@ -658,6 +656,11 @@ function CaseDetail({
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [actionMode, setActionMode] = useState<"CUSTOMER_REPLY" | "REQUEST_MORE_INFO">("CUSTOMER_REPLY");
+  const [composerTab, setComposerTab] = useState<"reply" | "request-info" | "close">("reply");
+  const [closeCause, setCloseCause] = useState("");
+  const [closeResolution, setCloseResolution] = useState("");
+  const [closePrevention, setClosePrevention] = useState("");
+  const [closeValidationVisible, setCloseValidationVisible] = useState(false);
   const [supportInstruction, setSupportInstruction] = useState("");
   const [moreInfoGoal, setMoreInfoGoal] = useState("");
   const [moreInfoReason, setMoreInfoReason] = useState<string>();
@@ -678,6 +681,7 @@ function CaseDetail({
       if (initialAction === "request-info") {
         setReplyOpen(true);
         setActionMode("REQUEST_MORE_INFO");
+        setComposerTab("request-info");
         onInitialActionHandled();
         return;
       }
@@ -781,7 +785,11 @@ function CaseDetail({
   };
 
   const submitCloseCase = async () => {
-    const message = closeMessageText.trim() || DEFAULT_CLOSE_CUSTOMER_MESSAGE;
+    if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim()) {
+      setCloseValidationVisible(true);
+      return;
+    }
+    const message = closeMessageText.trim();
     const completed = await runAction(
       "closing",
       "ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว",
@@ -792,6 +800,7 @@ function CaseDetail({
       setCloseMessageText("");
       setReplyOpen(false);
       setActionMode("CUSTOMER_REPLY");
+      setComposerTab("reply");
       setCloseToastVisible(true);
     }
   };
@@ -844,6 +853,80 @@ function CaseDetail({
       setActionState("idle");
     }
   };
+
+  const selectComposerTab = (tab: "reply" | "request-info" | "close") => {
+    setComposerTab(tab);
+    setActionMode(tab === "request-info" ? "REQUEST_MORE_INFO" : "CUSTOMER_REPLY");
+    if (tab === "close") setCloseValidationVisible(true);
+    setRequestInfoDraftMessageId(undefined);
+    setMoreInfoReason(undefined);
+    setAiMissingInformation([]);
+  };
+
+  const openCloseConfirmation = () => {
+    if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim()) {
+      setCloseValidationVisible(true);
+      return;
+    }
+    setActionError(undefined);
+    setCloseMessageText([
+      "สรุปก่อนปิดเคส",
+      `สาเหตุที่เกิด: ${closeCause.trim()}`,
+      `แก้ไขอย่างไร: ${closeResolution.trim()}`,
+      `ป้องกันอย่างไร: ${closePrevention.trim()}`,
+    ].join("\n\n"));
+    setCloseConfirmationOpen(true);
+  };
+
+  const closeSummaryComplete = Boolean(closeCause.trim() && closeResolution.trim() && closePrevention.trim());
+  const closeCaseSummaryForm = (
+    <Stack gap="sm" mt="sm">
+      <Textarea
+        autosize
+        error={closeValidationVisible && !closeCause.trim() ? "กรุณาระบุสาเหตุที่เกิด" : undefined}
+        label="สาเหตุที่เกิด"
+        minRows={2}
+        onChange={(event) => setCloseCause(event.currentTarget.value)}
+        placeholder="สรุปสาเหตุของปัญหา"
+        required
+        value={closeCause}
+      />
+      <Textarea
+        autosize
+        error={closeValidationVisible && !closeResolution.trim() ? "กรุณาระบุวิธีแก้ไข" : undefined}
+        label="แก้ไขอย่างไร"
+        minRows={2}
+        onChange={(event) => setCloseResolution(event.currentTarget.value)}
+        placeholder="อธิบายสิ่งที่ดำเนินการแก้ไข"
+        required
+        value={closeResolution}
+      />
+      <Textarea
+        autosize
+        error={closeValidationVisible && !closePrevention.trim() ? "กรุณาระบุแนวทางป้องกัน" : undefined}
+        label="ป้องกันอย่างไร"
+        minRows={2}
+        onChange={(event) => setClosePrevention(event.currentTarget.value)}
+        placeholder="ระบุแนวทางป้องกันปัญหาในครั้งถัดไป"
+        required
+        value={closePrevention}
+      />
+    </Stack>
+  );
+
+  const composerTabs = (
+    <Group gap={6} wrap="wrap">
+      <Button onClick={() => selectComposerTab("reply")} size="xs" variant={composerTab === "reply" ? "filled" : "default"}>
+        ตอบลูกค้า
+      </Button>
+      <Button onClick={() => selectComposerTab("request-info")} size="xs" variant={composerTab === "request-info" ? "filled" : "default"}>
+        ขอข้อมูลเพิ่ม
+      </Button>
+      <Button color="orange" onClick={() => selectComposerTab("close")} size="xs" variant={composerTab === "close" ? "filled" : "default"}>
+        ปิดเคส
+      </Button>
+    </Group>
+  );
 
   return (
     <Stack gap="lg">
@@ -1104,27 +1187,12 @@ function CaseDetail({
                         <Box>
                           <Text fw={800} size="sm">ตอบกลับทาง LINE</Text>
                           <Text c="dimmed" size="xs">
-                            เลือกโหมดการทำงาน แล้วตรวจสอบข้อความก่อนส่งทุกครั้ง
+                            เลือกรูปแบบการดำเนินการ แล้วตรวจสอบข้อความก่อนส่งทุกครั้ง
                           </Text>
                         </Box>
-                        <Select
-                          aria-label="โหมดการส่งข้อความ"
-                          data={[
-                            { value: "CUSTOMER_REPLY", label: "โหมด: ตอบลูกค้า" },
-                            { value: "REQUEST_MORE_INFO", label: "โหมด: ขอข้อมูลเพิ่มเติม" },
-                          ]}
-                          onChange={(value) => {
-                            const nextMode = (value as "CUSTOMER_REPLY" | "REQUEST_MORE_INFO" | null) ?? "CUSTOMER_REPLY";
-                            setActionMode(nextMode);
-                            setRequestInfoDraftMessageId(undefined);
-                            setMoreInfoReason(undefined);
-                            setAiMissingInformation([]);
-                          }}
-                          size="xs"
-                          value={actionMode}
-                          w={220}
-                        />
                       </Group>
+                      <Box mt="sm">{composerTabs}</Box>
+                      {composerTab === "close" ? closeCaseSummaryForm : <>
                       <Box pos="relative" mt="sm">
                         <Textarea
                           ref={replyTextareaRef}
@@ -1154,6 +1222,8 @@ function CaseDetail({
                           </ActionIcon>
                         </Tooltip>
                       </Box>
+                      </>}
+                      {composerTab !== "close" ? (
                       <Paper className="caseMoreInfoGoalPanel" mt="sm" p="sm" radius="sm" withBorder>
                         <Text fw={700} size="sm">
                           {actionMode === "CUSTOMER_REPLY" ? "ใช้ AI ช่วยสร้างคำตอบ" : "ใช้ AI ช่วยสร้างคำขอข้อมูล"}
@@ -1195,11 +1265,12 @@ function CaseDetail({
                           {actionMode === "CUSTOMER_REPLY" ? "สร้างคำตอบด้วย AI" : "สร้างคำขอด้วย AI"}
                         </Button>
                       </Paper>
-                      {actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
+                      ) : null}
+                      {composerTab !== "close" && actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
                         <Alert color="yellow" mt="md" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
                           <Text size="sm">แนะนำให้เปลี่ยนเป็นโหมดขอข้อมูลเพิ่มเติม</Text>
                           <Text c="dimmed" mt={4} size="sm">ข้อมูลที่ยังขาด: {aiMissingInformation.join(", ")}</Text>
-                          <Button mt="sm" onClick={() => { setActionMode("REQUEST_MORE_INFO"); setAiMissingInformation([]); }} size="xs" variant="light">
+                          <Button mt="sm" onClick={() => selectComposerTab("request-info")} size="xs" variant="light">
                             เปลี่ยนเป็นโหมดขอข้อมูลเพิ่มเติม
                           </Button>
                         </Alert>
@@ -1208,7 +1279,7 @@ function CaseDetail({
                       {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
                       <Group className="caseReplyComposerActions" justify="space-between" mt="md">
                         <Text c="dimmed" size="xs">
-                          {actionMode === "REQUEST_MORE_INFO" ? "เมื่อส่งแล้ว ระบบจะรอข้อมูลเพิ่มเติมในเคสนี้" : "การส่งข้อความจะคงสถานะเคสเดิมไว้"}
+                          {composerTab === "close" ? "ระบบจะส่งสรุปให้ลูกค้าก่อน แล้วจึงปิดเคสเมื่อส่งสำเร็จ" : actionMode === "REQUEST_MORE_INFO" ? "เมื่อส่งแล้ว ระบบจะรอข้อมูลเพิ่มเติมในเคสนี้" : "การส่งข้อความจะคงสถานะเคสเดิมไว้"}
                         </Text>
                         <Group className="caseReplyComposerSubmit" gap="sm">
                           <Button
@@ -1222,11 +1293,12 @@ function CaseDetail({
                             ยกเลิก
                           </Button>
                           <Button
-                            disabled={!replyText.trim() || isActionRunning}
-                            loading={actionState === "replying" || actionState === "requesting"}
-                            onClick={() => void submitReply()}
+                            disabled={composerTab === "close" ? !closeSummaryComplete || isActionRunning : !replyText.trim() || isActionRunning}
+                            color={composerTab === "close" ? "orange" : undefined}
+                            loading={composerTab === "close" ? actionState === "closing" : actionState === "replying" || actionState === "requesting"}
+                            onClick={() => composerTab === "close" ? openCloseConfirmation() : void submitReply()}
                           >
-                            ส่งข้อความ
+                            {composerTab === "close" ? "ปิดเคส" : actionMode === "REQUEST_MORE_INFO" ? "ส่งคำขอข้อมูลเพิ่ม" : "ส่งข้อความ"}
                           </Button>
                         </Group>
                       </Group>
@@ -1322,28 +1394,13 @@ function CaseDetail({
               <Text fw={800}>ข้อความที่จะส่งให้ลูกค้า</Text>
               <Text c="dimmed" size="xs">ตรวจสอบข้อความก่อนส่งผ่าน LINE ทุกครั้ง</Text>
             </Box>
-            <Select
-              aria-label="โหมดการส่งข้อความ"
-              data={[
-                { value: "CUSTOMER_REPLY", label: "ตอบลูกค้า" },
-                { value: "REQUEST_MORE_INFO", label: "ขอข้อมูลเพิ่มเติม" },
-              ]}
-              onChange={(value) => {
-                const nextMode = (value as "CUSTOMER_REPLY" | "REQUEST_MORE_INFO" | null) ?? "CUSTOMER_REPLY";
-                setActionMode(nextMode);
-                setRequestInfoDraftMessageId(undefined);
-                setMoreInfoReason(undefined);
-                setAiMissingInformation([]);
-              }}
-              size="xs"
-              value={actionMode}
-              w={180}
-            />
           </Group>
+          <Box mt="sm">{composerTabs}</Box>
+          {composerTab === "close" ? closeCaseSummaryForm : <>
           <Box pos="relative" mt="sm">
             <Textarea
               autosize
-              label="ร่างข้อความ"
+              label={actionMode === "REQUEST_MORE_INFO" ? "ข้อความขอข้อมูลเพิ่มเติม" : "ข้อความตอบลูกค้า"}
               minRows={5}
               onChange={(event) => setReplyText(event.currentTarget.value)}
               placeholder="พิมพ์ข้อความเอง หรือให้ AI ช่วยสร้างร่างจากบริบทของเคส"
@@ -1368,21 +1425,33 @@ function CaseDetail({
               </ActionIcon>
             </Tooltip>
           </Box>
+          </>}
+          {actionMode === "REQUEST_MORE_INFO" ? (
+            <TextInput
+              label="ข้อมูลที่ต้องการ"
+              mt="sm"
+              onChange={(event) => setMoreInfoGoal(event.currentTarget.value)}
+              placeholder="เช่น รุ่นเครื่อง ภาพหน้าจอ หรือข้อความแจ้งเตือน..."
+              value={moreInfoGoal}
+            />
+          ) : null}
           <Group className="caseActionComposerButtons" gap="xs" mt="sm" wrap="wrap">
-            <Button disabled={isActionRunning} leftSection={<AppIcon name="brain" size={15} />} loading={actionState === "rewriting"} onClick={() => void composeWithAi()} size="xs" variant="light">
-              สร้างร่างด้วย AI
-            </Button>
-            <Button disabled={!replyText.trim() || isActionRunning || isClosed} loading={actionState === "replying" || actionState === "requesting"} onClick={() => void submitReply()} size="xs">
-              ส่งข้อความ
-            </Button>
-            <Button disabled={isActionRunning || isClosed} onClick={() => { setActionMode("REQUEST_MORE_INFO"); setReplyOpen(false); }} size="xs" variant="light">
-              ขอข้อมูลเพิ่มเติม
-            </Button>
-            <Button color="red" disabled={isActionRunning || isClosed} onClick={() => { setActionError(undefined); setCloseMessageText(""); setCloseConfirmationOpen(true); }} size="xs" variant="outline">
-              ปิดเคส
+            {composerTab !== "close" ? (
+              <Button disabled={isActionRunning} leftSection={<AppIcon name="brain" size={15} />} loading={actionState === "rewriting"} onClick={() => void composeWithAi()} size="xs" variant="light">
+                {actionMode === "REQUEST_MORE_INFO" ? "สร้างคำขอด้วย AI" : "สร้างร่างด้วย AI"}
+              </Button>
+            ) : null}
+            <Button
+              color={composerTab === "close" ? "orange" : undefined}
+              disabled={composerTab === "close" ? !closeSummaryComplete || isActionRunning : !replyText.trim() || isActionRunning || isClosed}
+              loading={composerTab === "close" ? actionState === "closing" : actionState === "replying" || actionState === "requesting"}
+              onClick={() => composerTab === "close" ? openCloseConfirmation() : void submitReply()}
+              size="xs"
+            >
+              {composerTab === "close" ? "ปิดเคส" : actionMode === "REQUEST_MORE_INFO" ? "ส่งคำขอข้อมูลเพิ่ม" : "ส่งข้อความ"}
             </Button>
           </Group>
-          {actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
+          {composerTab !== "close" && actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
             <Alert color="yellow" mt="sm" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
               <Text size="sm">ข้อมูลที่ยังขาด: {aiMissingInformation.join(", ")}</Text>
             </Alert>
@@ -1487,15 +1556,10 @@ function CaseDetail({
         <Text c="dimmed" mt="xs" size="sm">
           หลังปิดเคส ลูกค้าจะได้รับข้อความแจ้งว่าเคสนี้ปิดแล้ว
         </Text>
-        <Textarea
-          autosize
-          label="ข้อความแจ้งลูกค้า"
-          minRows={4}
-          mt="md"
-          onChange={(event) => setCloseMessageText(event.currentTarget.value)}
-          placeholder="เช่น ทีมงานตรวจสอบและแนะนำวิธีแก้ไขเรียบร้อยแล้วค่ะ"
-          value={closeMessageText}
-        />
+        <Paper bg="gray.0" mt="md" p="sm" radius="sm" withBorder>
+          <Text c="dimmed" size="xs">ข้อความสรุปที่จะส่งให้ลูกค้า</Text>
+          <Text mt={4} style={{ whiteSpace: "pre-wrap" }}>{closeMessageText}</Text>
+        </Paper>
         {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
         <Group justify="flex-end" mt="md">
           <Button disabled={actionState !== "idle"} onClick={() => setCloseConfirmationOpen(false)} variant="default">
