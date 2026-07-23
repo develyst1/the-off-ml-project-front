@@ -650,7 +650,7 @@ function CaseDetail({
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
   onBackToInbox: () => void;
 }) {
-  const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
+  const teamsAction = "ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams";
   const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "closing" | "reopening" | "rewriting">("idle");
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
@@ -1069,48 +1069,6 @@ function CaseDetail({
                     ผลวิเคราะห์โดย AI: {item.summary}
                   </Text>
                   <Group mt="md">
-                    <Button onClick={() => setTeamsAction(`เปิดรายละเอียดเคส ${item.caseNumber} ใน Microsoft Teams แล้ว`)} size="xs" variant="light">
-                      เปิดเคสใน Teams
-                    </Button>
-                    <Button
-                      disabled={isActionRunning || item.status === "assigned" || isClosed}
-                      loading={actionState === "accepting"}
-                      onClick={() => {
-                        void runAction("accepting", `รับเคส ${item.caseNumber} สำเร็จแล้ว`, onAcceptCase);
-                      }}
-                      size="xs"
-                      variant="light"
-                    >
-                      รับเคส
-                    </Button>
-                    <Button
-                      disabled={isActionRunning || isClosed}
-                      onClick={() => {
-                        setActionError(undefined);
-                        setActionNotice(undefined);
-                        setActionMode("CUSTOMER_REPLY");
-                        setAiMissingInformation([]);
-                        setReplyOpen(true);
-                      }}
-                      size="xs"
-                      variant="light"
-                    >
-                      ตอบลูกค้า
-                    </Button>
-                    <Button
-                      color="orange"
-                      disabled={isActionRunning || isClosed}
-                      loading={actionState === "closing"}
-                      onClick={() => {
-                        setActionError(undefined);
-                        setCloseMessageText("");
-                        setCloseConfirmationOpen(true);
-                      }}
-                      size="xs"
-                      variant="light"
-                    >
-                      {actionState === "closing" ? "กำลังปิดเคส..." : "ปิดเคส"}
-                    </Button>
                     {isClosed ? (
                       <Button
                         color="orange"
@@ -1124,7 +1082,21 @@ function CaseDetail({
                       >
                         เปิดเคสอีกครั้ง
                       </Button>
-                    ) : null}
+                    ) : (
+                      <Button
+                        disabled={isActionRunning}
+                        onClick={() => {
+                          setActionError(undefined);
+                          setActionNotice(undefined);
+                          setActionMode("CUSTOMER_REPLY");
+                          setAiMissingInformation([]);
+                          setReplyOpen(true);
+                        }}
+                        size="xs"
+                      >
+                        ตอบลูกค้า
+                      </Button>
+                    )}
                   </Group>
                   {replyOpen && !isClosed ? (
                     <Paper ref={replyComposerRef} className="caseReplyComposer" mt="md" p="md" radius="md" withBorder>
