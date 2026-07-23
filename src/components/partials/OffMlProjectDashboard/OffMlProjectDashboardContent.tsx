@@ -284,6 +284,19 @@ function OperationStepper({ status }: { status: CaseStatus }) {
   );
 }
 
+const DEFAULT_CASE_INBOX_FILTERS = {
+  search: "",
+  status: null as string | null,
+  category: null as string | null,
+  confidence: "all",
+  time: "all",
+  scope: "all",
+  sort: "priority",
+  unreadOnly: false,
+  slaOnly: false,
+  page: 1,
+} as const;
+
 function CaseInbox({
   cases,
   error,
@@ -299,17 +312,17 @@ function CaseInbox({
   onRefresh: () => void;
   selectedCaseId?: string;
 }) {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [confidenceFilter, setConfidenceFilter] = useState("all");
-  const [timeFilter, setTimeFilter] = useState("all");
+  const [search, setSearch] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.search);
+  const [statusFilter, setStatusFilter] = useState<string | null>(DEFAULT_CASE_INBOX_FILTERS.status);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(DEFAULT_CASE_INBOX_FILTERS.category);
+  const [confidenceFilter, setConfidenceFilter] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.confidence);
+  const [timeFilter, setTimeFilter] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.time);
   const [timeFilterReference, setTimeFilterReference] = useState<number | null>(null);
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  const [slaOnly, setSlaOnly] = useState(false);
-  const [caseScope, setCaseScope] = useState("open");
-  const [sortMode, setSortMode] = useState("priority");
-  const [casePage, setCasePage] = useState(1);
+  const [unreadOnly, setUnreadOnly] = useState<boolean>(DEFAULT_CASE_INBOX_FILTERS.unreadOnly);
+  const [slaOnly, setSlaOnly] = useState<boolean>(DEFAULT_CASE_INBOX_FILTERS.slaOnly);
+  const [caseScope, setCaseScope] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.scope);
+  const [sortMode, setSortMode] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.sort);
+  const [casePage, setCasePage] = useState<number>(DEFAULT_CASE_INBOX_FILTERS.page);
   const [casePageSize, setCasePageSize] = useState<10 | 20 | 50>(10);
 
   const closedStatuses = new Set<CaseStatus>(["resolved", "closed", "sent_to_customer", "sent"]);
@@ -366,19 +379,29 @@ function CaseInbox({
   const currentCasePage = Math.min(casePage, caseTotalPages);
   const visibleCases = filteredCases.slice((currentCasePage - 1) * casePageSize, currentCasePage * casePageSize);
 
-  const hasFilters = Boolean(search || statusFilter || categoryFilter || unreadOnly || slaOnly || confidenceFilter !== "all" || timeFilter !== "all" || caseScope !== "open" || sortMode !== "priority");
+  const hasFilters = Boolean(
+    search !== DEFAULT_CASE_INBOX_FILTERS.search
+    || statusFilter !== DEFAULT_CASE_INBOX_FILTERS.status
+    || categoryFilter !== DEFAULT_CASE_INBOX_FILTERS.category
+    || unreadOnly !== DEFAULT_CASE_INBOX_FILTERS.unreadOnly
+    || slaOnly !== DEFAULT_CASE_INBOX_FILTERS.slaOnly
+    || confidenceFilter !== DEFAULT_CASE_INBOX_FILTERS.confidence
+    || timeFilter !== DEFAULT_CASE_INBOX_FILTERS.time
+    || caseScope !== DEFAULT_CASE_INBOX_FILTERS.scope
+    || sortMode !== DEFAULT_CASE_INBOX_FILTERS.sort,
+  );
   const resetFilters = () => {
-    setSearch("");
-    setStatusFilter(null);
-    setCategoryFilter(null);
-    setConfidenceFilter("all");
-    setTimeFilter("all");
+    setSearch(DEFAULT_CASE_INBOX_FILTERS.search);
+    setStatusFilter(DEFAULT_CASE_INBOX_FILTERS.status);
+    setCategoryFilter(DEFAULT_CASE_INBOX_FILTERS.category);
+    setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence);
+    setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time);
     setTimeFilterReference(null);
-    setUnreadOnly(false);
-    setSlaOnly(false);
-    setCaseScope("open");
-    setSortMode("priority");
-    setCasePage(1);
+    setUnreadOnly(DEFAULT_CASE_INBOX_FILTERS.unreadOnly);
+    setSlaOnly(DEFAULT_CASE_INBOX_FILTERS.slaOnly);
+    setCaseScope(DEFAULT_CASE_INBOX_FILTERS.scope);
+    setSortMode(DEFAULT_CASE_INBOX_FILTERS.sort);
+    setCasePage(DEFAULT_CASE_INBOX_FILTERS.page);
   };
 
   const waitingCount = cases.filter((item) => item.status === "awaiting_tech").length;
@@ -398,7 +421,7 @@ function CaseInbox({
       return;
     }
     if (filter === "closed") {
-      setCaseScope((current) => current === "closed" ? "open" : "closed");
+      setCaseScope((current) => current === "closed" ? DEFAULT_CASE_INBOX_FILTERS.scope : "closed");
       setCasePage(1);
       return;
     }
@@ -451,7 +474,7 @@ function CaseInbox({
             <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={categoryFilter} />
             <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? "all"); setCasePage(1); }} value={confidenceFilter} />
             <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
-            <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="ขอบเขตการแสดง" onChange={(value) => { setCaseScope(value ?? "open"); setCasePage(1); }} value={caseScope} />
+            <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="ขอบเขตการแสดง" onChange={(value) => { setCaseScope(value ?? DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} value={caseScope} />
           </Box>
           <Group align="flex-end" className="caseInboxFilterSecondaryRow" justify="space-between" wrap="wrap">
             <Group align="flex-end" gap="md" wrap="wrap">
