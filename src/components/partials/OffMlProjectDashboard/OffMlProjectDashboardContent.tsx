@@ -80,12 +80,12 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   awaiting_confirmation: { label: "รอยืนยัน AI แนะนำ", color: "blue" },
   awaiting_customer_info: { label: "รอลูกค้าให้ข้อมูล", color: "orange" },
   awaiting_tech_review: { label: "รอตรวจสอบข้อความก่อนส่ง", color: "yellow" },
-  resolved: { label: "ปิดเคสแล้ว", color: "green" },
-  sent_to_customer: { label: "ส่งคำตอบแล้ว", color: "green" },
+  resolved: { label: "แก้ไขแล้ว", color: "green" },
+  sent_to_customer: { label: "ส่งคำตอบให้ลูกค้าแล้ว", color: "green" },
   closed: { label: "ปิดเคสแล้ว", color: "green" },
   reopened: { label: "เปิดเคสกลับมาตรวจสอบ", color: "orange" },
   in_progress: { label: "กำลังดำเนินการ", color: "blue" },
-  sent: { label: "ส่งคำตอบแล้ว", color: "green" },
+  sent: { label: "ส่งข้อความแล้ว", color: "green" },
   sla_breach: { label: "เกิน SLA", color: "red" },
 };
 
