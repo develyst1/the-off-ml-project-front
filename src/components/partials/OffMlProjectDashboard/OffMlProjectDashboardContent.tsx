@@ -518,15 +518,6 @@ function CaseInbox({
                 <Table.Tr
                   className={`caseInboxRow${selectedCaseId === item.id ? " isSelected" : ""}${item.hasUnreadCustomerMessage ? " hasUnread" : ""}${item.isSlaBreached ? " isSlaBreached" : ""}`}
                   key={item.id}
-                  onClick={() => onOpenCase(item)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onOpenCase(item);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
                 >
                   <Table.Td>
                     <Text fw={700}>{item.customerName}</Text>

@@ -130,13 +130,8 @@ body {
   background: rgb(239 246 255 / 58%);
 }
 
-.caseInboxRow:focus-visible {
-  outline: 2px solid #60a5fa;
-  outline-offset: -2px;
-}
-
 .caseInboxTableScroll {
-  max-height: min(64vh, 720px);
+  max-height: none;
 }
 
 .caseInboxPagination {
@@ -839,19 +834,19 @@ body {
 
 .caseConversationColumn {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 2;
   min-width: 0;
 }
 
 .caseTeamsThreadCard {
-  grid-column: 1;
-  grid-row: 2;
+  grid-column: 1 / -1;
+  grid-row: 1;
   min-width: 0;
 }
 
 .caseDetailInsightStack {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   min-width: 0;
   align-self: start;
 }
@@ -976,6 +971,10 @@ body {
   }
 
   .caseDetailInsightStack {
+    order: 1;
+  }
+
+  .caseTeamsThreadCard {
     order: -1;
   }
 
