@@ -800,65 +800,6 @@ body {
   }
 }
 
-.operationStepper {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.operationStep {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  color: #334155;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-width: 0;
-  padding: 4px 4px 8px;
-  position: relative;
-  text-align: center;
-}
-
-.operationStep:not(:last-child)::after {
-  background: #dbe5f1;
-  content: "";
-  height: 2px;
-  left: calc(50% + 24px);
-  position: absolute;
-  right: calc(-50% + 24px);
-  top: 20px;
-}
-
-.operationStep > * {
-  position: relative;
-  z-index: 1;
-}
-
-.operationStep > .mantine-Box-root {
-  min-width: 0;
-}
-
-.operationStep .mantine-Text-root {
-  line-height: 1.35;
-}
-
-.operationStepIcon {
-  flex: none;
-}
-
-.operationStep.done {
-  color: #166534;
-}
-
-.operationStep.current {
-  color: #0f4c81;
-}
-
-.operationStep.todo {
-  color: #64748b;
-}
-
 .caseTimelineStatusGrid {
   align-items: start;
   align-content: start;
@@ -896,18 +837,14 @@ body {
   grid-auto-rows: max-content;
 }
 
-.caseDetailBottomGrid > .teamsThreadSection {
-  display: contents;
-}
-
-.caseConversationSection {
+.caseConversationColumn {
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
 }
 
 .caseTeamsThreadCard {
-  grid-column: 1 / -1;
+  grid-column: 1;
   grid-row: 2;
   min-width: 0;
 }
@@ -916,8 +853,6 @@ body {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
-  position: sticky;
-  top: 16px;
   align-self: start;
 }
 
@@ -1033,28 +968,15 @@ body {
     flex-direction: column;
   }
 
-  .caseDetailBottomGrid > .teamsThreadSection {
-    display: contents;
-  }
-
-  .caseConversationSection,
+  .caseConversationColumn,
   .caseTeamsThreadCard,
   .caseDetailInsightStack {
     grid-column: auto;
     grid-row: auto;
-    position: static;
   }
 
   .caseDetailInsightStack {
     order: -1;
-  }
-
-  .operationStepper {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .operationStep::after {
-    display: none;
   }
 
   .caseConversationSummaryLayout {

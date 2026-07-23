@@ -1,7 +1,7 @@
 import { Badge, Box, Button, Group, Paper, Text, ThemeIcon } from "@mantine/core";
 import { useState } from "react";
 import { AppIcon } from "@/components/common";
-import { formatConversationDateTime, getConversationContent, getConversationMeta, getConversationStatus } from "./conversation.config";
+import { formatConversationDateTime, getConversationContent, getConversationMeta } from "./conversation.config";
 import type { ConversationMessage } from "./types";
 
 interface ConversationTimelineItemProps {
@@ -13,11 +13,11 @@ interface ConversationTimelineItemProps {
 
 export function ConversationTimelineItem({ isGroupedWithPrevious = false, isLast, isLatest = false, message }: ConversationTimelineItemProps) {
   const meta = getConversationMeta(message);
-  const status = getConversationStatus(message, meta);
   const timestamp = formatConversationDateTime(message.createdAt);
   const content = getConversationContent(message);
   const [expanded, setExpanded] = useState(false);
   const isLongMessage = content.length > 220;
+  const hasDistinctActionLabel = !["ข้อความจากลูกค้า", "ข้อความจากทีม Tech", "ข้อมูลเพิ่มเติมจากลูกค้า"].includes(meta.actionLabel);
 
   return (
     <Box className={`caseConversationTimelineItem ${meta.isSystemEvent ? "isSystemEvent" : ""} ${isLatest ? "isLatest" : ""} ${isGroupedWithPrevious ? "isGrouped" : ""}`} id={`case-conversation-message-${message.id}`}>
@@ -33,10 +33,9 @@ export function ConversationTimelineItem({ isGroupedWithPrevious = false, isLast
           <Group gap="xs" wrap="wrap">
             {!isGroupedWithPrevious ? <Badge color={meta.color} variant="light">{meta.label}</Badge> : null}
             {isLatest ? <Badge color="blue" variant="filled">ล่าสุด</Badge> : null}
-            {!isGroupedWithPrevious ? <Text c="dimmed" size="xs">{meta.actionLabel}</Text> : null}
+            {!isGroupedWithPrevious && hasDistinctActionLabel ? <Text c="dimmed" size="xs">{meta.actionLabel}</Text> : null}
           </Group>
           <Group className="caseConversationMessageMeta" gap="xs" wrap="nowrap">
-            {status.visible ? <Group gap={5} wrap="nowrap"><Box className="caseConversationStatusDot" style={{ backgroundColor: `var(--mantine-color-${status.color}-6)` }} /><Text c={status.color} size="xs">{status.label}</Text></Group> : null}
             <Text className="caseConversationTimestamp" c="dimmed" size="xs" title={`${timestamp.date} ${timestamp.time}`}>{timestamp.time} น.</Text>
           </Group>
         </Group>

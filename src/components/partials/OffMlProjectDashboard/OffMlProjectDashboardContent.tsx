@@ -254,48 +254,6 @@ function MetricCard({
   );
 }
 
-function OperationStepper({ status }: { status: CaseStatus }) {
-  const isClosed = status === "closed" || status === "resolved";
-  const activeStep =
-    status === "new" || status === "analyzing" ? 0 :
-    status === "awaiting_tech" || status === "assigned" || status === "awaiting_customer_info" || status === "awaiting_tech_review" ? 1 :
-    status === "tech_replied" || status === "analyzing_solution" ? 2 : 3;
-
-  const steps = [
-    "ส่งเคสเข้า Microsoft Teams",
-    "ได้รับคำตอบจากทีม Tech",
-    "AI เรียบเรียงคำตอบ",
-    "ส่งคำตอบกลับลูกค้า",
-  ].map((label, index) => ({
-    label,
-    state: isClosed || index < activeStep ? "done" : index === activeStep ? "current" : "todo",
-  } as const));
-
-  return (
-    <Box className="operationStepper">
-      {steps.map((step, index) => (
-        <Box className={`operationStep ${step.state}`} key={step.label}>
-          <ThemeIcon
-            className="operationStepIcon"
-            color={step.state === "done" ? "green" : step.state === "current" ? "blue" : "gray"}
-            radius="xl"
-            size={34}
-            variant={step.state === "todo" ? "light" : "filled"}
-          >
-            {step.state === "done" ? <AppIcon name="check" size={16} /> : index + 1}
-          </ThemeIcon>
-          <Box>
-            <Text fw={step.state === "current" ? 800 : 600} size="sm">{step.label}</Text>
-            <Text c="dimmed" size="xs">
-              {step.state === "done" ? "ดำเนินการแล้ว" : step.state === "current" ? "กำลังดำเนินการ" : "รอดำเนินการ"}
-            </Text>
-          </Box>
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
 const DEFAULT_CASE_INBOX_FILTERS = {
   search: "",
   status: null as string | null,
@@ -711,6 +669,7 @@ function CaseDetail({
   const [closeToastVisible, setCloseToastVisible] = useState(false);
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
   const [latestLineReplyExpanded, setLatestLineReplyExpanded] = useState(false);
+  const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
   const handledInitialAction = useRef(false);
   const replyComposerRef = useRef<HTMLDivElement | null>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -769,7 +728,7 @@ function CaseDetail({
   const statusLabel = item.status === "awaiting_tech" ? WAITING_TECH_STATUS : currentStatusMeta.label;
   const teamsMeta = teamsDeliveryMeta(item);
   const isActionRunning = actionState !== "idle";
-  const isClosed = item.status === "closed";
+  const isClosed = item.status === "closed" || item.status === "resolved";
   const latestLineReply = [...item.conversation]
     .reverse()
     .find((message) => message.channel === "line" && message.direction === "OUTBOUND" && message.isVisibleToCustomer !== false);
@@ -1017,8 +976,9 @@ function CaseDetail({
         </Box>
 
         <Box className="caseDetailBottomGrid">
-        <Box className="teamsThreadSection">
-        <CaseConversation item={item} />
+        <Box className="caseConversationColumn">
+          <CaseConversation item={item} />
+        </Box>
         <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
@@ -1334,7 +1294,6 @@ function CaseDetail({
           </Paper>
           </Collapse>
       </Card>
-      </Box>
 
       <Card className="caseOperationPanel caseDetailInsightStack" padding="md" radius="md" withBorder>
         <Stack gap="md">
@@ -1346,13 +1305,50 @@ function CaseDetail({
           </Group>
 
           <Box className="caseOperationPanelSection">
-            <OperationStepper status={item.status} />
-            <Paper bg="gray.0" className="caseCurrentStatus" mt="sm" p="sm" radius="sm">
-              <Text c="dimmed" fw={700} size="xs">สถานะปัจจุบัน</Text>
-              <Badge color={currentStatusMeta.color} mt={4} variant="light">{statusLabel}</Badge>
-            </Paper>
+            <Group gap="sm">
+              <ThemeIcon color={currentStatusMeta.color} radius="xl" variant="light">
+                <AppIcon name="check" />
+              </ThemeIcon>
+              <Text c="dimmed" fw={700} size="sm">สถานะปัจจุบัน</Text>
+            </Group>
+            <Group gap="sm" mt="sm" wrap="wrap">
+              <Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge>
+              <Text c="dimmed" size="xs">
+                {isClosed && item.closedAt
+                  ? `ปิดเคสเมื่อ ${formatEventTime(item.closedAt)}`
+                  : item.lineSentAt || item.lineDeliveredAt
+                    ? `ตอบลูกค้าแล้วเมื่อ ${formatEventTime(item.lineSentAt || item.lineDeliveredAt)}`
+                    : "ยังมีขั้นตอนที่ทีมสามารถดำเนินการต่อได้"}
+              </Text>
+            </Group>
           </Box>
 
+        {isClosed ? (
+          <Box className="caseClosedComposer caseOperationPanelSection">
+            <Group gap="sm">
+              <ThemeIcon color="green" radius="xl" variant="light">
+                <AppIcon name="check" />
+              </ThemeIcon>
+              <Box>
+                <Text fw={800}>ข้อความที่จะส่งให้ลูกค้า</Text>
+                <Badge color="green" mt={4} variant="light">ปิดเคสแล้ว</Badge>
+              </Box>
+            </Group>
+            <Text mt="sm" size="sm">ลูกค้ายืนยันว่าใช้งานได้แล้ว</Text>
+            <Text c="dimmed" mt={4} size="xs">ปิดเคสเมื่อ {formatEventTime(item.closedAt)}</Text>
+            {item.customerOutcome?.text ? <Text c="dimmed" mt={4} size="xs">รายละเอียด: {item.customerOutcome.text}</Text> : null}
+            <Button
+              disabled={isActionRunning}
+              loading={actionState === "reopening"}
+              mt="md"
+              onClick={() => setReopenConfirmationOpen(true)}
+              size="xs"
+              variant="outline"
+            >
+              เปิดเคสอีกครั้ง
+            </Button>
+          </Box>
+        ) : (
         <Box className="caseActionComposerCard caseOperationPanelSection">
           <Group align="center" justify="space-between" gap="sm" wrap="wrap">
             <Box>
@@ -1427,6 +1423,7 @@ function CaseDetail({
           {actionError ? <Alert color="red" mt="sm" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
           {actionNotice ? <Alert color="green" mt="sm">{actionNotice}</Alert> : null}
         </Box>
+        )}
 
         <Box className="caseOperationPanelSection">
           <Group gap="sm">
@@ -1449,7 +1446,7 @@ function CaseDetail({
             </ThemeIcon>
             <Text c="dimmed" fw={700} size="sm">ทีม Tech ดำเนินการ</Text>
           </Group>
-          <Paper bg="orange.0" mt="sm" p="md" radius="sm">
+          <Paper bg={isClosed && extractedTeamActions.length === 0 ? "gray.1" : "orange.0"} mt="sm" p="md" radius="sm">
             {extractedTeamActions.length > 0 ? (
               <Stack gap={6}>
                 {extractedTeamActions.map((action) => (
@@ -1457,7 +1454,11 @@ function CaseDetail({
                 ))}
               </Stack>
             ) : (
-              <Text className="compactText" size="sm">ยังไม่มีการดำเนินการจากทีม Tech ที่สกัดได้</Text>
+              <Text className="compactText" size="sm">
+                {isClosed
+                  ? "ปิดเคสจากการยืนยันของลูกค้า — ยังไม่ได้รับการดำเนินการจากทีม Tech"
+                  : "ยังไม่มีการดำเนินการจากทีม Tech ที่สกัดได้"}
+              </Text>
             )}
           </Paper>
         </Box>
@@ -1535,6 +1536,31 @@ function CaseDetail({
           </Button>
           <Button color="orange" disabled={actionState !== "idle"} loading={actionState === "closing"} onClick={() => void submitCloseCase()}>
             {actionState === "closing" ? "กำลังปิดเคส..." : "ยืนยันปิดเคส"}
+          </Button>
+        </Group>
+      </Modal>
+      <Modal
+        opened={reopenConfirmationOpen}
+        onClose={() => actionState === "idle" && setReopenConfirmationOpen(false)}
+        title="ยืนยันการเปิดเคสอีกครั้ง"
+      >
+        <Text>ต้องการเปิดเคส {item.caseNumber} กลับมาดำเนินการต่อใช่ไหม?</Text>
+        <Text c="dimmed" mt="xs" size="sm">สถานะเคสจะกลับเป็นเปิดอยู่ เพื่อให้ทีม Tech Support ตรวจสอบต่อ</Text>
+        <Group justify="flex-end" mt="md">
+          <Button disabled={actionState !== "idle"} onClick={() => setReopenConfirmationOpen(false)} variant="default">
+            ยกเลิก
+          </Button>
+          <Button
+            disabled={actionState !== "idle"}
+            loading={actionState === "reopening"}
+            onClick={() => {
+              void runAction("reopening", `เปิดเคส ${item.caseNumber} อีกครั้งแล้ว`, onReopenCase)
+                .then((completed) => {
+                  if (completed) setReopenConfirmationOpen(false);
+                });
+            }}
+          >
+            เปิดเคสอีกครั้ง
           </Button>
         </Group>
       </Modal>
