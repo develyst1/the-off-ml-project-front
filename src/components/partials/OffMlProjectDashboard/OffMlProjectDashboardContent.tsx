@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import {
   Alert,
   ActionIcon,
@@ -631,6 +632,7 @@ function CaseDetail({
   onRewriteAi,
   onReopenCase,
   onRequestInfo,
+  onBackToInbox,
 }: {
   item: SupportCase | null;
   initialAction?: "accept" | "request-info";
@@ -642,6 +644,7 @@ function CaseDetail({
   onRewriteAi: (mode: AiComposeMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
   onReopenCase: () => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
+  onBackToInbox: () => void;
 }) {
   const [teamsAction, setTeamsAction] = useState("ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams");
   const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "closing" | "reopening" | "rewriting">("idle");
@@ -659,7 +662,6 @@ function CaseDetail({
   const [closeMessageText, setCloseMessageText] = useState("");
   const [closeToastVisible, setCloseToastVisible] = useState(false);
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
-  const [latestLineReplyExpanded, setLatestLineReplyExpanded] = useState(false);
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
   const handledInitialAction = useRef(false);
   const replyComposerRef = useRef<HTMLDivElement | null>(null);
@@ -669,8 +671,6 @@ function CaseDetail({
     if (!item || !initialAction || handledInitialAction.current) return;
     handledInitialAction.current = true;
     const timer = window.setTimeout(() => {
-      window.history.replaceState({}, "", `/?caseId=${encodeURIComponent(item.id)}`);
-
       if (initialAction === "request-info") {
         setReplyOpen(true);
         setActionMode("REQUEST_MORE_INFO");
@@ -720,9 +720,6 @@ function CaseDetail({
   const teamsMeta = teamsDeliveryMeta(item);
   const isActionRunning = actionState !== "idle";
   const isClosed = item.status === "closed" || item.status === "resolved";
-  const latestLineReply = [...item.conversation]
-    .reverse()
-    .find((message) => message.channel === "line" && message.direction === "OUTBOUND" && message.isVisibleToCustomer !== false);
   const extractedTeamActions = item.teamActions ?? [];
   const extractedSolution = item.status === "awaiting_tech"
     ? "ยังไม่มีข้อมูล เนื่องจากทีมยังไม่ตอบ"
@@ -849,6 +846,9 @@ function CaseDetail({
       <Box className="caseDetailHeader">
         <Group justify="space-between" wrap="wrap">
           <Box>
+            <Button mb="xs" onClick={onBackToInbox} size="xs" variant="subtle">
+              ← กลับไปหน้า Case Inbox
+            </Button>
             <Title order={2}>เคส {item.caseNumber}</Title>
             <Text c="dimmed" size="sm">ลูกค้า: {item.customerName}</Text>
             <Group className="caseDetailHeaderSummary" gap="sm" mt={6} wrap="wrap">
@@ -2231,8 +2231,9 @@ function AutomationSettings({
   );
 }
 
-export default function OffMlProjectDashboardContent() {
-  const [activeTab, setActiveTab] = useState<string | null>("inbox");
+export default function OffMlProjectDashboardContent({ caseId }: { caseId?: string }) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<string | null>(caseId ? "detail" : "inbox");
   const [cases, setCases] = useState<SupportCase[]>([]);
   const [selectedCase, setSelectedCase] = useState<SupportCase | null>(null);
   const [isLoadingCases, setIsLoadingCases] = useState(true);
@@ -2249,34 +2250,37 @@ export default function OffMlProjectDashboardContent() {
   const [initialAction, setInitialAction] = useState<"accept" | "request-info">();
   const selectedCaseId = selectedCase?.id;
 
-  const loadCases = async () => {
+  const loadCases = useCallback(async () => {
     setIsLoadingCases(true);
     setCaseError(undefined);
 
     try {
       const nextCases = await getCases();
-      const requestedCaseId = new URLSearchParams(window.location.search).get("caseId");
       const requestedAction = new URLSearchParams(window.location.search).get("action");
       setCases(nextCases);
       setSelectedCase((current) => {
         if (!nextCases.length) return null;
-        const requestedCase = nextCases.find((item) => item.id === requestedCaseId);
+        const requestedCase = nextCases.find((item) => item.id === caseId);
         if (!current && requestedCase) return requestedCase;
         if (!current) return nextCases[0];
         return nextCases.find((item) => item.id === current.id) ?? nextCases[0];
       });
-      if (requestedCaseId && nextCases.some((item) => item.id === requestedCaseId)) {
+      if (caseId) {
         setActiveTab("detail");
         if (requestedAction === "accept" || requestedAction === "request-info") {
           setInitialAction(requestedAction);
         }
+
+        const latestCase = await getCase(caseId);
+        setSelectedCase(latestCase);
+        setCases((current) => current.map((item) => (item.id === latestCase.id ? latestCase : item)));
       }
     } catch (error) {
       setCaseError(error instanceof Error ? error.message : "โหลดข้อมูลเคสจาก backend ไม่สำเร็จ");
     } finally {
       setIsLoadingCases(false);
     }
-  };
+  }, [caseId]);
 
   const loadAutoAnswerLogs = async (query: AutoAnswerLogsQuery) => {
     const requestId = ++autoAnswerLogsRequestId.current;
@@ -2338,7 +2342,7 @@ export default function OffMlProjectDashboardContent() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [loadCases]);
 
   useEffect(() => {
     if (!selectedCaseId) return;
@@ -2375,34 +2379,12 @@ export default function OffMlProjectDashboardContent() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const handleOpenCase = async (item: SupportCase) => {
-    setSelectedCase(item);
-    setActiveTab("detail");
-
-    try {
-      const latestCase = await getCase(item.id);
-      setSelectedCase(latestCase);
-      setCases((current) => current.map((caseItem) => (caseItem.id === latestCase.id ? latestCase : caseItem)));
-    } catch (error) {
-      setCaseError(error instanceof Error ? error.message : "โหลดรายละเอียดเคสจาก backend ไม่สำเร็จ");
-    }
+  const handleOpenCase = (item: SupportCase) => {
+    router.push(`/cases/${encodeURIComponent(item.id)}`);
   };
 
-  const handleOpenCaseById = async (caseId: string) => {
-    const existingCase = cases.find((item) => item.id === caseId);
-    if (existingCase) {
-      await handleOpenCase(existingCase);
-      return;
-    }
-
-    try {
-      const latestCase = await getCase(caseId);
-      setSelectedCase(latestCase);
-      setActiveTab("detail");
-      window.history.replaceState({}, "", `/?caseId=${encodeURIComponent(latestCase.id)}`);
-    } catch (error) {
-      setCaseError(error instanceof Error ? error.message : "โหลดรายละเอียดเคสจาก backend ไม่สำเร็จ");
-    }
+  const handleOpenCaseById = async (nextCaseId: string) => {
+    router.push(`/cases/${encodeURIComponent(nextCaseId)}`);
   };
 
   const handleOpenCaseByNumber = async (caseNumber: string) => {
@@ -2411,7 +2393,15 @@ export default function OffMlProjectDashboardContent() {
       setCaseError(`ไม่พบเคส ${caseNumber} ในข้อมูลปัจจุบัน`);
       return;
     }
-    await handleOpenCase(matchingCase);
+    handleOpenCase(matchingCase);
+  };
+
+  const handleBackToInbox = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/");
   };
 
   const handleAcceptCase = async () => {
@@ -2518,7 +2508,13 @@ export default function OffMlProjectDashboardContent() {
                 key={tab.value}
                 label={tab.label}
                 leftSection={<AppIcon name={icon} />}
-                onClick={() => setActiveTab(tab.value)}
+                onClick={() => {
+                  if (tab.value === "inbox") {
+                    router.push("/");
+                    return;
+                  }
+                  setActiveTab(tab.value);
+                }}
                 variant="light"
               />
             );
@@ -2545,7 +2541,7 @@ export default function OffMlProjectDashboardContent() {
                 error={caseError}
                 isLoading={isLoadingCases}
                 onOpenCase={(item) => {
-                  void handleOpenCase(item);
+                  handleOpenCase(item);
                 }}
                 onRefresh={() => {
                   void loadCases();
@@ -2565,6 +2561,7 @@ export default function OffMlProjectDashboardContent() {
                 onRewriteAi={handleRewriteAi}
                 onReopenCase={handleReopenCase}
                 onRequestInfo={handleRequestInfo}
+                onBackToInbox={handleBackToInbox}
               />
             </Tabs.Panel>
             <Tabs.Panel value="confidence">
