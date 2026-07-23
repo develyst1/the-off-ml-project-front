@@ -710,6 +710,7 @@ function CaseDetail({
   const [closeMessageText, setCloseMessageText] = useState("");
   const [closeToastVisible, setCloseToastVisible] = useState(false);
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
+  const [latestLineReplyExpanded, setLatestLineReplyExpanded] = useState(false);
   const handledInitialAction = useRef(false);
   const replyComposerRef = useRef<HTMLDivElement | null>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -900,15 +901,19 @@ function CaseDetail({
           <Box>
             <Title order={2}>เคส {item.caseNumber}</Title>
             <Text c="dimmed" size="sm">ลูกค้า: {item.customerName}</Text>
+            <Group className="caseDetailHeaderSummary" gap="sm" mt={6} wrap="wrap">
+              <Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge>
+              <Text c="dimmed" size="xs">ทีม: {item.assignee || "ยังไม่มีผู้รับผิดชอบ"}</Text>
+              <Text c="dimmed" size="xs">ข้อความล่าสุด: {formatEventTime(item.lastActivityAt)}</Text>
+              {item.closedAt ? <Text c="dimmed" size="xs">ปิดเมื่อ: {formatEventTime(item.closedAt)}</Text> : null}
+            </Group>
           </Box>
           <Group className="caseDetailHeaderBadges" gap="xs" wrap="wrap">
-            <Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge>
             {item.aiStatus !== "AI_FAILED" ? <Badge color={confidenceColor(item.aiConfidence)} variant="light">AI {item.aiConfidence}%</Badge> : null}
             {item.isSlaBreached ? <Badge color="red" variant="light">เกิน SLA</Badge> : null}
-            <Badge color="gray" variant="light">อัปเดต {relativeTime(item.lastActivityAt)}</Badge>
           </Group>
         </Group>
-        {isClosed && item.closedAt ? <Text c="dimmed" mt={4} size="xs">ปิดเมื่อ {formatEventTime(item.closedAt)}{item.closedBy ? ` โดย ${item.closedBy}` : ""}</Text> : null}
+        {isClosed && item.closedAt && item.closedBy ? <Text c="dimmed" mt={4} size="xs">ปิดโดย {item.closedBy}</Text> : null}
       </Box>
 
       <Alert className="caseDetailStatusAlert" color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
@@ -1331,8 +1336,24 @@ function CaseDetail({
       </Card>
       </Box>
 
-      <Stack className="caseDetailInsightStack" gap="md">
-        <Card className="caseActionComposerCard" padding="md" radius="md" withBorder>
+      <Card className="caseOperationPanel caseDetailInsightStack" padding="md" radius="md" withBorder>
+        <Stack gap="md">
+          <Group gap="sm">
+            <ThemeIcon color="blue" radius="xl" variant="light">
+              <AppIcon name="message" />
+            </ThemeIcon>
+            <Text fw={800}>การดำเนินงานของเคส</Text>
+          </Group>
+
+          <Box className="caseOperationPanelSection">
+            <OperationStepper status={item.status} />
+            <Paper bg="gray.0" className="caseCurrentStatus" mt="sm" p="sm" radius="sm">
+              <Text c="dimmed" fw={700} size="xs">สถานะปัจจุบัน</Text>
+              <Badge color={currentStatusMeta.color} mt={4} variant="light">{statusLabel}</Badge>
+            </Paper>
+          </Box>
+
+        <Box className="caseActionComposerCard caseOperationPanelSection">
           <Group align="center" justify="space-between" gap="sm" wrap="wrap">
             <Box>
               <Text fw={800}>ข้อความที่จะส่งให้ลูกค้า</Text>
@@ -1405,23 +1426,9 @@ function CaseDetail({
           ) : null}
           {actionError ? <Alert color="red" mt="sm" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
           {actionNotice ? <Alert color="green" mt="sm">{actionNotice}</Alert> : null}
-        </Card>
+        </Box>
 
-        <Card className="caseOperationStatusCard" padding="md" radius="md" withBorder>
-          <Group gap="sm" mb="md">
-            <ThemeIcon color="blue" radius="xl" variant="light">
-              <AppIcon name="message" />
-            </ThemeIcon>
-            <Text fw={800}>สถานะการดำเนินงาน</Text>
-          </Group>
-          <OperationStepper status={item.status} />
-          <Paper bg="gray.0" className="caseCurrentStatus" mt="md" p="sm" radius="sm">
-            <Text c="dimmed" fw={700} size="xs">สถานะปัจจุบัน</Text>
-            <Badge color={currentStatusMeta.color} mt={4} variant="light">{statusLabel}</Badge>
-          </Paper>
-        </Card>
-
-        <Card padding="md" radius="md" withBorder>
+        <Box className="caseOperationPanelSection">
           <Group gap="sm">
             <ThemeIcon color="blue" radius="xl" variant="light">
               <AppIcon name="brain" />
@@ -1433,9 +1440,9 @@ function CaseDetail({
               {extractedSolution}
             </Text>
           </Paper>
-        </Card>
+        </Box>
 
-        <Card padding="md" radius="md" withBorder>
+        <Box className="caseOperationPanelSection">
           <Group gap="sm">
             <ThemeIcon color="orange" radius="xl" variant="light">
               <AppIcon name="settings" />
@@ -1453,27 +1460,29 @@ function CaseDetail({
               <Text className="compactText" size="sm">ยังไม่มีการดำเนินการจากทีม Tech ที่สกัดได้</Text>
             )}
           </Paper>
-        </Card>
+        </Box>
 
-        {item.customerOutcome ? (
-          <Card padding="md" radius="md" withBorder>
+        <Box className="caseOperationPanelSection">
             <Group gap="sm">
               <ThemeIcon color="green" radius="xl" variant="light">
                 <AppIcon name="check" />
               </ThemeIcon>
               <Text c="dimmed" fw={700} size="sm">ผลการตรวจสอบจากลูกค้า</Text>
             </Group>
-            <Paper bg="green.0" mt="sm" p="md" radius="sm">
-              <Text className="compactText" size="sm">{item.customerOutcome.text}</Text>
-            </Paper>
-            <Text c="dimmed" mt="xs" size="xs">
-              {item.customerOutcome.type === "RESOLVED" ? "ลูกค้ายืนยันว่าใช้งานได้แล้ว" : "ลูกค้าแจ้งว่าอาการดีขึ้น"}
-              {item.customerOutcome.confirmedAt ? ` · ${formatEventTime(item.customerOutcome.confirmedAt)}` : ""}
-            </Text>
-          </Card>
-        ) : null}
+            {item.customerOutcome ? (
+              <>
+                <Paper bg="green.0" mt="sm" p="md" radius="sm">
+                  <Text className="compactText" size="sm">{item.customerOutcome.text}</Text>
+                </Paper>
+                <Text c="dimmed" mt="xs" size="xs">
+                  {item.customerOutcome.type === "RESOLVED" ? "ลูกค้ายืนยันว่าใช้งานได้แล้ว" : "ลูกค้าแจ้งว่าอาการดีขึ้น"}
+                  {item.customerOutcome.confirmedAt ? ` · ${formatEventTime(item.customerOutcome.confirmedAt)}` : ""}
+                </Text>
+              </>
+            ) : <Text c="dimmed" mt="xs" size="sm">ยังไม่มีผลการตรวจสอบจากลูกค้า</Text>}
+          </Box>
 
-        <Card padding="md" radius="md" withBorder>
+        <Box className="caseOperationPanelSection">
           <Group gap="sm">
             <ThemeIcon color="green" radius="xl" variant="light">
               <AppIcon name="message" />
@@ -1481,23 +1490,19 @@ function CaseDetail({
             <Text c="dimmed" fw={700} size="sm">ข้อความล่าสุดที่ส่งทาง LINE</Text>
           </Group>
           <Paper bg="green.0" mt="sm" p="sm" radius="sm">
-            <Text className="compactText" size="sm">
+            <Text className="compactText" lineClamp={latestLineReplyExpanded ? undefined : 3} size="sm">
               {latestLineReply?.displayText || latestLineReply?.originalText || item.customerReply || "ยังไม่มีข้อความที่ส่งกลับลูกค้า"}
             </Text>
           </Paper>
+          {(latestLineReply?.displayText || latestLineReply?.originalText || item.customerReply || "").length > 180 ? (
+            <Button onClick={() => setLatestLineReplyExpanded((current) => !current)} px={0} size="compact-xs" variant="subtle">
+              {latestLineReplyExpanded ? "ย่อข้อความ" : "ดูข้อความเต็ม"}
+            </Button>
+          ) : null}
           {latestLineReply ? <Text c="dimmed" mt="xs" size="xs">ส่งเมื่อ: {formatEventTime(latestLineReply.sentAt || latestLineReply.createdAt)}</Text> : null}
-        </Card>
-
-        <Card padding="md" radius="md" withBorder>
-          <Text c="dimmed" fw={700} size="sm">ข้อมูลสรุปของเคส</Text>
-          <Stack gap={6} mt="sm">
-            <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">สถานะเคส</Text><Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge></Group>
-            <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">ผู้รับผิดชอบ</Text><Text size="xs">{item.assignee || "ยังไม่มีผู้รับผิดชอบ"}</Text></Group>
-            <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">อัปเดตล่าสุด</Text><Text size="xs">{formatEventTime(item.lastActivityAt)}</Text></Group>
-            {item.closedAt ? <Group justify="space-between" wrap="nowrap"><Text c="dimmed" size="xs">วันที่ปิดเคส</Text><Text size="xs">{formatEventTime(item.closedAt)}</Text></Group> : null}
-          </Stack>
-        </Card>
-      </Stack>
+        </Box>
+        </Stack>
+      </Card>
       </Box>
       </Box>
       <Modal

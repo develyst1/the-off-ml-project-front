@@ -921,8 +921,25 @@ body {
   align-self: start;
 }
 
+.caseOperationPanel {
+  border-color: #e5e7eb;
+}
+
+.caseOperationPanelSection {
+  min-width: 0;
+}
+
+.caseOperationPanelSection + .caseOperationPanelSection {
+  border-top: 1px solid #eef1f5;
+  padding-top: 16px;
+}
+
 .caseDetailHeader {
   padding-bottom: 2px;
+}
+
+.caseDetailHeaderSummary {
+  align-items: center;
 }
 
 .caseDetailHeaderBadges .mantine-Badge-root {
@@ -934,7 +951,9 @@ body {
 }
 
 .caseActionComposerCard {
-  border-color: #dbeafe;
+  background: #f8fbff;
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .caseActionComposerButtons {
