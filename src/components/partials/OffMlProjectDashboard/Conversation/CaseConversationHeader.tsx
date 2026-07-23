@@ -9,10 +9,10 @@ export function CaseConversationHeader({ totalCount }: CaseConversationHeaderPro
     <Box className="caseConversationHeader">
       <Box>
         <Group align="baseline" gap="xs" wrap="wrap">
-          <Title order={3}>3) ประวัติการสนทนาในเคส</Title>
+          <Title order={3}>ประวัติการสนทนาใน LINE</Title>
           <Text c="dimmed" size="sm">· {totalCount} รายการ</Text>
         </Group>
-        <Text c="dimmed" mt={2} size="xs">แสดงผลการสนทนาทั้งหมดภายในเคส เรียงจากเก่าไปใหม่</Text>
+        <Text c="dimmed" mt={2} size="xs">แสดงบทสนทนาในเคส เรียงจากเก่าไปใหม่</Text>
       </Box>
     </Box>
   );

@@ -709,6 +709,7 @@ function CaseDetail({
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
   const [closeMessageText, setCloseMessageText] = useState("");
   const [closeToastVisible, setCloseToastVisible] = useState(false);
+  const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
   const handledInitialAction = useRef(false);
   const replyComposerRef = useRef<HTMLDivElement | null>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -780,11 +781,11 @@ function CaseDetail({
         : "ไม่พบแนวทางแก้ไขเพิ่มเติม"
       : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้";
   const timelineSteps = [
-    { label: "สร้างเคส", at: item.caseCreatedAt },
-    { label: "ส่งเข้า Microsoft Teams", at: item.teamsSentAt },
-    { label: "ทีม Tech ตอบกลับ", at: item.techRepliedAt },
-    { label: "ส่งคำตอบกลับ LINE", at: item.lineSentAt || item.lineDeliveredAt },
-    ...(item.closedAt ? [{ label: "ปิดเคส", at: item.closedAt, by: item.closedBy }] : []),
+    { label: "รับเรื่อง", at: item.caseCreatedAt },
+    { label: "AI วิเคราะห์", at: item.aiAnalyzedAt },
+    { label: "ส่ง Teams", at: item.teamsSentAt },
+    { label: "ตอบลูกค้า", at: item.lineSentAt || item.lineDeliveredAt },
+    { label: "ปิดเคส", at: item.closedAt, by: item.closedBy },
   ];
   const timelineStyle = {
     "--timeline-line-inset": `${100 / (timelineSteps.length * 2)}%`,
@@ -894,26 +895,23 @@ function CaseDetail({
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Box>
-          <Title order={2}>
-            เคส {item.caseNumber} · {item.customerName}
-          </Title>
-          <Text c="dimmed">line_user_id: {item.lineUserId} · ส่งเมื่อ {item.createdAt}</Text>
-        </Box>
-        <Box ta="right">
-          <Badge color={currentStatusMeta.color} size="lg" variant="light">
-            {statusLabel}
-          </Badge>
-          {isClosed && item.closedAt ? (
-            <Text c="dimmed" mt={4} size="xs">
-              ปิดเมื่อ {formatEventTime(item.closedAt)}{item.closedBy ? ` โดย ${item.closedBy}` : ""}
-            </Text>
-          ) : null}
-        </Box>
-      </Group>
+      <Box className="caseDetailHeader">
+        <Group justify="space-between" wrap="wrap">
+          <Box>
+            <Title order={2}>เคส {item.caseNumber}</Title>
+            <Text c="dimmed" size="sm">ลูกค้า: {item.customerName}</Text>
+          </Box>
+          <Group className="caseDetailHeaderBadges" gap="xs" wrap="wrap">
+            <Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge>
+            {item.aiStatus !== "AI_FAILED" ? <Badge color={confidenceColor(item.aiConfidence)} variant="light">AI {item.aiConfidence}%</Badge> : null}
+            {item.isSlaBreached ? <Badge color="red" variant="light">เกิน SLA</Badge> : null}
+            <Badge color="gray" variant="light">อัปเดต {relativeTime(item.lastActivityAt)}</Badge>
+          </Group>
+        </Group>
+        {isClosed && item.closedAt ? <Text c="dimmed" mt={4} size="xs">ปิดเมื่อ {formatEventTime(item.closedAt)}{item.closedBy ? ` โดย ${item.closedBy}` : ""}</Text> : null}
+      </Box>
 
-      <Alert color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
+      <Alert className="caseDetailStatusAlert" color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
         {item.teamsDeliveryStatus === "failed"
           ? `ส่งเคสเข้า Microsoft Teams ไม่สำเร็จ: ${item.teamsDeliveryError ?? "ไม่ทราบสาเหตุ"}`
           : item.status === "awaiting_tech"
@@ -930,7 +928,7 @@ function CaseDetail({
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="sm" order={3}>
-            1) ข้อความต้นฉบับจากลูกค้า
+            ข้อมูลลูกค้าและปัญหาที่แจ้ง
           </Title>
           <Paper bg="gray.0" p="md" radius="md">
             {item.originalText ? (
@@ -949,7 +947,7 @@ function CaseDetail({
 
         <Card padding="lg" radius="md" withBorder>
           <Title mb="sm" order={3}>
-            2) ผลวิเคราะห์โดย AI
+            ผลวิเคราะห์โดย AI
           </Title>
           <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
             <Box>
@@ -979,6 +977,8 @@ function CaseDetail({
           <Text className="compactText" mt={6}>
             {item.summary}
           </Text>
+          <Text c="dimmed" fw={700} mt="sm" size="sm">วิธีแก้ที่สกัดได้</Text>
+          <Text className="compactText" lineClamp={3} mt={4} size="sm">{extractedSolution}</Text>
           <Text c="dimmed" mt="sm" size="xs">
             ผลวิเคราะห์นี้เป็นการประเมินเบื้องต้นจาก AI ยังไม่ใช่การยืนยันสาเหตุที่แน่นอน
           </Text>
@@ -986,12 +986,10 @@ function CaseDetail({
         </Card>
       </SimpleGrid>
 
-      <CaseConversation item={item} />
-
       <Box className="caseDetailSections">
         <Box className="caseTimelineSection">
         <Card className="caseTimelineCard" padding="lg" radius="md" withBorder>
-          <Title order={3} mb={20}>ลำดับเวลาของเคส</Title>
+          <Title order={3} mb="md">ลำดับของเคส</Title>
           <Box className="caseTimelineSteps" style={timelineStyle}>
             {timelineSteps.map((step, index, steps) => {
               const isDone = Boolean(step.at);
@@ -1015,19 +1013,24 @@ function CaseDetail({
 
         <Box className="caseDetailBottomGrid">
         <Box className="teamsThreadSection">
+        <CaseConversation item={item} />
         <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
-              <Title order={3}>4) เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
+              <Title order={3}>เธรดที่ส่งให้ทีม Tech Support ใน MS Teams</Title>
               <Text c="dimmed" size="sm">
                 แสดงสิ่งที่ระบบส่งเข้า Teams และสถานะหลังทีมส่งคำตอบกลับ
               </Text>
             </Box>
-            <Badge color={teamsMeta.color} variant="light">
-              {teamsMeta.label}
-            </Badge>
+            <Group gap="xs">
+              <Badge color={teamsMeta.color} variant="light">{teamsMeta.label}</Badge>
+              <Button aria-expanded={teamsThreadOpen} onClick={() => setTeamsThreadOpen((current) => !current)} size="xs" variant="light">
+                {teamsThreadOpen ? "ซ่อนเธรด" : "เปิดเธรด"}
+              </Button>
+            </Group>
           </Group>
 
+          <Collapse expanded={teamsThreadOpen}>
           <Paper className="teamsPreview" radius="lg" withBorder>
             <Box className="teamsHeader">
               <Group gap="sm">
@@ -1324,10 +1327,86 @@ function CaseDetail({
               </Paper>
             </Stack>
           </Paper>
+          </Collapse>
       </Card>
       </Box>
 
       <Stack className="caseDetailInsightStack" gap="md">
+        <Card className="caseActionComposerCard" padding="md" radius="md" withBorder>
+          <Group align="center" justify="space-between" gap="sm" wrap="wrap">
+            <Box>
+              <Text fw={800}>ข้อความที่จะส่งให้ลูกค้า</Text>
+              <Text c="dimmed" size="xs">ตรวจสอบข้อความก่อนส่งผ่าน LINE ทุกครั้ง</Text>
+            </Box>
+            <Select
+              aria-label="โหมดการส่งข้อความ"
+              data={[
+                { value: "CUSTOMER_REPLY", label: "ตอบลูกค้า" },
+                { value: "REQUEST_MORE_INFO", label: "ขอข้อมูลเพิ่มเติม" },
+              ]}
+              onChange={(value) => {
+                const nextMode = (value as "CUSTOMER_REPLY" | "REQUEST_MORE_INFO" | null) ?? "CUSTOMER_REPLY";
+                setActionMode(nextMode);
+                setRequestInfoDraftMessageId(undefined);
+                setMoreInfoReason(undefined);
+                setAiMissingInformation([]);
+              }}
+              size="xs"
+              value={actionMode}
+              w={180}
+            />
+          </Group>
+          <Box pos="relative" mt="sm">
+            <Textarea
+              autosize
+              label="ร่างข้อความ"
+              minRows={5}
+              onChange={(event) => setReplyText(event.currentTarget.value)}
+              placeholder="พิมพ์ข้อความเอง หรือให้ AI ช่วยสร้างร่างจากบริบทของเคส"
+              styles={{ input: { paddingRight: 52 } }}
+              value={replyText}
+            />
+            <Tooltip label="ช่วยขยายความจากข้อความที่พิมพ์" withArrow>
+              <ActionIcon
+                aria-label="ช่วยขยายความจากข้อความที่พิมพ์ด้วย AI"
+                color="blue"
+                disabled={!replyText.trim() || isActionRunning}
+                loading={actionState === "rewriting"}
+                onClick={() => void composeWithAi(replyText, true)}
+                pos="absolute"
+                right={10}
+                size="lg"
+                top={34}
+                variant="light"
+                radius="xl"
+              >
+                <AppIcon name="brain" size={17} />
+              </ActionIcon>
+            </Tooltip>
+          </Box>
+          <Group className="caseActionComposerButtons" gap="xs" mt="sm" wrap="wrap">
+            <Button disabled={isActionRunning} leftSection={<AppIcon name="brain" size={15} />} loading={actionState === "rewriting"} onClick={() => void composeWithAi()} size="xs" variant="light">
+              สร้างร่างด้วย AI
+            </Button>
+            <Button disabled={!replyText.trim() || isActionRunning || isClosed} loading={actionState === "replying" || actionState === "requesting"} onClick={() => void submitReply()} size="xs">
+              ส่งข้อความ
+            </Button>
+            <Button disabled={isActionRunning || isClosed} onClick={() => { setActionMode("REQUEST_MORE_INFO"); setReplyOpen(false); }} size="xs" variant="light">
+              ขอข้อมูลเพิ่มเติม
+            </Button>
+            <Button color="red" disabled={isActionRunning || isClosed} onClick={() => { setActionError(undefined); setCloseMessageText(""); setCloseConfirmationOpen(true); }} size="xs" variant="outline">
+              ปิดเคส
+            </Button>
+          </Group>
+          {actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
+            <Alert color="yellow" mt="sm" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
+              <Text size="sm">ข้อมูลที่ยังขาด: {aiMissingInformation.join(", ")}</Text>
+            </Alert>
+          ) : null}
+          {actionError ? <Alert color="red" mt="sm" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
+          {actionNotice ? <Alert color="green" mt="sm">{actionNotice}</Alert> : null}
+        </Card>
+
         <Card className="caseOperationStatusCard" padding="md" radius="md" withBorder>
           <Group gap="sm" mb="md">
             <ThemeIcon color="blue" radius="xl" variant="light">

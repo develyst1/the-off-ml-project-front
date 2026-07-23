@@ -1,7 +1,7 @@
 import { Box, Button, Group, Select, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { ConversationEmptyState } from "./ConversationEmptyState";
-import { conversationDateKey, formatConversationDateLabel } from "./conversation.config";
+import { conversationDateKey, formatConversationDateLabel, getConversationMeta } from "./conversation.config";
 import { ConversationTimelineItem } from "./ConversationTimelineItem";
 import type { ConversationMessage, ConversationSort, ConversationViewMode } from "./types";
 
@@ -54,6 +54,11 @@ export function ConversationTimeline({ hasActiveFilters, isConversationOnly, lat
           size="xs"
           value={sort}
         />
+        {latestMessageId ? (
+          <Button leftSection={<Text component="span">↓</Text>} onClick={onGoToLatest} size="xs" variant="light">
+            ไปยังข้อความล่าสุด
+          </Button>
+        ) : null}
       </Group>
     </Group>
   );
@@ -70,18 +75,31 @@ export function ConversationTimeline({ hasActiveFilters, isConversationOnly, lat
   return (
     <Stack className="caseConversationTimeline" gap={6}>
       {toolbar}
+      <Box className="caseConversationTimelineScroll">
       {sort === "oldest" ? loadPreviousButton : null}
       {messages.map((message, index) => {
         const previous = messages[index - 1];
         const showDateSeparator = !previous || conversationDateKey(previous.createdAt) !== conversationDateKey(message.createdAt);
+        const previousMeta = previous ? getConversationMeta(previous) : undefined;
+        const currentMeta = getConversationMeta(message);
+        const isGroupedWithPrevious = Boolean(
+          previous
+          && !showDateSeparator
+          && !previousMeta?.isSystemEvent
+          && !currentMeta.isSystemEvent
+          && previousMeta?.filter === currentMeta.filter
+          && previous.channel === message.channel
+          && previous.senderType === message.senderType,
+        );
         return (
           <Box key={message.id}>
             {showDateSeparator ? <Text className="caseConversationDateSeparator" c="dimmed" size="xs">{formatConversationDateLabel(message.createdAt)}</Text> : null}
-            <ConversationTimelineItem isLast={index === messages.length - 1} isLatest={message.id === latestMessageId} message={message} />
+            <ConversationTimelineItem isGroupedWithPrevious={isGroupedWithPrevious} isLast={index === messages.length - 1} isLatest={message.id === latestMessageId} message={message} />
           </Box>
         );
       })}
       {sort === "newest" ? loadPreviousButton : null}
+      </Box>
       {showGoToLatest && latestMessageId ? <Button className="caseConversationGoLatest" leftSection={<Text component="span">↓</Text>} onClick={onGoToLatest} size="xs" variant="light">ไปข้อความล่าสุด</Button> : null}
     </Stack>
   );

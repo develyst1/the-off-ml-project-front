@@ -349,6 +349,13 @@ body {
   position: relative;
 }
 
+.caseConversationTimelineScroll {
+  max-height: 620px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
 .caseConversationTimelineToolbar {
   align-items: center;
   border-bottom: 1px solid #eef1f5;
@@ -412,6 +419,19 @@ body {
 .caseConversationTimelineItem.isSystemEvent .caseConversationMessageContent {
   color: #475569;
   font-size: 12px;
+}
+
+.caseConversationTimelineItem.isGrouped {
+  margin-top: -2px;
+}
+
+.caseConversationTimelineItem.isGrouped .caseConversationTimelineRail > .mantine-ThemeIcon-root {
+  opacity: 0;
+}
+
+.caseConversationTimelineItem.isGrouped .caseConversationTimelineCard {
+  border-left-color: transparent !important;
+  box-shadow: none;
 }
 
 .caseConversationDateSeparator {
@@ -872,12 +892,53 @@ body {
   align-items: start;
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
   grid-auto-rows: max-content;
 }
 
-.caseDetailInsightStack {
+.caseDetailBottomGrid > .teamsThreadSection {
+  display: contents;
+}
+
+.caseConversationSection {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
+}
+
+.caseTeamsThreadCard {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.caseDetailInsightStack {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  position: sticky;
+  top: 16px;
+  align-self: start;
+}
+
+.caseDetailHeader {
+  padding-bottom: 2px;
+}
+
+.caseDetailHeaderBadges .mantine-Badge-root {
+  white-space: nowrap;
+}
+
+.caseDetailStatusAlert {
+  padding-block: 9px;
+}
+
+.caseActionComposerCard {
+  border-color: #dbeafe;
+}
+
+.caseActionComposerButtons {
+  align-items: center;
 }
 
 .caseTimelineCard,
@@ -949,8 +1010,24 @@ body {
 
 @media (max-width: 1180px) {
   .caseDetailBottomGrid {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .caseDetailBottomGrid > .teamsThreadSection {
+    display: contents;
+  }
+
+  .caseConversationSection,
+  .caseTeamsThreadCard,
+  .caseDetailInsightStack {
+    grid-column: auto;
+    grid-row: auto;
+    position: static;
+  }
+
+  .caseDetailInsightStack {
+    order: -1;
   }
 
   .operationStepper {
@@ -986,6 +1063,9 @@ body {
 }
 
 @media (max-width: 768px) {
+  .caseConversationTimelineScroll {
+    max-height: 540px;
+  }
   .caseTimelineSteps {
     min-width: 800px;
   }
