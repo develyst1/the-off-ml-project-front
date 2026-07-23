@@ -11,6 +11,7 @@ import {
   Box,
   Button,
   Card,
+  Collapse,
   Drawer,
   Flex,
   Group,
@@ -161,8 +162,19 @@ const EMPTY_AUTO_ANSWER_LOGS_PAGE: AutoAnswerLogsPage = {
 
 function confidenceColor(value: number) {
   if (value >= 90) return "green";
-  if (value >= 60) return "yellow";
+  if (value >= 70) return "orange";
   return "red";
+}
+
+function confidenceLabel(value: number) {
+  if (value >= 90) return `สูง ${value}%`;
+  if (value >= 70) return `ควรตรวจสอบ ${value}%`;
+  return `ต่ำ ${value}%`;
+}
+
+function timeFilterLabel(value: string) {
+  if (value === "1") return "24 ชั่วโมง";
+  return `${value} วัน`;
 }
 
 function relativeTime(value?: string) {
@@ -324,6 +336,7 @@ function CaseInbox({
   const [sortMode, setSortMode] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.sort);
   const [casePage, setCasePage] = useState<number>(DEFAULT_CASE_INBOX_FILTERS.page);
   const [casePageSize, setCasePageSize] = useState<10 | 20 | 50>(10);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const closedStatuses = new Set<CaseStatus>(["resolved", "closed", "sent_to_customer", "sent"]);
   const priorityOrder: Partial<Record<CaseStatus, number>> = {
@@ -355,10 +368,9 @@ function CaseInbox({
       if (caseScope === "closed" && !closedStatuses.has(item.status)) return false;
       if (confidenceFilter !== "all") {
         const confidence = item.aiConfidence;
-        const inRange = confidenceFilter === "0-59" ? confidence < 60
-          : confidenceFilter === "60-89" ? confidence >= 60 && confidence < 90
-            : confidenceFilter === "90-97" ? confidence >= 90 && confidence < 98
-              : confidence >= 98;
+        const inRange = confidenceFilter === "0-69" ? confidence < 70
+          : confidenceFilter === "70-89" ? confidence >= 70 && confidence < 90
+            : confidence >= 90;
         if (!inRange || item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE") return false;
       }
       if (timeFilter !== "all") {
@@ -402,6 +414,7 @@ function CaseInbox({
     setCaseScope(DEFAULT_CASE_INBOX_FILTERS.scope);
     setSortMode(DEFAULT_CASE_INBOX_FILTERS.sort);
     setCasePage(DEFAULT_CASE_INBOX_FILTERS.page);
+    setFiltersOpen(false);
   };
 
   const waitingCount = cases.filter((item) => item.status === "awaiting_tech").length;
@@ -432,10 +445,10 @@ function CaseInbox({
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        <MetricCard active={statusFilter === "awaiting_tech"} color="blue" icon="inbox" label="รอทีมตอบ" onClick={() => handleSummaryFilter("waiting-tech")} value={String(waitingCount)} />
-        <MetricCard active={statusFilter === "awaiting_confirmation"} color="yellow" icon="brain" label="รอยืนยัน AI แนะนำ" onClick={() => handleSummaryFilter("awaiting-confirmation")} value={String(confirmationCount)} />
-        <MetricCard active={caseScope === "closed"} color="green" icon="check" label="ปิดเคสแล้วเดือนนี้" onClick={() => handleSummaryFilter("closed")} value={String(closedCount)} />
+        <MetricCard active={statusFilter === "awaiting_tech"} color="blue" icon="inbox" label="รอตรวจสอบ" onClick={() => handleSummaryFilter("waiting-tech")} value={String(waitingCount)} />
+        <MetricCard active={statusFilter === "awaiting_confirmation"} color="yellow" icon="brain" label="รอทีมยืนยันคำแนะนำ AI" onClick={() => handleSummaryFilter("awaiting-confirmation")} value={String(confirmationCount)} />
         <MetricCard active={slaOnly} color="red" icon="alert" label="เกิน SLA" onClick={() => handleSummaryFilter("sla")} value={String(slaCount)} />
+        <MetricCard active={caseScope === "closed"} color="green" icon="check" label="ปิดแล้วเดือนนี้" onClick={() => handleSummaryFilter("closed")} value={String(closedCount)} />
       </SimpleGrid>
 
       {error ? (
@@ -451,43 +464,71 @@ function CaseInbox({
 
       <Card padding="lg" radius="md" withBorder>
         <Group justify="space-between" mb="md">
-          <Box>
-            <Title order={3}>เคสล่าสุดจากลูกค้า LINE</Title>
-            <Text c="dimmed" size="sm">
-              ความมั่นใจในตารางอิงจาก analysis.confidence ของ API AI CENTER ตอนวิเคราะห์ข้อความลูกค้า
+          <Title order={3}>รายการเคส</Title>
+          <Tooltip label="Confidence คือระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความลูกค้า" multiline w={260}>
+            <Text c="dimmed" size="xs" style={{ cursor: "help" }}>
+              AI วิเคราะห์ ⓘ
             </Text>
-          </Box>
-          {/* <Badge color="gray" variant="light">
-            {isLoading ? "กำลังโหลดจาก Backend" : ""}
-          </Badge> */}
+          </Tooltip>
         </Group>
 
         <Box className="caseInboxFilters" mb="md">
-          <Box className="caseInboxFilterPrimaryGrid">
+          <Box className="caseInboxFilterToolbar">
             <TextInput
-              label="ค้นหา"
+              aria-label="ค้นหารายการเคส"
+              className="caseInboxFilterSearch"
               onChange={(event) => { setSearch(event.currentTarget.value); setCasePage(1); }}
               placeholder="เลขเคส ชื่อลูกค้า หรือปัญหาที่แจ้ง"
               value={search}
             />
-            <Select clearable data={statusOptions} label="สถานะ" onChange={(value) => { setStatusFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={statusFilter} />
-            <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={categoryFilter} />
-            <Select data={[{ value: "all", label: "ทุกช่วง Confidence" }, { value: "0-59", label: "0-59%" }, { value: "60-89", label: "60-89%" }, { value: "90-97", label: "90-97%" }, { value: "98-100", label: "98-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? "all"); setCasePage(1); }} value={confidenceFilter} />
-            <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? "all"); setTimeFilterReference(value && value !== "all" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
-            <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="ขอบเขตการแสดง" onChange={(value) => { setCaseScope(value ?? DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} value={caseScope} />
+            <Button
+              aria-expanded={filtersOpen}
+              leftSection={<AppIcon name="settings" size={15} />}
+              onClick={() => setFiltersOpen((current) => !current)}
+              variant={hasFilters ? "light" : "default"}
+            >
+              ตัวกรอง{hasFilters ? "*" : ""}
+            </Button>
+            <Select
+              aria-label="เรียงลำดับรายการเคส"
+              data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]}
+              onChange={(value) => { setSortMode(value ?? DEFAULT_CASE_INBOX_FILTERS.sort); setCasePage(1); }}
+              value={sortMode}
+              w={190}
+            />
+            <Button disabled={!hasFilters} onClick={resetFilters} variant="subtle">รีเซ็ต</Button>
           </Box>
-          <Group align="flex-end" className="caseInboxFilterSecondaryRow" justify="space-between" wrap="wrap">
-            <Group align="flex-end" gap="md" wrap="wrap">
-              <Select data={[{ value: "priority", label: "เรียงตามความสำคัญ" }, { value: "latest", label: "ล่าสุดก่อน" }, { value: "oldest", label: "เก่าสุดก่อน" }]} label="เรียงลำดับ" onChange={(value) => { setSortMode(value ?? "priority"); setCasePage(1); }} value={sortMode} />
-              <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => { setUnreadOnly(event.currentTarget.checked); setCasePage(1); }} />
-              <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => { setSlaOnly(event.currentTarget.checked); setCasePage(1); }} />
-              {hasFilters ? <Button onClick={resetFilters} size="xs" variant="subtle">ล้างตัวกรอง</Button> : null}
+          <Collapse expanded={filtersOpen}>
+            <Paper className="caseInboxFilterPanel" p="md" radius="md" withBorder>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
+                <Select clearable data={statusOptions} label="สถานะ" onChange={(value) => { setStatusFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={statusFilter} />
+                <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={categoryFilter} />
+                <Select data={[{ value: "all", label: "ทุกระดับ" }, { value: "0-69", label: "ต่ำกว่า 70%" }, { value: "70-89", label: "ควรตรวจสอบ 70-89%" }, { value: "90-100", label: "สูง 90-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} value={confidenceFilter} />
+                <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(value && value !== "all" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
+                <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="แสดงเคส" onChange={(value) => { setCaseScope(value ?? DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} value={caseScope} />
+                <Group align="flex-end" gap="lg" wrap="wrap">
+                  <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => { setUnreadOnly(event.currentTarget.checked); setCasePage(1); }} />
+                  <Switch checked={slaOnly} label="เฉพาะเคสเกิน SLA" onChange={(event) => { setSlaOnly(event.currentTarget.checked); setCasePage(1); }} />
+                </Group>
+              </SimpleGrid>
+            </Paper>
+          </Collapse>
+          <Flex align="center" className="caseInboxFilterSummary" gap="xs" justify="space-between" wrap="wrap">
+            <Group gap="xs" wrap="wrap">
+              {search ? <Button onClick={() => { setSearch(DEFAULT_CASE_INBOX_FILTERS.search); setCasePage(1); }} size="compact-xs" variant="light">ค้นหา: {search} ×</Button> : null}
+              {statusFilter ? <Button onClick={() => { setStatusFilter(null); setCasePage(1); }} size="compact-xs" variant="light">สถานะ: {getStatusMeta(statusFilter as CaseStatus).label} ×</Button> : null}
+              {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); }} size="compact-xs" variant="light">หมวดหมู่: {categoryFilter} ×</Button> : null}
+              {confidenceFilter !== "all" ? <Button onClick={() => { setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} size="compact-xs" variant="light">Confidence: {confidenceFilter} ×</Button> : null}
+              {timeFilter !== "all" ? <Button onClick={() => { setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(null); setCasePage(1); }} size="compact-xs" variant="light">ช่วงเวลา: {timeFilterLabel(timeFilter)} ×</Button> : null}
+              {caseScope !== "all" ? <Button onClick={() => { setCaseScope(DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} size="compact-xs" variant="light">แสดงเคส: {caseScope === "open" ? "เปิดอยู่" : "ปิดแล้ว"} ×</Button> : null}
+              {unreadOnly ? <Button onClick={() => { setUnreadOnly(false); setCasePage(1); }} size="compact-xs" variant="light">ข้อความใหม่ ×</Button> : null}
+              {slaOnly ? <Button color="red" onClick={() => { setSlaOnly(false); setCasePage(1); }} size="compact-xs" variant="light">เกิน SLA ×</Button> : null}
             </Group>
             <Text c="dimmed" size="xs">แสดง {filteredCases.length === 0 ? 0 : ((currentCasePage - 1) * casePageSize) + 1}–{Math.min(currentCasePage * casePageSize, filteredCases.length)} จากทั้งหมด {filteredCases.length} เคส</Text>
-          </Group>
+          </Flex>
         </Box>
 
-        <ScrollArea>
+        <ScrollArea className="caseInboxTableScroll" type="auto">
           <Table className="caseInboxTable" highlightOnHover verticalSpacing="sm" style={{ tableLayout: "fixed", width: "100%" }}>
             <colgroup>
               <col style={{ width: 180 }} />
@@ -499,10 +540,14 @@ function CaseInbox({
             </colgroup>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>ลูกค้า</Table.Th>
+                <Table.Th>ลูกค้า / เลขเคส</Table.Th>
                 <Table.Th>ปัญหาที่แจ้ง</Table.Th>
                 <Table.Th ta="center">หมวดหมู่</Table.Th>
-                <Table.Th ta="center">ความมั่นใจจาก AI</Table.Th>
+                <Table.Th ta="center">
+                  <Tooltip label="ระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความลูกค้า">
+                    <span>AI วิเคราะห์ ⓘ</span>
+                  </Tooltip>
+                </Table.Th>
                 <Table.Th ta="center">สถานะ</Table.Th>
                 <Table.Th ta="center">Action</Table.Th>
               </Table.Tr>
@@ -512,31 +557,43 @@ function CaseInbox({
                 const caseStatusMeta = getStatusMeta(item.status);
 
                 return (
-                <Table.Tr className={`caseInboxRow${selectedCaseId === item.id ? " isSelected" : ""}${item.hasUnreadCustomerMessage ? " hasUnread" : ""}`} key={item.id}>
+                <Table.Tr
+                  className={`caseInboxRow${selectedCaseId === item.id ? " isSelected" : ""}${item.hasUnreadCustomerMessage ? " hasUnread" : ""}${item.isSlaBreached ? " isSlaBreached" : ""}`}
+                  key={item.id}
+                  onClick={() => onOpenCase(item)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenCase(item);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
                   <Table.Td>
                     <Text fw={700}>{item.customerName}</Text>
                     <Text c="dimmed" size="xs">
                       เคส {item.caseNumber}
                     </Text>
+                    <Text c="dimmed" size="xs">อัปเดต {relativeTime(item.lastActivityAt)}</Text>
                     {item.hasUnreadCustomerMessage ? <Badge color="blue" mt={4} size="xs" variant="light">ข้อความใหม่</Badge> : null}
                   </Table.Td>
                   <Table.Td className="tableCellText">
-                    <Text fw={item.hasUnreadCustomerMessage ? 700 : 500} lineClamp={2} style={{ overflowWrap: "anywhere" }} title={item.problemSummary}>{item.problemSummary}</Text>
+                    <Text fw={item.hasUnreadCustomerMessage ? 700 : 600} lineClamp={1} style={{ overflowWrap: "anywhere" }} title={item.problemSummary}>{item.problemSummary}</Text>
                     {item.problemSummaryStatus === "SUCCESS" ? <Badge color="violet" mt={4} size="xs" variant="light">AI สรุป</Badge> : null}
                     {item.latestCustomerMessage && item.latestCustomerMessage !== item.problemSummary && item.latestCustomerMessage !== item.initialCustomerMessage ? (
                       <Text c="dimmed" lineClamp={1} mt={4} size="xs" title={item.latestCustomerMessage}>ล่าสุด: {item.latestCustomerMessage}</Text>
                     ) : null}
-                    {item.latestCustomerMessageAt ? <Text c="dimmed" size="xs" title={formatEventTime(item.latestCustomerMessageAt)}>ลูกค้าตอบล่าสุด {relativeTime(item.latestCustomerMessageAt)}</Text> : null}
                   </Table.Td>
                   <Table.Td ta="center">
                     <Badge variant="light">{item.category}</Badge>
                   </Table.Td>
                   <Table.Td>
                     {item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE" ? <Text c="dimmed">-</Text> : (
-                      <Group justify="center" gap="xs" wrap="nowrap">
-                        <Progress color={confidenceColor(item.aiConfidence)} miw={72} size="sm" value={item.aiConfidence} />
-                        <Text fw={700} size="sm">{item.aiConfidence}%</Text>
-                      </Group>
+                      <Stack align="center" gap={4}>
+                        <Text c={confidenceColor(item.aiConfidence)} fw={700} size="sm">{confidenceLabel(item.aiConfidence)}</Text>
+                        <Progress color={confidenceColor(item.aiConfidence)} miw={88} size="xs" value={item.aiConfidence} />
+                      </Stack>
                     )}
                   </Table.Td>
                   <Table.Td ta="center">
@@ -546,7 +603,7 @@ function CaseInbox({
                     {item.isSlaBreached && item.status !== "sla_breach" ? <Badge color="red" mt={4} size="xs" variant="light">เกิน SLA</Badge> : null}
                   </Table.Td>
                   <Table.Td ta="center">
-                    <Button aria-label={`เปิดเคส ${item.caseNumber}`} fullWidth onClick={() => onOpenCase(item)} size="xs" variant="light">
+                    <Button aria-label={`เปิดเคส ${item.caseNumber}`} fullWidth onClick={(event) => { event.stopPropagation(); onOpenCase(item); }} size="xs" variant="light">
                       ดูเคส
                     </Button>
                   </Table.Td>
@@ -562,6 +619,7 @@ function CaseInbox({
             <Text c="dimmed" size="sm">
               {cases.length === 0 ? "เมื่อมีข้อมูลจาก POST /webhooks/line รายการเคสจะแสดงในตารางนี้" : "ลองเปลี่ยนตัวกรองหรือล้างตัวกรองเพื่อดูรายการอื่น"}
             </Text>
+            {cases.length > 0 && hasFilters ? <Button mt="sm" onClick={resetFilters} size="xs" variant="light">ล้างตัวกรอง</Button> : null}
           </Paper>
         ) : null}
         {caseTotalPages > 1 ? (

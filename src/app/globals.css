@@ -61,30 +61,37 @@ body {
 .caseInboxFilters {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.caseInboxFilterPrimaryGrid {
-  display: grid;
-  grid-template-columns: minmax(320px, 1.5fr) repeat(5, minmax(0, 190px));
   gap: 10px;
 }
 
-.caseInboxFilterPrimaryGrid .mantine-Input-input,
-.caseInboxFilterPrimaryGrid .mantine-Select-input {
+.caseInboxFilterToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.caseInboxFilterSearch {
+  flex: 1 1 420px;
+}
+
+.caseInboxFilterToolbar .mantine-Input-input,
+.caseInboxFilterToolbar .mantine-Select-input {
   min-height: 38px;
 }
 
-.caseInboxFilterSecondaryRow {
-  min-height: 38px;
+.caseInboxFilterPanel {
+  background: #f8fafc;
 }
 
-.caseInboxFilterSecondaryRow [data-mantine-component="Select"] {
-  min-width: 190px;
+.caseInboxFilterSummary {
+  min-height: 28px;
 }
 
 .caseInboxTable thead {
   background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .caseInboxTable th {
@@ -114,9 +121,22 @@ body {
   background: #f8fbff;
 }
 
+.caseInboxRow.isSlaBreached {
+  border-left-color: #f87171;
+}
+
 .caseInboxRow.isSelected {
   border-left-color: #2563eb;
   background: rgb(239 246 255 / 58%);
+}
+
+.caseInboxRow:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: -2px;
+}
+
+.caseInboxTableScroll {
+  max-height: min(64vh, 720px);
 }
 
 .caseInboxPagination {
@@ -150,39 +170,22 @@ body {
   white-space: normal;
 }
 
-@media (max-width: 1450px) {
-  .caseInboxFilterPrimaryGrid {
-    grid-template-columns: minmax(280px, 1.5fr) repeat(3, minmax(170px, 1fr));
-  }
-}
-
 @media (max-width: 1050px) {
-  .caseInboxFilterPrimaryGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .caseInboxFilterPrimaryGrid > :first-child {
-    grid-column: 1 / -1;
+  .caseInboxFilterToolbar {
+    flex-wrap: wrap;
   }
 }
 
 @media (max-width: 620px) {
-  .caseInboxFilterPrimaryGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .caseInboxFilterPrimaryGrid > :first-child {
-    grid-column: auto;
-  }
-
-  .caseInboxFilterSecondaryRow,
-  .caseInboxFilterSecondaryRow > .mantine-Group-root {
+  .caseInboxFilterToolbar {
     align-items: stretch;
+    flex-direction: column;
   }
 
-  .caseInboxFilterSecondaryRow [data-mantine-component="Select"] {
-    min-width: 0;
-    width: 100%;
+  .caseInboxFilterSearch,
+  .caseInboxFilterToolbar [data-mantine-component="Select"],
+  .caseInboxFilterToolbar .mantine-Button-root {
+    width: 100% !important;
   }
 
   .caseInboxPagination,
