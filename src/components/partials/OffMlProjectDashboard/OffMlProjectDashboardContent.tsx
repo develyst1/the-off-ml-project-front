@@ -2510,7 +2510,11 @@ export default function OffMlProjectDashboardContent({ caseId }: { caseId?: stri
                 leftSection={<AppIcon name={icon} />}
                 onClick={() => {
                   if (tab.value === "inbox") {
-                    router.push("/");
+                    if (caseId) {
+                      router.push("/");
+                    } else {
+                      setActiveTab("inbox");
+                    }
                     return;
                   }
                   setActiveTab(tab.value);
