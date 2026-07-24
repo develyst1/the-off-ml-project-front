@@ -42,6 +42,8 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   const [viewMode, setViewMode] = useState<ConversationViewMode>("CONVERSATION_ONLY");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const messages = useMemo(() => item.conversation ?? [], [item.conversation]);
+  const conversationCount = useMemo(() => messages.filter(isConversationMessage).length, [messages]);
+  const systemEventCount = useMemo(() => messages.filter((message) => getConversationMeta(message).isSystemEvent).length, [messages]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -104,13 +106,13 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   }
 
   if (error) {
-    return <Card padding="md" radius="md" withBorder><Stack gap="sm"><CaseConversationHeader totalCount={messages.length} /><ConversationEmptyState kind="error" onRetry={onRetry} /></Stack></Card>;
+    return <Card padding="md" radius="md" withBorder><Stack gap="sm"><CaseConversationHeader conversationCount={conversationCount} systemEventCount={systemEventCount} totalCount={messages.length} viewMode={viewMode} /><ConversationEmptyState kind="error" onRetry={onRetry} /></Stack></Card>;
   }
 
   return (
     <Card className="caseConversationSection" padding="md" radius="md" withBorder>
       <Stack gap="sm">
-        <CaseConversationHeader totalCount={messages.length} />
+        <CaseConversationHeader conversationCount={conversationCount} systemEventCount={systemEventCount} totalCount={messages.length} viewMode={viewMode} />
         <ConversationFilters
           deliveryStatus={deliveryStatus}
           filter={filter}

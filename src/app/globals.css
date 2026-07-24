@@ -906,39 +906,51 @@ body {
   min-width: 0;
 }
 
-.caseTimelineSteps {
-  --timeline-icon-size: 30px;
-  --timeline-line-size: 2px;
-  display: flex;
-  align-items: flex-start;
-  min-width: 0;
+.caseTimelineScroll {
   overflow-x: auto;
-  padding: 4px 2px 2px;
-  position: relative;
+  overflow-y: hidden;
+  padding-bottom: 8px;
 }
 
-.caseTimelineSteps::before {
-  background: #40c463;
-  border-radius: 999px;
-  content: "";
-  height: var(--timeline-line-size);
-  left: var(--timeline-line-inset);
-  pointer-events: none;
-  position: absolute;
-  right: var(--timeline-line-inset);
-  top: calc((var(--timeline-icon-size) / 2) - (var(--timeline-line-size) / 2) + 4px);
-  z-index: 0;
+.caseTimelineContent {
+  min-width: 760px;
+}
+
+.caseTimelineSteps {
+  --timeline-icon-size: 30px;
+  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(var(--timeline-step-count), minmax(145px, 1fr));
+  padding: 4px 2px 2px;
+  position: relative;
 }
 
 .caseTimelineStep {
   align-items: center;
   display: flex;
-  flex: 1 0 145px;
   flex-direction: column;
   min-width: 0;
   position: relative;
   text-align: center;
   z-index: 1;
+}
+
+.caseTimelineConnector {
+  height: 2px;
+  left: -50%;
+  position: absolute;
+  top: calc((var(--timeline-icon-size) / 2) + 3px);
+  width: 100%;
+  z-index: -1;
+}
+
+.caseTimelineConnector--completed,
+.caseTimelineConnector--current {
+  background: #40c463;
+}
+
+.caseTimelineConnector--pending {
+  background: #d9dee7;
 }
 
 .caseTimelineStepMarker {
@@ -1006,12 +1018,12 @@ body {
   .caseConversationTimelineScroll {
     max-height: 540px;
   }
-  .caseTimelineSteps {
+  .caseTimelineContent {
     min-width: 800px;
   }
 
   .caseTimelineStep {
-    flex-basis: 160px;
+    min-width: 160px;
   }
 }
 
