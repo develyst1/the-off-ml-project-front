@@ -57,7 +57,7 @@ import {
   closeCaseWithReply,
   reopenCase,
 } from "@/services/offMlProject.service";
-import type { AiComposeMode, AiComposeResult } from "@/services/offMlProject.service";
+import type { AiComposeMode, AiComposeResult, AiRewriteMode } from "@/services/offMlProject.service";
 import type {
   AnalyticsSummary,
   AutoAnswerLog,
@@ -668,7 +668,7 @@ function CaseDetail({
   onReply: (text: string) => Promise<void>;
   onCloseCase: (text: string, closedWithoutTechConfirmation?: boolean) => Promise<void>;
   onComposeAi: (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => Promise<AiComposeResult>;
-  onRewriteAi: (mode: AiComposeMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
+  onRewriteAi: (mode: AiRewriteMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
   onReopenCase: () => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
   onBackToInbox: () => void;
@@ -970,7 +970,7 @@ function CaseDetail({
     setActionError(undefined);
     setActionNotice(undefined);
     try {
-      const rewritten = await onRewriteAi("CUSTOMER_REPLY", buildCloseMessage());
+      const rewritten = await onRewriteAi("CLOSING_SUMMARY", buildCloseMessage());
       if (!rewritten.rewrittenMessage.trim()) throw new Error("AI ไม่สามารถสร้างข้อความสรุปได้ในขณะนี้");
       setCloseMessageText(rewritten.rewrittenMessage);
       setCloseMessageManuallyEdited(false);
@@ -2631,12 +2631,12 @@ export default function OffMlProjectDashboardContent({
     return composeAiMessage(selectedCase.id, { mode, supportInstruction, requestedInformation });
   };
 
-  const handleRewriteAi = async (mode: AiComposeMode, text: string) => {
+  const handleRewriteAi = async (mode: AiRewriteMode, text: string) => {
     if (!selectedCase) throw new Error("ยังไม่ได้เลือกเคส");
     if (mode === "REQUEST_MORE_INFO") {
       return rewriteAdditionalInfoRequest(selectedCase.id, text);
     }
-    return rewriteCustomerReply(selectedCase.id, text, "NORMAL_REPLY");
+    return rewriteCustomerReply(selectedCase.id, text, mode === "CLOSING_SUMMARY" ? "CLOSING_REPLY" : "NORMAL_REPLY");
   };
 
   const handleReopenCase = async () => {

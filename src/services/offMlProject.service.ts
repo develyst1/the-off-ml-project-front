@@ -302,6 +302,7 @@ export async function generateMoreInfoRequest(caseId: string, requestedInformati
 }
 
 export type AiComposeMode = "CUSTOMER_REPLY" | "REQUEST_MORE_INFO";
+export type AiRewriteMode = AiComposeMode | "CLOSING_SUMMARY";
 
 export type AiComposeResult = {
   mode: AiComposeMode;
