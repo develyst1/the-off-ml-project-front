@@ -23,6 +23,7 @@ import {
   Progress,
   ScrollArea,
   Select,
+  Skeleton,
   SimpleGrid,
   Stack,
   Switch,
@@ -220,6 +221,7 @@ function teamsDeliveryMeta(item: SupportCase) {
 function MetricCard({
   active = false,
   icon,
+  isLoading = false,
   label,
   onClick,
   value,
@@ -227,6 +229,7 @@ function MetricCard({
 }: {
   active?: boolean;
   icon: IconName;
+  isLoading?: boolean;
   label: string;
   onClick?: () => void;
   value: string;
@@ -256,10 +259,15 @@ function MetricCard({
           <AppIcon name={icon} />
         </ThemeIcon>
         <Box>
-          <Title order={2}>{value}</Title>
-          <Text c="dimmed" size="sm">
-            {label}
-          </Text>
+          {isLoading ? <>
+            <Skeleton height={28} mb={6} width={48} />
+            <Skeleton height={14} width={112} />
+          </> : <>
+            <Title order={2}>{value}</Title>
+            <Text c="dimmed" size="sm">
+              {label}
+            </Text>
+          </>}
         </Box>
       </Group>
     </Card>
@@ -415,10 +423,10 @@ function CaseInbox({
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        <MetricCard active={statusFilter === "awaiting_tech"} color="blue" icon="inbox" label="รอตรวจสอบ" onClick={() => handleSummaryFilter("waiting-tech")} value={String(waitingCount)} />
-        <MetricCard active={statusFilter === "awaiting_confirmation"} color="yellow" icon="brain" label="รอทีมยืนยันคำแนะนำ AI" onClick={() => handleSummaryFilter("awaiting-confirmation")} value={String(confirmationCount)} />
-        <MetricCard active={slaOnly} color="red" icon="alert" label="เกิน SLA" onClick={() => handleSummaryFilter("sla")} value={String(slaCount)} />
-        <MetricCard active={caseScope === "closed"} color="green" icon="check" label="ปิดแล้วเดือนนี้" onClick={() => handleSummaryFilter("closed")} value={String(closedCount)} />
+        <MetricCard active={statusFilter === "awaiting_tech"} color="blue" icon="inbox" isLoading={isLoading} label="รอตรวจสอบ" onClick={() => handleSummaryFilter("waiting-tech")} value={String(waitingCount)} />
+        <MetricCard active={statusFilter === "awaiting_confirmation"} color="yellow" icon="brain" isLoading={isLoading} label="รอทีมยืนยันคำแนะนำ AI" onClick={() => handleSummaryFilter("awaiting-confirmation")} value={String(confirmationCount)} />
+        <MetricCard active={slaOnly} color="red" icon="alert" isLoading={isLoading} label="เกิน SLA" onClick={() => handleSummaryFilter("sla")} value={String(slaCount)} />
+        <MetricCard active={caseScope === "closed"} color="green" icon="check" isLoading={isLoading} label="ปิดแล้วเดือนนี้" onClick={() => handleSummaryFilter("closed")} value={String(closedCount)} />
       </SimpleGrid>
 
       {error ? (
@@ -494,7 +502,7 @@ function CaseInbox({
               {unreadOnly ? <Button onClick={() => { setUnreadOnly(false); setCasePage(1); }} size="compact-xs" variant="light">ข้อความใหม่ ×</Button> : null}
               {slaOnly ? <Button color="red" onClick={() => { setSlaOnly(false); setCasePage(1); }} size="compact-xs" variant="light">เกิน SLA ×</Button> : null}
             </Group>
-            <Text c="dimmed" size="xs">แสดง {filteredCases.length === 0 ? 0 : ((currentCasePage - 1) * casePageSize) + 1}–{Math.min(currentCasePage * casePageSize, filteredCases.length)} จากทั้งหมด {filteredCases.length} เคส</Text>
+            {isLoading ? <Skeleton height={14} width={180} /> : <Text c="dimmed" size="xs">แสดง {filteredCases.length === 0 ? 0 : ((currentCasePage - 1) * casePageSize) + 1}–{Math.min(currentCasePage * casePageSize, filteredCases.length)} จากทั้งหมด {filteredCases.length} เคส</Text>}
           </Flex>
         </Box>
 
@@ -523,7 +531,13 @@ function CaseInbox({
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {visibleCases.map((item) => {
+              {isLoading ? Array.from({ length: 5 }, (_, index) => (
+                <Table.Tr key={`case-loading-${index}`}>
+                  {Array.from({ length: 6 }, (_, cellIndex) => (
+                    <Table.Td key={cellIndex}><Skeleton height={cellIndex === 1 ? 34 : 20} /></Table.Td>
+                  ))}
+                </Table.Tr>
+              )) : visibleCases.map((item) => {
                 const caseStatusMeta = getStatusMeta(item.status);
 
                 return (
@@ -775,13 +789,18 @@ function CaseDetail({
       : item.techRepliedAt
         ? { color: "blue", text: "ทีม Tech ตอบกลับแล้ว รอการยืนยันคำแนะนำ" }
         : { color: "yellow", text: "รอทีม Tech ตรวจสอบคำแนะนำ" };
-  const timelineSteps = [
+  const timelineCandidates = [
     { label: "รับเรื่อง", at: item.caseCreatedAt },
     { label: "AI วิเคราะห์", at: item.aiAnalyzedAt },
     { label: "ส่ง Teams", at: item.teamsSentAt },
-    { label: "ตอบลูกค้า", at: item.lineSentAt || item.lineDeliveredAt },
+    { label: "ตอบรับลูกค้า", at: item.customerAcknowledgedAt },
+    { label: "ส่งวิธีแก้ให้ลูกค้า", at: item.resolutionSentAt },
     { label: "ปิดเคส", at: item.closedAt, by: item.closedBy },
   ];
+  const timelineSteps = timelineCandidates.map((step, index) => ({
+    ...step,
+    at: index === 0 || timelineCandidates.slice(0, index).every((previousStep) => previousStep.at) ? step.at : undefined,
+  }));
   const timelineStyle = {
     "--timeline-line-inset": `${100 / (timelineSteps.length * 2)}%`,
   } as CSSProperties;
@@ -1394,8 +1413,8 @@ function CaseDetail({
               <Text c="dimmed" size="xs">
                 {isClosed && item.closedAt
                   ? `ปิดเคสเมื่อ ${formatEventTime(item.closedAt)}`
-                  : item.lineSentAt || item.lineDeliveredAt
-                    ? `ตอบลูกค้าแล้วเมื่อ ${formatEventTime(item.lineSentAt || item.lineDeliveredAt)}`
+                  : item.resolutionSentAt
+                    ? `ส่งวิธีแก้ให้ลูกค้าแล้วเมื่อ ${formatEventTime(item.resolutionSentAt)}`
                     : "ยังมีขั้นตอนที่ทีมสามารถดำเนินการต่อได้"}
               </Text>
             </Group>
@@ -1421,8 +1440,8 @@ function CaseDetail({
               </Group>
               <Group justify="space-between" wrap="nowrap">
                 <Text size="sm">การส่งคำตอบทาง LINE</Text>
-                <Badge color={item.lineSentAt || item.lineDeliveredAt ? "green" : "yellow"} variant="light">
-                  {item.lineSentAt || item.lineDeliveredAt ? "ส่งแล้ว" : "รอส่ง"}
+                <Badge color={item.resolutionSentAt ? "green" : "yellow"} variant="light">
+                  {item.resolutionSentAt ? "ส่งวิธีแก้แล้ว" : "รอส่งวิธีแก้"}
                 </Badge>
               </Group>
             </Stack>
@@ -1811,7 +1830,7 @@ function AnalyticsDashboard({
           {summary.categories.length === 0 ? <Text c="dimmed">ยังไม่มีข้อมูลหมวดหมู่จากระบบ</Text> : null}
         </Card>
         <Card padding="lg" radius="md" withBorder>
-          <Title mb="md" order={3}>Confidence distribution</Title>
+          <Title mb="md" order={3}>การกระจายระดับความมั่นใจ</Title>
           {summary.confidenceDistribution.map(({ label, value }) => (
             <Box key={label} mb="md">
               <Group justify="space-between">
@@ -1956,7 +1975,7 @@ function AutomationSettings({
 
       <Card padding="lg" radius="md" withBorder>
         <Box>
-          <Title order={3}>Guarded auto-answer</Title>
+          <Title order={3}>การตอบอัตโนมัติแบบมีเงื่อนไข</Title>
           <Text c="dimmed" size="sm">
             ระบบจะตอบอัตโนมัติได้เมื่อ AI มีความมั่นใจทั้งการเข้าใจเคสและการเลือกวิธีแก้ตามเกณฑ์ที่กำหนด
           </Text>
@@ -2028,7 +2047,7 @@ function AutomationSettings({
       </Card>
 
       <Card className="autoAnswerLogsCard" padding="md" radius="md" withBorder>
-        <Title mb="sm" order={3}>Auto-answer notification log</Title>
+        <Title mb="sm" order={3}>ประวัติการแจ้งเตือน Auto-answer</Title>
         <Box className="autoAnswerLogsFilters" mb="sm">
           <TextInput
             className="autoAnswerLogsSearch"

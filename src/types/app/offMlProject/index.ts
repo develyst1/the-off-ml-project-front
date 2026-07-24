@@ -27,6 +27,8 @@ export interface SupportCase {
   aiAnalyzedAt?: string;
   teamsSentAt?: string;
   techRepliedAt?: string;
+  customerAcknowledgedAt?: string;
+  resolutionSentAt?: string;
   lineSentAt?: string;
   lineDeliveredAt?: string;
   closedAt?: string;

@@ -64,6 +64,15 @@ function normalizeCategory(category?: string | null) {
   return value;
 }
 
+function wasDeliveredToCustomer(message: OffMlProjectCaseResponse["messages"][number]) {
+  if (message.direction !== "OUTBOUND" || message.channel !== "line") return false;
+  return ["SENT", "API_ACCEPTED", "DELIVERED"].includes(message.deliveryStatus?.toUpperCase() ?? "");
+}
+
+function messageSentAt(message: OffMlProjectCaseResponse["messages"][number]) {
+  return message.deliveredAt ?? message.sentAt ?? message.createdAt;
+}
+
 function firstText(caseItem: OffMlProjectCaseResponse, senderType: "CUSTOMER" | "TECH" | "BOT") {
   return latestByCreatedAt(caseItem.messages.filter((message) => message.senderType === senderType))[0]?.originalText;
 }
@@ -150,6 +159,13 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
   const customerOutcomeAnalysis = latestAnalysis(caseItem, "customer_outcome");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
+  const customerAcknowledgement = latestByCreatedAt(caseItem.messages.filter((message) => (
+    message.messageType === "CASE_ACKNOWLEDGEMENT" && wasDeliveredToCustomer(message)
+  )))[0];
+  const finalResolution = latestByCreatedAt(caseItem.messages.filter((message) => (
+    ["CUSTOMER_REPLY", "RESOLUTION", "CASE_CLOSED"].includes(message.messageType ?? "")
+    && wasDeliveredToCustomer(message)
+  )))[0];
   const teamActions = teamActionsFromAnalysis(techAnalysis);
   const customerOutcome = customerOutcomeFromAnalysis(customerOutcomeAnalysis);
   const analysisStatus = !customerMessage
@@ -181,6 +197,8 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     aiAnalyzedAt: caseItem.aiAnalyzedAt,
     teamsSentAt: caseItem.teamsSentAt,
     techRepliedAt: caseItem.techRepliedAt,
+    customerAcknowledgedAt: customerAcknowledgement ? messageSentAt(customerAcknowledgement) : undefined,
+    resolutionSentAt: finalResolution ? messageSentAt(finalResolution) : undefined,
     lineSentAt: caseItem.lineSentAt,
     lineDeliveredAt: caseItem.lineDeliveredAt,
     closedAt: caseItem.closedAt,
@@ -346,7 +364,18 @@ export async function reviewConfidenceSuggestion(input: {
 }
 
 export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  return request<AnalyticsSummary>("/analytics/summary");
+  const summary = await request<AnalyticsSummary>("/analytics/summary");
+  const categoryTotals = new Map<string, number>();
+
+  for (const category of summary.categories) {
+    const label = normalizeCategory(category.label);
+    categoryTotals.set(label, (categoryTotals.get(label) ?? 0) + category.value);
+  }
+
+  return {
+    ...summary,
+    categories: Array.from(categoryTotals, ([label, value]) => ({ label, value })),
+  };
 }
 
 export async function getAutomationSettings(): Promise<AutomationSettings> {
