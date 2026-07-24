@@ -55,6 +55,15 @@ function latestByCreatedAt<T extends { createdAt: string }>(items: T[]) {
   });
 }
 
+function normalizeCategory(category?: string | null) {
+  const value = category?.trim();
+  if (!value || value === "-" || value.toLowerCase() === "undefined" || value.toLowerCase() === "null") {
+    return "ยังไม่ระบุหมวดหมู่";
+  }
+
+  return value;
+}
+
 function firstText(caseItem: OffMlProjectCaseResponse, senderType: "CUSTOMER" | "TECH" | "BOT") {
   return latestByCreatedAt(caseItem.messages.filter((message) => message.senderType === senderType))[0]?.originalText;
 }
@@ -198,9 +207,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     isSlaBreached,
     category: caseItem.aiStatus === "AI_FAILED"
       ? "AI วิเคราะห์ไม่สำเร็จ"
-      : customerAnalysis?.category
-        ?? caseItem.category
-        ?? (caseItem.dataStatus === "DATA_INCOMPLETE" ? "ยังไม่ระบุหมวดหมู่" : "-"),
+      : normalizeCategory(customerAnalysis?.category ?? caseItem.category),
     aiConfidence: caseItem.aiStatus === "AI_FAILED" ? 0 : customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),
@@ -215,6 +222,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     teamActions,
     customerOutcome,
     customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
+    learningStatus: caseItem.learningStatus,
   };
 }
 

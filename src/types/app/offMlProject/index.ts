@@ -67,6 +67,18 @@ export interface SupportCase {
     confirmedAt: string;
   };
   customerReply?: string;
+  learningStatus?: AiLearningStatus;
+}
+
+export interface AiLearningStatus {
+  caseUnderstandingConfidence?: number;
+  caseDiscriminationConfidence?: number;
+  caseUnderstandingThreshold?: number;
+  caseDiscriminationThreshold?: number;
+  autoAnswerEligible?: boolean;
+  solutionUsageCount?: number;
+  confirmedCount?: number;
+  additionalConfirmationsNeeded?: number;
 }
 
 export interface OffMlProjectCustomerResponse {
@@ -165,6 +177,7 @@ export interface OffMlProjectCaseResponse {
   messages: OffMlProjectMessageResponse[];
   analyses: OffMlProjectAnalysisResponse[];
   solutions: OffMlProjectSolutionResponse[];
+  learningStatus?: AiLearningStatus;
 }
 
 export interface ConfidenceSuggestion {

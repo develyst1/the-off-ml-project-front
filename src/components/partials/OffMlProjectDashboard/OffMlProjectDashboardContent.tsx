@@ -110,6 +110,15 @@ function getStatusMeta(status: CaseStatus) {
 
 const WAITING_TECH_STATUS = statusMeta.awaiting_tech.label;
 
+function displayCategory(category?: string | null) {
+  const value = category?.trim();
+  if (!value || value === "-" || value.toLowerCase() === "undefined" || value.toLowerCase() === "null") {
+    return "ยังไม่ระบุหมวดหมู่";
+  }
+
+  return value;
+}
+
 function formatEventTime(value?: string) {
   if (!value) return "ยังไม่มีข้อมูล";
   const date = new Date(value);
@@ -625,6 +634,7 @@ function CaseInbox({
 
 function CaseDetail({
   item,
+  isLoading,
   initialAction,
   onInitialActionHandled,
   onAcceptCase,
@@ -637,6 +647,7 @@ function CaseDetail({
   onBackToInbox,
 }: {
   item: SupportCase | null;
+  isLoading: boolean;
   initialAction?: "accept" | "request-info";
   onInitialActionHandled: () => void;
   onAcceptCase: () => Promise<void>;
@@ -715,9 +726,9 @@ function CaseDetail({
   if (!item) {
     return (
       <Card padding="lg" radius="md" withBorder>
-        <Title order={3}>ยังไม่ได้เลือกเคส</Title>
+        <Title order={3}>{isLoading ? "กำลังโหลดรายละเอียดเคส..." : "ไม่พบรายละเอียดเคส"}</Title>
         <Text c="dimmed" mt="xs">
-          เลือกเคสจาก Case Inbox เพื่อดูรายละเอียดจาก backend
+          {isLoading ? "กำลังดึงข้อมูลล่าสุดของเคสจากระบบ" : "ไม่พบเคสที่ต้องการ หรือเคสอาจถูกลบออกจากระบบแล้ว"}
         </Text>
       </Card>
     );
@@ -736,6 +747,34 @@ function CaseDetail({
         ? "ไม่มีขั้นตอนเพิ่มเติมที่ต้องให้ลูกค้าดำเนินการเอง"
         : "ไม่พบแนวทางแก้ไขเพิ่มเติม"
       : item.supportSolution || "ยังไม่มีวิธีแก้ที่สกัดได้";
+  const learningStatus = item.learningStatus;
+  const hasSuggestedSolution = Boolean(item.supportSolution && item.supportSolution !== "NO_ACTIONABLE_SOLUTION");
+  const hasLearningConfidence = Number.isFinite(learningStatus?.caseUnderstandingConfidence)
+    && Number.isFinite(learningStatus?.caseDiscriminationConfidence);
+  const hasLearningThresholds = Number.isFinite(learningStatus?.caseUnderstandingThreshold)
+    && Number.isFinite(learningStatus?.caseDiscriminationThreshold);
+  const understandingPassed = hasLearningConfidence && hasLearningThresholds
+    && (learningStatus?.caseUnderstandingConfidence ?? 0) >= (learningStatus?.caseUnderstandingThreshold ?? Number.POSITIVE_INFINITY);
+  const solutionSelectionPassed = hasLearningConfidence && hasLearningThresholds
+    && (learningStatus?.caseDiscriminationConfidence ?? 0) >= (learningStatus?.caseDiscriminationThreshold ?? Number.POSITIVE_INFINITY);
+  const autoAnswerEligible = learningStatus?.autoAnswerEligible
+    ?? (hasLearningConfidence && hasLearningThresholds ? understandingPassed && solutionSelectionPassed : undefined);
+  const learningEligibilityMeta = autoAnswerEligible === true
+    ? { color: "green", text: "ผ่านเกณฑ์ Auto-answer แล้ว สามารถเปิดใช้ตอบอัตโนมัติได้เมื่อเปิดระบบ Auto-answer" }
+    : autoAnswerEligible === false && hasLearningConfidence && hasLearningThresholds && !understandingPassed && !solutionSelectionPassed
+      ? { color: "red", text: "ยังไม่ผ่านเกณฑ์ Auto-answer เนื่องจากความมั่นใจทั้งการเข้าใจเคสและการเลือกวิธีแก้ยังไม่ถึงเกณฑ์" }
+      : autoAnswerEligible === false && hasLearningConfidence && hasLearningThresholds
+        ? { color: "yellow", text: "ยังไม่ผ่านเกณฑ์ Auto-answer เนื่องจากความมั่นใจบางด้านยังไม่ถึงเกณฑ์" }
+        : autoAnswerEligible === false
+          ? { color: "yellow", text: "ยังไม่ผ่านเกณฑ์ Auto-answer ตามผลประเมินล่าสุด" }
+          : { color: "blue", text: "ยังไม่มีข้อมูลความมั่นใจเพียงพอสำหรับประเมิน Auto-answer" };
+  const teamLearningMeta = item.confidenceReviewStatus === "APPROVED"
+    ? { color: "green", text: "ทีม Tech ยืนยันว่าคำแนะนำถูกต้อง" }
+    : item.confidenceReviewStatus === "REJECTED"
+      ? { color: "red", text: "ทีม Tech ระบุว่าคำแนะนำไม่ถูกต้อง" }
+      : item.techRepliedAt
+        ? { color: "blue", text: "ทีม Tech ตอบกลับแล้ว รอการยืนยันคำแนะนำ" }
+        : { color: "yellow", text: "รอทีม Tech ตรวจสอบคำแนะนำ" };
   const timelineSteps = [
     { label: "รับเรื่อง", at: item.caseCreatedAt },
     { label: "AI วิเคราะห์", at: item.aiAnalyzedAt },
@@ -1362,6 +1401,58 @@ function CaseDetail({
             </Group>
           </Box>
 
+          <Box className="caseOperationPanelSection">
+            <Group gap="sm">
+              <ThemeIcon color="violet" radius="xl" variant="light">
+                <AppIcon name="brain" />
+              </ThemeIcon>
+              <Text c="dimmed" fw={700} size="sm">สถานะการเรียนรู้ของ AI</Text>
+            </Group>
+            <Stack gap="xs" mt="sm">
+              <Group justify="space-between" wrap="nowrap">
+                <Text size="sm">AI แนะนำวิธีแก้</Text>
+                <Badge color={hasSuggestedSolution ? "green" : "gray"} variant="light">
+                  {hasSuggestedSolution ? "มีคำแนะนำแล้ว" : "ยังไม่มีคำแนะนำ"}
+                </Badge>
+              </Group>
+              <Group justify="space-between" wrap="nowrap">
+                <Text size="sm">ผลการตรวจของทีม Tech</Text>
+                <Badge color={teamLearningMeta.color} variant="light">{teamLearningMeta.text}</Badge>
+              </Group>
+              <Group justify="space-between" wrap="nowrap">
+                <Text size="sm">การส่งคำตอบทาง LINE</Text>
+                <Badge color={item.lineSentAt || item.lineDeliveredAt ? "green" : "yellow"} variant="light">
+                  {item.lineSentAt || item.lineDeliveredAt ? "ส่งแล้ว" : "รอส่ง"}
+                </Badge>
+              </Group>
+            </Stack>
+            {hasLearningConfidence ? (
+              <SimpleGrid cols={2} mt="sm">
+                <Box>
+                  <Text c="dimmed" size="xs">ความมั่นใจในการเข้าใจเคส</Text>
+                  <Text fw={800} size="lg">{learningStatus?.caseUnderstandingConfidence}%</Text>
+                </Box>
+                <Box>
+                  <Text c="dimmed" size="xs">ความมั่นใจในการเลือกวิธีแก้</Text>
+                  <Text fw={800} size="lg">{learningStatus?.caseDiscriminationConfidence}%</Text>
+                </Box>
+              </SimpleGrid>
+            ) : (
+              <Text c="dimmed" mt="sm" size="sm">ยังไม่มีข้อมูลการเรียนรู้เพียงพอสำหรับ Solution นี้</Text>
+            )}
+            <Alert color={learningEligibilityMeta.color} mt="sm" p="sm" variant="light">
+              <Text size="sm">{learningEligibilityMeta.text}</Text>
+            </Alert>
+            {Number.isFinite(learningStatus?.solutionUsageCount) || Number.isFinite(learningStatus?.confirmedCount) || Number.isFinite(learningStatus?.additionalConfirmationsNeeded) ? (
+              <Text c="dimmed" mt="sm" size="xs">
+                {Number.isFinite(learningStatus?.solutionUsageCount) ? `Solution นี้ถูกใช้แล้ว ${learningStatus?.solutionUsageCount} ครั้ง` : null}
+                {Number.isFinite(learningStatus?.solutionUsageCount) && Number.isFinite(learningStatus?.confirmedCount) ? " · " : null}
+                {Number.isFinite(learningStatus?.confirmedCount) ? `ทีมยืนยันแล้ว ${learningStatus?.confirmedCount} ครั้ง` : null}
+                {Number.isFinite(learningStatus?.additionalConfirmationsNeeded) ? ` · ต้องการการยืนยันเพิ่มอีก ${learningStatus?.additionalConfirmationsNeeded} ครั้ง` : null}
+              </Text>
+            ) : null}
+          </Box>
+
         {isClosed ? (
           <Box className="caseClosedComposer caseOperationPanelSection">
             <Group gap="sm">
@@ -1658,14 +1749,14 @@ function ConfidenceReview({
             <Stack gap="sm">
               <Box>
                 <Group justify="space-between">
-                  <Text size="sm">เข้าใจเคสถูกต้อง</Text>
+                  <Text size="sm">ความมั่นใจในการเข้าใจเคส</Text>
                   <Text fw={700} size="sm">{item.caseUnderstandingConfidence}%</Text>
                 </Group>
                 <Progress value={item.caseUnderstandingConfidence} />
               </Box>
               <Box>
                 <Group justify="space-between">
-                  <Text size="sm">แยกเคส/เลือก solution ถูกต้อง</Text>
+                  <Text size="sm">ความมั่นใจในการแยกเคสและเลือกวิธีแก้</Text>
                   <Text fw={700} size="sm">{item.caseDiscriminationConfidence}%</Text>
                 </Group>
                 <Progress value={item.caseDiscriminationConfidence} />
@@ -1674,6 +1765,9 @@ function ConfidenceReview({
           </SimpleGrid>
           <Text c={item.reviewStage === "AUTO_ANSWER" ? "green.7" : "dimmed"} mt="md" size="sm">
             {item.reviewHint}
+          </Text>
+          <Text c="dimmed" mt="xs" size="xs">
+            การยืนยันของทีมจะช่วยปรับความมั่นใจของ AI สำหรับการเข้าใจเคสและการเลือกวิธีแก้ในอนาคต
           </Text>
           <Group justify="flex-end" mt="md">
             <Button color="red" onClick={() => void reviewSuggestion(item, "rejected")} variant="light">
@@ -1705,16 +1799,16 @@ function AnalyticsDashboard({
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>หมวดหมู่เคสที่พบบ่อย</Title>
-          {summary.categories.map(({ label, value }) => (
-            <Box key={label} mb="md">
+          {summary.categories.map(({ label, value }, index) => (
+            <Box key={`${label}-${index}`} mb="md">
               <Group justify="space-between">
-                <Text>{label}</Text>
+                <Text>{displayCategory(label)}</Text>
                 <Text fw={700}>{value}%</Text>
               </Group>
               <Progress value={value} />
             </Box>
           ))}
-          {summary.categories.length === 0 ? <Text c="dimmed">ยังไม่มีข้อมูล category จาก backend</Text> : null}
+          {summary.categories.length === 0 ? <Text c="dimmed">ยังไม่มีข้อมูลหมวดหมู่จากระบบ</Text> : null}
         </Card>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>Confidence distribution</Title>
@@ -1864,7 +1958,7 @@ function AutomationSettings({
         <Box>
           <Title order={3}>Guarded auto-answer</Title>
           <Text c="dimmed" size="sm">
-            ใช้ threshold ทั้ง case_understanding_confidence และ case_discrimination_confidence
+            ระบบจะตอบอัตโนมัติได้เมื่อ AI มีความมั่นใจทั้งการเข้าใจเคสและการเลือกวิธีแก้ตามเกณฑ์ที่กำหนด
           </Text>
         </Box>
         <SimpleGrid cols={{ base: 1, md: 2 }} mt="lg">
@@ -1873,10 +1967,13 @@ function AutomationSettings({
             <Title order={2}>{settings?.caseUnderstandingThreshold ?? 98}%</Title>
           </Paper>
           <Paper bg="gray.0" p="md" radius="md">
-            <Text c="dimmed" fw={700} size="sm">แยกเคส/เลือก solution ถูกต้อง</Text>
+            <Text c="dimmed" fw={700} size="sm">เลือกวิธีแก้ถูกต้อง</Text>
             <Title order={2}>{settings?.caseDiscriminationThreshold ?? 98}%</Title>
           </Paper>
         </SimpleGrid>
+        <Text c="dimmed" mt="sm" size="sm">
+          Auto-answer จะทำงานเฉพาะเมื่อความมั่นใจทั้ง 2 ด้านผ่านเกณฑ์ เพื่อป้องกันการตอบลูกค้าผิดกรณี
+        </Text>
         <Paper className={enabled ? "emergencyPanel" : "automationEnablePanel"} mt="lg" p="md" radius="md">
           <Flex align={{ base: "stretch", sm: "center" }} direction={{ base: "column", sm: "row" }} gap="md" justify="space-between">
             <Box>
@@ -2596,6 +2693,7 @@ export default function OffMlProjectDashboardContent({
             <Tabs.Panel value="detail">
               <CaseDetail
                 initialAction={initialAction}
+                isLoading={isLoadingCases}
                 item={selectedCase}
                 onAcceptCase={handleAcceptCase}
                 onInitialActionHandled={() => setInitialAction(undefined)}
