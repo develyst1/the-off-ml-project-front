@@ -289,6 +289,7 @@ const DEFAULT_CASE_INBOX_FILTERS = {
 
 function CaseInbox({
   cases,
+  drillDown,
   error,
   isLoading,
   onOpenCase,
@@ -296,6 +297,7 @@ function CaseInbox({
   selectedCaseId,
 }: {
   cases: SupportCase[];
+  drillDown?: { category?: string; confidence?: string; requestId: number };
   error?: string;
   isLoading: boolean;
   onOpenCase: (item: SupportCase) => void;
@@ -304,8 +306,8 @@ function CaseInbox({
 }) {
   const [search, setSearch] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.search);
   const [statusFilter, setStatusFilter] = useState<string | null>(DEFAULT_CASE_INBOX_FILTERS.status);
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(DEFAULT_CASE_INBOX_FILTERS.category);
-  const [confidenceFilter, setConfidenceFilter] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.confidence);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(drillDown?.category ?? DEFAULT_CASE_INBOX_FILTERS.category);
+  const [confidenceFilter, setConfidenceFilter] = useState<string>(drillDown?.confidence ?? DEFAULT_CASE_INBOX_FILTERS.confidence);
   const [timeFilter, setTimeFilter] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.time);
   const [timeFilterReference, setTimeFilterReference] = useState<number | null>(null);
   const [unreadOnly, setUnreadOnly] = useState<boolean>(DEFAULT_CASE_INBOX_FILTERS.unreadOnly);
@@ -314,7 +316,7 @@ function CaseInbox({
   const [sortMode, setSortMode] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.sort);
   const [casePage, setCasePage] = useState<number>(DEFAULT_CASE_INBOX_FILTERS.page);
   const [casePageSize, setCasePageSize] = useState<10 | 20 | 50>(10);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(Boolean(drillDown));
 
   const closedStatuses = new Set<CaseStatus>(["resolved", "closed", "sent_to_customer", "sent"]);
   const priorityOrder: Partial<Record<CaseStatus, number>> = {
@@ -346,9 +348,11 @@ function CaseInbox({
       if (caseScope === "closed" && !closedStatuses.has(item.status)) return false;
       if (confidenceFilter !== "all") {
         const confidence = item.aiConfidence;
-        const inRange = confidenceFilter === "0-69" ? confidence < 70
-          : confidenceFilter === "70-89" ? confidence >= 70 && confidence < 90
-            : confidence >= 90;
+        const inRange = confidenceFilter === "0-59" ? confidence < 60
+          : confidenceFilter === "60-89" ? confidence >= 60 && confidence < 90
+            : confidenceFilter === "90-97" ? confidence >= 90 && confidence < 98
+              : confidenceFilter === "98-100" ? confidence >= 98
+                : false;
         if (!inRange || item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE") return false;
       }
       if (timeFilter !== "all") {
@@ -481,7 +485,7 @@ function CaseInbox({
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
                 <Select clearable data={statusOptions} label="สถานะ" onChange={(value) => { setStatusFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={statusFilter} />
                 <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={categoryFilter} />
-                <Select data={[{ value: "all", label: "ทุกระดับ" }, { value: "0-69", label: "ต่ำกว่า 70%" }, { value: "70-89", label: "ควรตรวจสอบ 70-89%" }, { value: "90-100", label: "สูง 90-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} value={confidenceFilter} />
+                <Select data={[{ value: "all", label: "ทุกระดับ" }, { value: "0-59", label: "ต่ำกว่า 60%" }, { value: "60-89", label: "ควรตรวจสอบ 60-89%" }, { value: "90-97", label: "สูง 90-97%" }, { value: "98-100", label: "สูงมาก 98-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} value={confidenceFilter} />
                 <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(value && value !== "all" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
                 <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="แสดงเคส" onChange={(value) => { setCaseScope(value ?? DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} value={caseScope} />
                 <Group align="flex-end" gap="lg" wrap="wrap">
@@ -703,6 +707,7 @@ function CaseDetail({
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
   const [discardDraftConfirmationOpen, setDiscardDraftConfirmationOpen] = useState(false);
+  const [replaceReplyDraftOpen, setReplaceReplyDraftOpen] = useState(false);
   const handledInitialAction = useRef(false);
 
   useEffect(() => {
@@ -789,6 +794,9 @@ function CaseDetail({
     ? item.conversation.find((message) => message.senderType === "TECH" && message.originalText === item.confirmedTechSolutionText)
     : undefined;
   const hasConfirmedTechSolution = item.hasConfirmedTechSolution === true;
+  const latestTechMessage = [...item.conversation]
+    .filter((message) => message.senderType === "TECH" && Boolean(message.originalText.trim()))
+    .at(-1);
   const closedWithoutTechConfirmationEvent = item.conversation.find((message) => (
     message.messageType === "SYSTEM_EVENT" && message.metadata?.closedWithoutTechConfirmation === true
   ));
@@ -1005,6 +1013,17 @@ function CaseDetail({
       return;
     }
     resetComposerDrafts();
+  };
+  const useLatestTechReplyAsDraft = () => {
+    if (!latestTechMessage) return;
+    if (customerReplyDraft.trim()) {
+      setReplaceReplyDraftOpen(true);
+      return;
+    }
+    setComposerTab("reply");
+    setActionMode("CUSTOMER_REPLY");
+    setCustomerReplyDraft(latestTechMessage.originalText);
+    setActionNotice("อ้างอิงคำตอบจากทีม Tech Support แล้ว กรุณาตรวจสอบก่อนส่ง");
   };
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey) return;
@@ -1399,6 +1418,17 @@ function CaseDetail({
                   {hasSuggestedSolution ? "มีคำแนะนำแล้ว" : "ยังไม่มีคำแนะนำ"}
                 </Badge>
               </Group>
+
+              <Paper bg="blue.0" p="sm" radius="md">
+                <Text fw={700} size="sm">คำตอบล่าสุดจากทีม Tech</Text>
+                {latestTechMessage ? <>
+                  <Text c="dimmed" mt={4} size="xs">
+                    ทีม Tech Support · {formatEventTime(latestTechMessage.sentAt ?? latestTechMessage.createdAt)}
+                  </Text>
+                  <Text className="compactText" mt="xs" size="sm">{latestTechMessage.originalText}</Text>
+                  <Button mt="sm" onClick={useLatestTechReplyAsDraft} size="xs" variant="light">ใช้เป็นร่างตอบลูกค้า</Button>
+                </> : <Text c="dimmed" mt={4} size="sm">ยังไม่มีคำตอบจากทีม Tech Support</Text>}
+              </Paper>
               <Group justify="space-between" wrap="nowrap">
                 <Text size="sm">ผลการตรวจของทีม Tech</Text>
                 <Badge color={teamLearningMeta.color} variant="light">{teamLearningMeta.text}</Badge>
@@ -1643,6 +1673,13 @@ function CaseDetail({
           <Button color="red" onClick={() => { resetComposerDrafts(); setDiscardDraftConfirmationOpen(false); }} variant="light">ล้างข้อความ</Button>
         </Group>
       </Modal>
+      <Modal opened={replaceReplyDraftOpen} onClose={() => setReplaceReplyDraftOpen(false)} title="แทนที่ร่างข้อความเดิม">
+        <Text>มีร่างข้อความตอบลูกค้าที่ยังไม่ได้ส่ง ต้องการใช้คำตอบล่าสุดจากทีม Tech มาแทนที่ใช่ไหม?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button onClick={() => setReplaceReplyDraftOpen(false)} variant="default">กลับไปแก้ไข</Button>
+          <Button onClick={() => { setReplaceReplyDraftOpen(false); setComposerTab("reply"); setActionMode("CUSTOMER_REPLY"); setCustomerReplyDraft(latestTechMessage?.originalText ?? ""); setActionNotice("อ้างอิงคำตอบจากทีม Tech Support แล้ว กรุณาตรวจสอบก่อนส่ง"); }}>ใช้ร่างจากทีม Tech</Button>
+        </Group>
+      </Modal>
       <Modal
         opened={closeSummaryOverwriteOpen}
         onClose={() => actionState === "idle" && setCloseSummaryOverwriteOpen(false)}
@@ -1747,14 +1784,28 @@ function ConfidenceReview({
   suggestions,
 }: {
   isLoading: boolean;
-  onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected") => Promise<void>;
+  onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { reason: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION"; explanation: string; correctedSolution: string }) => Promise<void>;
   suggestions: ConfidenceSuggestion[];
 }) {
   const [reviewedSuggestions, setReviewedSuggestions] = useState<Record<string, "approved" | "rejected">>({});
+  const [rejectedSuggestion, setRejectedSuggestion] = useState<ConfidenceSuggestion | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<"CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION" | null>(null);
+  const [rejectionExplanation, setRejectionExplanation] = useState("");
+  const [correctedSolution, setCorrectedSolution] = useState("");
 
   const reviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
     await onReview(item, result);
     setReviewedSuggestions((current) => ({ ...current, [item.id]: result }));
+  };
+
+  const submitRejection = async () => {
+    if (!rejectedSuggestion || !rejectionReason) return;
+    await onReview(rejectedSuggestion, "rejected", { reason: rejectionReason, explanation: rejectionExplanation, correctedSolution });
+    setReviewedSuggestions((current) => ({ ...current, [rejectedSuggestion.id]: "rejected" }));
+    setRejectedSuggestion(null);
+    setRejectionReason(null);
+    setRejectionExplanation("");
+    setCorrectedSolution("");
   };
 
   return (
@@ -1820,7 +1871,7 @@ function ConfidenceReview({
             การยืนยันของทีมจะช่วยปรับความมั่นใจของ AI สำหรับการเข้าใจเคสและการเลือกวิธีแก้ในอนาคต
           </Text>
           <Group justify="flex-end" mt="md">
-            <Button color="red" onClick={() => void reviewSuggestion(item, "rejected")} variant="light">
+            <Button color="red" onClick={() => setRejectedSuggestion(item)} variant="light">
               {item.reviewStage === "AUTO_ANSWER" ? "ไม่อนุมัติ" : "ไม่ถูกต้อง"}
             </Button>
             <Button onClick={() => void reviewSuggestion(item, "approved")}>
@@ -1829,13 +1880,35 @@ function ConfidenceReview({
           </Group>
         </Card>
       ))}
+      <Modal opened={Boolean(rejectedSuggestion)} onClose={() => setRejectedSuggestion(null)} title="ระบุสาเหตุที่ AI ไม่ถูกต้อง">
+        <Select
+          data={[
+            { value: "CASE_UNDERSTANDING", label: "AI เข้าใจปัญหาผิด" },
+            { value: "SOLUTION_SELECTION", label: "AI เลือกวิธีแก้ผิด" },
+            { value: "INSUFFICIENT_CUSTOMER_INFO", label: "ข้อมูลจากลูกค้าไม่เพียงพอ" },
+            { value: "BETTER_SOLUTION", label: "มีวิธีแก้อื่นที่ถูกต้องกว่า" },
+          ]}
+          label="เหตุผล"
+          onChange={(value) => setRejectionReason(value as typeof rejectionReason)}
+          required
+          value={rejectionReason}
+        />
+        <Textarea label="คำอธิบายเพิ่มเติม" minRows={2} mt="sm" onChange={(event) => setRejectionExplanation(event.currentTarget.value)} value={rejectionExplanation} />
+        <Textarea label="วิธีแก้ที่ถูกต้องจากทีม Tech" minRows={2} mt="sm" onChange={(event) => setCorrectedSolution(event.currentTarget.value)} value={correctedSolution} />
+        <Group justify="flex-end" mt="md">
+          <Button onClick={() => setRejectedSuggestion(null)} variant="default">ยกเลิก</Button>
+          <Button color="red" disabled={!rejectionReason} onClick={() => void submitRejection()}>บันทึกผลตรวจ</Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }
 
 function AnalyticsDashboard({
+  onDrillDown,
   summary,
 }: {
+  onDrillDown: (filter: { category?: string; confidence?: string }) => void;
   summary: AnalyticsSummary;
 }) {
   return (
@@ -1850,7 +1923,15 @@ function AnalyticsDashboard({
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>หมวดหมู่เคสที่พบบ่อย</Title>
           {summary.categories.map(({ label, value }, index) => (
-            <Box key={`${label}-${index}`} mb="md">
+            <Box
+              aria-label={`ดูเคสหมวดหมู่ ${displayCategory(label)}`}
+              component="button"
+              key={`${label}-${index}`}
+              mb="md"
+              onClick={() => onDrillDown({ category: displayCategory(label) })}
+              style={{ background: "transparent", border: 0, cursor: "pointer", padding: 0, textAlign: "left", width: "100%" }}
+              type="button"
+            >
               <Group justify="space-between">
                 <Text>{displayCategory(label)}</Text>
                 <Text fw={700}>{value}%</Text>
@@ -1863,7 +1944,15 @@ function AnalyticsDashboard({
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>การกระจายระดับความมั่นใจ</Title>
           {summary.confidenceDistribution.map(({ label, value }) => (
-            <Box key={label} mb="md">
+            <Box
+              aria-label={`ดูเคส Confidence ${label}`}
+              component="button"
+              key={label}
+              mb="md"
+              onClick={() => onDrillDown({ confidence: label.replace("%", "") })}
+              style={{ background: "transparent", border: 0, cursor: "pointer", padding: 0, textAlign: "left", width: "100%" }}
+              type="button"
+            >
               <Group justify="space-between">
                 <Text>{label}</Text>
                 <Text fw={700}>{value}%</Text>
@@ -1899,7 +1988,6 @@ function AutomationSettings({
   onOpenCaseByNumber: (caseNumber: string) => Promise<void>;
 }) {
   const enabled = settings?.enabled ?? false;
-  const [automationNotice, setAutomationNotice] = useState("Auto-answer พร้อมทำงานตาม guardrail ที่กำหนด");
   const [automationError, setAutomationError] = useState<string>();
   const [isUpdatingAutomation, setIsUpdatingAutomation] = useState(false);
   const [selectedLogSolution, setSelectedLogSolution] = useState<AutoAnswerLog | null>(null);
@@ -1970,6 +2058,11 @@ function AutomationSettings({
   }, [logs]);
 
   const hasRecordedSolution = (log: AutoAnswerLog) => Boolean(log.solutionText?.trim());
+  const automationBanner = enabled
+    ? "Auto-answer เปิดใช้งานแล้ว ระบบจะตอบเฉพาะเคสที่ผ่าน guardrail และแจ้งทีมผ่าน MS Teams"
+    : solutions.length > 0
+      ? "มี Solution ที่พร้อมใช้ Auto-answer กรุณาเปิดใช้งานระบบเพื่อเริ่มตอบอัตโนมัติ"
+      : "Guardrail พร้อมใช้งาน แต่ยังไม่มี Solution ที่ผ่านเกณฑ์สำหรับ Auto-answer";
 
   const openLogMessageDrawer = (log: AutoAnswerLog) => {
     setSelectedLogMessage(log);
@@ -1983,10 +2076,8 @@ function AutomationSettings({
     try {
       if (enabled) {
         await onUpdateSettings({ emergencyDisable: true });
-        setAutomationNotice("ปิด auto-answer ทันทีแล้ว เคสใหม่จะกลับเข้าคิวทีม Tech Support");
       } else {
         await onUpdateSettings({ enabled: true });
-        setAutomationNotice("เปิด auto-answer แล้ว ระบบจะทำงานเฉพาะเคสที่ผ่าน confidence 2 ชั้น");
       }
     } catch (error) {
       setAutomationError(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนสถานะ auto-answer ได้ กรุณาลองใหม่");
@@ -2000,8 +2091,8 @@ function AutomationSettings({
       <Alert color="yellow" icon={<AppIcon name="settings" />} radius="md" variant="light">
         Auto-answer ทำงานได้เฉพาะเมื่อผ่านความมั่นใจ 2 ชั้น และทุกคำตอบต้องแจ้งทีมใน MS Teams เสมอ
       </Alert>
-      <Alert color={enabled ? "blue" : "red"} radius="md" variant="light">
-        {automationNotice}
+      <Alert color={enabled ? "blue" : solutions.length > 0 ? "yellow" : "gray"} radius="md" variant="light">
+        {automationBanner}
       </Alert>
 
       <Card padding="lg" radius="md" withBorder>
@@ -2442,6 +2533,7 @@ export default function OffMlProjectDashboardContent({
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
   const [dashboardError, setDashboardError] = useState<string>();
   const [initialAction, setInitialAction] = useState<"accept" | "request-info">();
+  const [inboxDrillDown, setInboxDrillDown] = useState<{ category?: string; confidence?: string; requestId: number }>();
   const selectedCaseId = selectedCase?.id;
 
   const loadCases = useCallback(async () => {
@@ -2598,6 +2690,12 @@ export default function OffMlProjectDashboardContent({
     router.push("/");
   };
 
+  const handleAnalyticsDrillDown = (filter: { category?: string; confidence?: string }) => {
+    setInboxDrillDown({ ...filter, requestId: Date.now() });
+    setActiveTab("inbox");
+    router.push("/");
+  };
+
   const handleAcceptCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await acceptCase(selectedCase.id);
@@ -2646,13 +2744,16 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
+  const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { reason: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION"; explanation: string; correctedSolution: string }) => {
     await reviewConfidenceSuggestion({
       caseId: item.caseId,
       id: item.id,
       solutionId: item.suggestedSolutionId === "-" ? undefined : item.suggestedSolutionId,
       reviewStage: item.reviewStage,
       result,
+      rejectionReason: feedback?.reason,
+      additionalExplanation: feedback?.explanation,
+      correctedSolution: feedback?.correctedSolution,
     });
     await Promise.all([loadCases(), loadDashboardData()]);
     setActiveTab("confidence");
@@ -2729,6 +2830,7 @@ export default function OffMlProjectDashboardContent({
             <Tabs.Panel value="inbox">
               <CaseInbox
                 cases={cases}
+                drillDown={inboxDrillDown}
                 error={caseError}
                 isLoading={isLoadingCases}
                 onOpenCase={(item) => {
@@ -2738,6 +2840,7 @@ export default function OffMlProjectDashboardContent({
                   void loadCases();
                 }}
                 selectedCaseId={selectedCase?.id}
+                key={inboxDrillDown?.requestId ?? "default"}
               />
             </Tabs.Panel>
             <Tabs.Panel value="detail">
@@ -2764,7 +2867,7 @@ export default function OffMlProjectDashboardContent({
               />
             </Tabs.Panel>
             <Tabs.Panel value="analytics">
-              <AnalyticsDashboard summary={analyticsSummary} />
+              <AnalyticsDashboard onDrillDown={handleAnalyticsDrillDown} summary={analyticsSummary} />
             </Tabs.Panel>
             <Tabs.Panel value="automation">
               <AutomationSettings

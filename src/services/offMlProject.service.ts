@@ -355,6 +355,9 @@ export async function reviewConfidenceSuggestion(input: {
   solutionId?: string;
   reviewStage: "QUALITY" | "AUTO_ANSWER";
   result: "approved" | "rejected";
+  rejectionReason?: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION";
+  additionalExplanation?: string;
+  correctedSolution?: string;
 }) {
   return request<{ caseId: string; id: string; result: "approved" | "rejected" }>(`/confidence/suggestions/${input.id}/review`, {
     method: "POST",
@@ -363,6 +366,9 @@ export async function reviewConfidenceSuggestion(input: {
       solutionId: input.solutionId,
       reviewStage: input.reviewStage,
       result: input.result,
+      rejectionReason: input.rejectionReason,
+      additionalExplanation: input.additionalExplanation,
+      correctedSolution: input.correctedSolution,
     }),
   });
 }
