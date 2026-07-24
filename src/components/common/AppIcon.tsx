@@ -10,6 +10,7 @@ export type IconName =
   | "message"
   | "copy"
   | "brain"
+  | "info"
   | "menu";
 
 interface AppIconProps {
@@ -70,6 +71,13 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M9 3a4 4 0 0 0-4 4 4 4 0 0 0 0 8 4 4 0 0 0 4 4" />
       <path d="M15 3a4 4 0 0 1 4 4 4 4 0 0 1 0 8 4 4 0 0 1-4 4" />
       <path d="M9 3v16M15 3v16M9 8h6M9 13h6" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 10v6" />
+      <path d="M12 7h.01" />
     </>
   ),
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,

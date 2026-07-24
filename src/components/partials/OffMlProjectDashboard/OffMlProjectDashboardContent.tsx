@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
@@ -444,8 +444,8 @@ function CaseInbox({
         <Group justify="space-between" mb="md">
           <Title order={3}>รายการเคส</Title>
           <Tooltip label="Confidence คือระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความลูกค้า" multiline w={260}>
-            <Text c="dimmed" size="xs" style={{ cursor: "help" }}>
-              AI วิเคราะห์ ⓘ
+            <Text c="dimmed" size="xs" style={{ alignItems: "center", cursor: "help", display: "inline-flex", gap: 4 }}>
+              AI วิเคราะห์ <AppIcon name="info" size={14} />
             </Text>
           </Tooltip>
         </Group>
@@ -523,7 +523,7 @@ function CaseInbox({
                 <Table.Th ta="center">หมวดหมู่</Table.Th>
                 <Table.Th ta="center">
                   <Tooltip label="ระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความลูกค้า">
-                    <span>AI วิเคราะห์ ⓘ</span>
+                    <span style={{ alignItems: "center", display: "inline-flex", gap: 4 }}>AI วิเคราะห์ <AppIcon name="info" size={14} /></span>
                   </Tooltip>
                 </Table.Th>
                 <Table.Th ta="center">สถานะ</Table.Th>
@@ -678,7 +678,6 @@ function CaseDetail({
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
   const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
-  const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [actionMode, setActionMode] = useState<"CUSTOMER_REPLY" | "REQUEST_MORE_INFO">("CUSTOMER_REPLY");
   const [composerTab, setComposerTab] = useState<"reply" | "request-info" | "close">("reply");
@@ -688,23 +687,20 @@ function CaseDetail({
   const [closeValidationVisible, setCloseValidationVisible] = useState(false);
   const [supportInstruction, setSupportInstruction] = useState("");
   const [moreInfoGoal, setMoreInfoGoal] = useState("");
-  const [moreInfoReason, setMoreInfoReason] = useState<string>();
   const [aiMissingInformation, setAiMissingInformation] = useState<string[]>([]);
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
   const [closeMessageText, setCloseMessageText] = useState("");
   const [closeToastVisible, setCloseToastVisible] = useState(false);
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
+  const [discardDraftConfirmationOpen, setDiscardDraftConfirmationOpen] = useState(false);
   const handledInitialAction = useRef(false);
-  const replyComposerRef = useRef<HTMLDivElement | null>(null);
-  const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!item || !initialAction || handledInitialAction.current) return;
     handledInitialAction.current = true;
     const timer = window.setTimeout(() => {
       if (initialAction === "request-info") {
-        setReplyOpen(true);
         setActionMode("REQUEST_MORE_INFO");
         setComposerTab("request-info");
         onInitialActionHandled();
@@ -721,15 +717,6 @@ function CaseDetail({
 
     return () => window.clearTimeout(timer);
   }, [initialAction, item, onAcceptCase, onInitialActionHandled]);
-
-  useEffect(() => {
-    if (!replyOpen) return;
-    const timer = window.setTimeout(() => {
-      replyComposerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      replyTextareaRef.current?.focus();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [replyOpen]);
 
   useEffect(() => {
     if (!closeToastVisible) return;
@@ -789,6 +776,9 @@ function CaseDetail({
       : item.techRepliedAt
         ? { color: "blue", text: "ทีม Tech ตอบกลับแล้ว รอการยืนยันคำแนะนำ" }
         : { color: "yellow", text: "รอทีม Tech ตรวจสอบคำแนะนำ" };
+  const latestTechReply = [...item.conversation]
+    .filter((message) => message.senderType === "TECH" && Boolean(message.originalText.trim()))
+    .at(-1);
   const timelineCandidates = [
     { label: "รับเรื่อง", at: item.caseCreatedAt },
     { label: "AI วิเคราะห์", at: item.aiAnalyzedAt },
@@ -835,10 +825,8 @@ function CaseDetail({
       () => actionMode === "REQUEST_MORE_INFO" ? onRequestInfo(text, requestInfoDraftMessageId) : onReply(text),
     );
     if (completed) {
-      setReplyOpen(false);
       setReplyText("");
       setRequestInfoDraftMessageId(undefined);
-      setMoreInfoReason(undefined);
     }
   };
 
@@ -847,7 +835,7 @@ function CaseDetail({
       setCloseValidationVisible(true);
       return;
     }
-    const message = closeMessageText.trim();
+    const message = closeCustomerMessage.trim();
     const completed = await runAction(
       "closing",
       "ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว",
@@ -856,7 +844,6 @@ function CaseDetail({
     if (completed) {
       setCloseConfirmationOpen(false);
       setCloseMessageText("");
-      setReplyOpen(false);
       setActionMode("CUSTOMER_REPLY");
       setComposerTab("reply");
       setCloseToastVisible(true);
@@ -883,7 +870,6 @@ function CaseDetail({
         }
         setReplyText(rewritten.rewrittenMessage);
         setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? rewritten.rewrittenMessageId : undefined);
-        setMoreInfoReason(undefined);
         setActionNotice(rewritten.usedFallback
           ? "AI ยังไม่พร้อม จึงคงข้อความเดิมไว้ กรุณาตรวจสอบก่อนส่ง"
           : "AI ขยายความจากข้อความที่พิมพ์แล้ว กรุณาตรวจสอบก่อนส่ง");
@@ -900,7 +886,6 @@ function CaseDetail({
       }
       setReplyText(draft.suggestedMessage);
       setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? draft.rewrittenMessageId : undefined);
-      setMoreInfoReason(draft.reason);
       setAiMissingInformation(actionMode === "CUSTOMER_REPLY" ? draft.missingInformation : []);
       setActionNotice(actionMode === "CUSTOMER_REPLY"
         ? "AI วิเคราะห์บริบทและสร้างร่างคำตอบแล้ว กรุณาตรวจสอบก่อนส่ง"
@@ -917,9 +902,16 @@ function CaseDetail({
     setActionMode(tab === "request-info" ? "REQUEST_MORE_INFO" : "CUSTOMER_REPLY");
     if (tab === "close") setCloseValidationVisible(true);
     setRequestInfoDraftMessageId(undefined);
-    setMoreInfoReason(undefined);
     setAiMissingInformation([]);
   };
+
+  const buildCloseMessage = () => [
+    "สรุปก่อนปิดเคส",
+    `สาเหตุที่เกิด: ${closeCause.trim()}`,
+    `วิธีแก้ไข: ${closeResolution.trim()}`,
+    `วิธีป้องกันในอนาคต: ${closePrevention.trim()}`,
+    "หากยังพบปัญหา สามารถติดต่อทีมงานได้อีกครั้งนะคะ",
+  ].join("\n\n");
 
   const openCloseConfirmation = () => {
     if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim()) {
@@ -927,24 +919,56 @@ function CaseDetail({
       return;
     }
     setActionError(undefined);
-    setCloseMessageText([
-      "สรุปก่อนปิดเคส",
-      `สาเหตุที่เกิด: ${closeCause.trim()}`,
-      `แก้ไขอย่างไร: ${closeResolution.trim()}`,
-      `ป้องกันอย่างไร: ${closePrevention.trim()}`,
-    ].join("\n\n"));
+    if (!closeMessageText.trim()) setCloseMessageText(buildCloseMessage());
     setCloseConfirmationOpen(true);
   };
 
   const closeSummaryComplete = Boolean(closeCause.trim() && closeResolution.trim() && closePrevention.trim());
+  const closeCustomerMessage = closeMessageText.trim() || (closeSummaryComplete ? buildCloseMessage() : "");
+  const hasUnsentDraft = Boolean(replyText.trim() || closeCause.trim() || closeResolution.trim() || closePrevention.trim() || closeMessageText.trim());
+  const resetComposerDrafts = () => {
+    setReplyText("");
+    setSupportInstruction("");
+    setMoreInfoGoal("");
+    setCloseCause("");
+    setCloseResolution("");
+    setClosePrevention("");
+    setCloseMessageText("");
+    setCloseValidationVisible(false);
+    setActionError(undefined);
+    setActionNotice(undefined);
+  };
+  const requestDiscardDrafts = () => {
+    if (hasUnsentDraft) {
+      setDiscardDraftConfirmationOpen(true);
+      return;
+    }
+    resetComposerDrafts();
+  };
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    if (isActionRunning) return;
+    if (composerTab === "close") {
+      if (closeSummaryComplete && closeCustomerMessage) openCloseConfirmation();
+      else setCloseValidationVisible(true);
+      return;
+    }
+    if (replyText.trim()) void submitReply();
+  };
   const closeCaseSummaryForm = (
     <Stack gap="sm" mt="sm">
+      <Box>
+        <Text fw={800}>สรุปเพื่อปิดเคส</Text>
+        <Text c="dimmed" size="xs">กรอกข้อมูลให้ครบ แล้วตรวจสอบข้อความที่จะส่งให้ลูกค้าก่อนยืนยันปิดเคส</Text>
+      </Box>
       <Textarea
         autosize
         error={closeValidationVisible && !closeCause.trim() ? "กรุณาระบุสาเหตุที่เกิด" : undefined}
         label="สาเหตุที่เกิด"
         minRows={2}
         onChange={(event) => setCloseCause(event.currentTarget.value)}
+        onKeyDown={handleComposerKeyDown}
         placeholder="สรุปสาเหตุของปัญหา"
         required
         value={closeCause}
@@ -952,22 +976,34 @@ function CaseDetail({
       <Textarea
         autosize
         error={closeValidationVisible && !closeResolution.trim() ? "กรุณาระบุวิธีแก้ไข" : undefined}
-        label="แก้ไขอย่างไร"
+        label="วิธีแก้ไข"
         minRows={2}
         onChange={(event) => setCloseResolution(event.currentTarget.value)}
+        onKeyDown={handleComposerKeyDown}
         placeholder="อธิบายสิ่งที่ดำเนินการแก้ไข"
         required
         value={closeResolution}
       />
       <Textarea
         autosize
-        error={closeValidationVisible && !closePrevention.trim() ? "กรุณาระบุแนวทางป้องกัน" : undefined}
-        label="ป้องกันอย่างไร"
+        error={closeValidationVisible && !closePrevention.trim() ? "กรุณาระบุวิธีป้องกันในอนาคต" : undefined}
+        label="วิธีป้องกันในอนาคต"
         minRows={2}
         onChange={(event) => setClosePrevention(event.currentTarget.value)}
+        onKeyDown={handleComposerKeyDown}
         placeholder="ระบุแนวทางป้องกันปัญหาในครั้งถัดไป"
         required
         value={closePrevention}
+      />
+      <Textarea
+        autosize
+        error={closeValidationVisible && !closeCustomerMessage ? "กรุณาระบุข้อความสรุปที่จะส่งให้ลูกค้า" : undefined}
+        label="ข้อความสรุปที่จะส่งให้ลูกค้าทาง LINE"
+        minRows={4}
+        onChange={(event) => setCloseMessageText(event.currentTarget.value)}
+        onKeyDown={handleComposerKeyDown}
+        placeholder="ข้อความสรุปจะสร้างจากข้อมูลด้านบน และสามารถแก้ไขได้"
+        value={closeCustomerMessage}
       />
     </Stack>
   );
@@ -980,7 +1016,7 @@ function CaseDetail({
       <Button onClick={() => selectComposerTab("request-info")} size="xs" variant={composerTab === "request-info" ? "filled" : "default"}>
         ขอข้อมูลเพิ่ม
       </Button>
-      <Button color="orange" onClick={() => selectComposerTab("close")} size="xs" variant={composerTab === "close" ? "filled" : "default"}>
+      <Button onClick={() => selectComposerTab("close")} size="xs" variant={composerTab === "close" ? "filled" : "default"}>
         ปิดเคส
       </Button>
     </Group>
@@ -1208,161 +1244,7 @@ function CaseDetail({
                   </Text>
                   <Text className="compactText" mt="xs" size="sm">
                     ผลวิเคราะห์โดย AI: {item.summary}
-                  </Text>
-                  <Group mt="md">
-                    {isClosed ? (
-                      <Button
-                        color="orange"
-                        disabled={isActionRunning}
-                        loading={actionState === "reopening"}
-                        onClick={() => {
-                          void runAction("reopening", `เปิดเคส ${item.caseNumber} อีกครั้งแล้ว`, onReopenCase);
-                        }}
-                        size="xs"
-                        variant="light"
-                      >
-                        เปิดเคสอีกครั้ง
-                      </Button>
-                    ) : (
-                      <Button
-                        disabled={isActionRunning}
-                        onClick={() => {
-                          setActionError(undefined);
-                          setActionNotice(undefined);
-                          setActionMode("CUSTOMER_REPLY");
-                          setAiMissingInformation([]);
-                          setReplyOpen(true);
-                        }}
-                        size="xs"
-                      >
-                        ตอบลูกค้า
-                      </Button>
-                    )}
-                  </Group>
-                  {replyOpen && !isClosed ? (
-                    <Paper ref={replyComposerRef} className="caseReplyComposer" mt="md" p="md" radius="md" withBorder>
-                      <Group align="center" justify="space-between" gap="sm">
-                        <Box>
-                          <Text fw={800} size="sm">ตอบกลับทาง LINE</Text>
-                          <Text c="dimmed" size="xs">
-                            เลือกรูปแบบการดำเนินการ แล้วตรวจสอบข้อความก่อนส่งทุกครั้ง
-                          </Text>
-                        </Box>
-                      </Group>
-                      <Box mt="sm">{composerTabs}</Box>
-                      {composerTab === "close" ? closeCaseSummaryForm : <>
-                      <Box pos="relative" mt="sm">
-                        <Textarea
-                          ref={replyTextareaRef}
-                          autosize
-                          label="ข้อความที่จะส่ง"
-                          minRows={5}
-                          onChange={(event) => setReplyText(event.currentTarget.value)}
-                          placeholder="ข้อความที่พร้อมส่งจะแสดงที่นี่ และสามารถแก้ไขได้ก่อนส่ง"
-                          styles={{ input: { paddingRight: 52 } }}
-                          value={replyText}
-                        />
-                        <Tooltip label="ช่วยขยายความจากข้อความที่พิมพ์" withArrow>
-                          <ActionIcon
-                            aria-label="ช่วยขยายความจากข้อความที่พิมพ์ด้วย AI"
-                            color="blue"
-                            disabled={!replyText.trim() || isActionRunning}
-                            loading={actionState === "rewriting"}
-                            onClick={() => void composeWithAi(replyText, true)}
-                            pos="absolute"
-                            right={10}
-                            size="lg"
-                            top={34}
-                            variant="light"
-                            radius="xl"
-                          >
-                            <AppIcon name="brain" size={17} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Box>
-                      </>}
-                      {composerTab !== "close" ? (
-                      <Paper className="caseMoreInfoGoalPanel" mt="sm" p="sm" radius="sm" withBorder>
-                        <Text fw={700} size="sm">
-                          {actionMode === "CUSTOMER_REPLY" ? "ใช้ AI ช่วยสร้างคำตอบ" : "ใช้ AI ช่วยสร้างคำขอข้อมูล"}
-                        </Text>
-                        <Text c="dimmed" size="xs" mt={4}>
-                          {actionMode === "CUSTOMER_REPLY"
-                            ? "AI จะวิเคราะห์ประวัติแชท หัวข้อ และข้อมูลในเคส เพื่อร่างคำตอบให้เหมาะสม"
-                            : "ระบุข้อมูลที่ต้องการ แล้วให้ AI ช่วยเรียบเรียงเป็นคำถามสั้น ๆ"}
-                        </Text>
-                        {actionMode === "CUSTOMER_REPLY" ? (
-                          <Textarea
-                            autosize
-                            label="แนวทางเพิ่มเติม (ถ้ามี)"
-                            minRows={2}
-                            mt="sm"
-                            onChange={(event) => setSupportInstruction(event.currentTarget.value)}
-                            placeholder="ระบุผลตรวจสอบหรือแนวทางที่ต้องการให้ AI นำไปใช้เพิ่มเติม..."
-                            value={supportInstruction}
-                          />
-                        ) : (
-                          <TextInput
-                            label="ข้อมูลที่ต้องการ"
-                            mt="sm"
-                            onChange={(event) => setMoreInfoGoal(event.currentTarget.value)}
-                            placeholder="ระบุข้อมูลที่ต้องการ เช่น รุ่นเครื่อง ภาพหน้าจอ หรือข้อความแจ้งเตือน..."
-                            value={moreInfoGoal}
-                          />
-                        )}
-                        {moreInfoReason ? <Text c="dimmed" mt="xs" size="xs">เหตุผลสำหรับทีม: {moreInfoReason}</Text> : null}
-                        <Button
-                          className="caseReplyComposerAi"
-                          disabled={isActionRunning}
-                          leftSection={<AppIcon name="brain" size={16} />}
-                          loading={actionState === "rewriting"}
-                          mt="sm"
-                          onClick={() => void composeWithAi()}
-                          variant="light"
-                        >
-                          {actionMode === "CUSTOMER_REPLY" ? "สร้างคำตอบด้วย AI" : "สร้างคำขอด้วย AI"}
-                        </Button>
-                      </Paper>
-                      ) : null}
-                      {composerTab !== "close" && actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
-                        <Alert color="yellow" mt="md" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
-                          <Text size="sm">แนะนำให้เปลี่ยนเป็นโหมดขอข้อมูลเพิ่มเติม</Text>
-                          <Text c="dimmed" mt={4} size="sm">ข้อมูลที่ยังขาด: {aiMissingInformation.join(", ")}</Text>
-                          <Button mt="sm" onClick={() => selectComposerTab("request-info")} size="xs" variant="light">
-                            เปลี่ยนเป็นโหมดขอข้อมูลเพิ่มเติม
-                          </Button>
-                        </Alert>
-                      ) : null}
-                      {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
-                      {actionNotice ? <Alert color="green" mt="md">{actionNotice}</Alert> : null}
-                      <Group className="caseReplyComposerActions" justify="space-between" mt="md">
-                        <Text c="dimmed" size="xs">
-                          {composerTab === "close" ? "ระบบจะส่งสรุปให้ลูกค้าก่อน แล้วจึงปิดเคสเมื่อส่งสำเร็จ" : actionMode === "REQUEST_MORE_INFO" ? "เมื่อส่งแล้ว ระบบจะรอข้อมูลเพิ่มเติมในเคสนี้" : "การส่งข้อความจะคงสถานะเคสเดิมไว้"}
-                        </Text>
-                        <Group className="caseReplyComposerSubmit" gap="sm">
-                          <Button
-                            disabled={isActionRunning}
-                            onClick={() => {
-                              setReplyOpen(false);
-                              setActionError(undefined);
-                            }}
-                            variant="default"
-                          >
-                            ยกเลิก
-                          </Button>
-                          <Button
-                            disabled={composerTab === "close" ? !closeSummaryComplete || isActionRunning : !replyText.trim() || isActionRunning}
-                            color={composerTab === "close" ? "orange" : undefined}
-                            loading={composerTab === "close" ? actionState === "closing" : actionState === "replying" || actionState === "requesting"}
-                            onClick={() => composerTab === "close" ? openCloseConfirmation() : void submitReply()}
-                          >
-                            {composerTab === "close" ? "ปิดเคส" : actionMode === "REQUEST_MORE_INFO" ? "ส่งคำขอข้อมูลเพิ่ม" : "ส่งข้อความ"}
-                          </Button>
-                        </Group>
-                      </Group>
-                    </Paper>
-                  ) : null}
-                </Paper>
+                  </Text>                </Paper>
               </Group>
 
               <Group align="flex-start" gap="sm" wrap="nowrap">
@@ -1499,68 +1381,76 @@ function CaseDetail({
           </Box>
         ) : (
         <Box className="caseActionComposerCard caseOperationPanelSection">
-          <Group align="center" justify="space-between" gap="sm" wrap="wrap">
-            <Box>
-              <Text fw={800}>ข้อความที่จะส่งให้ลูกค้า</Text>
-              <Text c="dimmed" size="xs">ตรวจสอบข้อความก่อนส่งผ่าน LINE ทุกครั้ง</Text>
-            </Box>
-          </Group>
           <Box mt="sm">{composerTabs}</Box>
           {composerTab === "close" ? closeCaseSummaryForm : <>
-          <Box pos="relative" mt="sm">
-            <Textarea
-              autosize
-              label={actionMode === "REQUEST_MORE_INFO" ? "ข้อความขอข้อมูลเพิ่มเติม" : "ข้อความตอบลูกค้า"}
-              minRows={5}
-              onChange={(event) => setReplyText(event.currentTarget.value)}
-              placeholder="พิมพ์ข้อความเอง หรือให้ AI ช่วยสร้างร่างจากบริบทของเคส"
-              styles={{ input: { paddingRight: 52 } }}
-              value={replyText}
-            />
-            <Tooltip label="ช่วยขยายความจากข้อความที่พิมพ์" withArrow>
-              <ActionIcon
-                aria-label="ช่วยขยายความจากข้อความที่พิมพ์ด้วย AI"
-                color="blue"
-                disabled={!replyText.trim() || isActionRunning}
-                loading={actionState === "rewriting"}
-                onClick={() => void composeWithAi(replyText, true)}
-                pos="absolute"
-                right={10}
-                size="lg"
-                top={34}
-                variant="light"
-                radius="xl"
-              >
-                <AppIcon name="brain" size={17} />
-              </ActionIcon>
-            </Tooltip>
-          </Box>
+            <Box mt="sm">
+              <Text fw={800}>{composerTab === "reply" ? "ตอบกลับทาง LINE" : "ขอข้อมูลเพิ่มเติมจากลูกค้าทาง LINE"}</Text>
+              <Text c="dimmed" size="xs">
+                {composerTab === "reply"
+                  ? "ตรวจสอบข้อความก่อนส่งผ่าน LINE ทุกครั้ง"
+                  : "ระบุข้อมูลที่ต้องการ เพื่อให้ทีม Tech Support ตรวจสอบปัญหาได้ครบถ้วน"}
+              </Text>
+            </Box>
+            {composerTab === "reply" && latestTechReply ? (
+              <Paper bg="blue.0" mt="sm" p="sm" radius="sm">
+                <Text c="dimmed" size="xs">อ้างอิงคำตอบจากทีม Tech Support</Text>
+                <Text lineClamp={2} mt={4} size="sm">{latestTechReply.originalText}</Text>
+                <Text c="dimmed" mt={4} size="xs">ทีม Tech Support · {formatEventTime(latestTechReply.sentAt ?? latestTechReply.createdAt)}</Text>
+              </Paper>
+            ) : null}
+            <Box pos="relative" mt="sm">
+              <Textarea
+                autosize
+                label={composerTab === "reply" ? "ข้อความที่จะส่งถึงลูกค้า" : "ข้อมูลที่ต้องการจากลูกค้า"}
+                minRows={5}
+                onChange={(event) => setReplyText(event.currentTarget.value)}
+                onKeyDown={handleComposerKeyDown}
+                placeholder={composerTab === "reply"
+                  ? "พิมพ์ข้อความตอบกลับลูกค้า หรือสร้างร่างจากข้อมูลเคส"
+                  : "เช่น กรุณาส่งภาพหน้าจอ ข้อความ Error รุ่นอุปกรณ์ หรือเวลาที่พบปัญหาเพิ่มเติม"}
+                styles={{ input: { paddingRight: composerTab === "reply" ? 52 : undefined } }}
+                value={replyText}
+              />
+              {composerTab === "reply" ? (
+                <Tooltip label="ช่วยเรียบเรียงข้อความที่พิมพ์" withArrow>
+                  <ActionIcon
+                    aria-label="ช่วยเรียบเรียงข้อความที่พิมพ์ด้วย AI"
+                    color="blue"
+                    disabled={!replyText.trim() || isActionRunning}
+                    loading={actionState === "rewriting"}
+                    onClick={() => void composeWithAi(replyText, true)}
+                    pos="absolute"
+                    right={10}
+                    size="lg"
+                    top={34}
+                    variant="light"
+                    radius="xl"
+                  >
+                    <AppIcon name="brain" size={17} />
+                  </ActionIcon>
+                </Tooltip>
+              ) : null}
+            </Box>
           </>}
-          {actionMode === "REQUEST_MORE_INFO" ? (
-            <TextInput
-              label="ข้อมูลที่ต้องการ"
-              mt="sm"
-              onChange={(event) => setMoreInfoGoal(event.currentTarget.value)}
-              placeholder="เช่น รุ่นเครื่อง ภาพหน้าจอ หรือข้อความแจ้งเตือน..."
-              value={moreInfoGoal}
-            />
-          ) : null}
           <Group className="caseActionComposerButtons" gap="xs" mt="sm" wrap="wrap">
             {composerTab !== "close" ? (
-              <Button disabled={isActionRunning} leftSection={<AppIcon name="brain" size={15} />} loading={actionState === "rewriting"} onClick={() => void composeWithAi()} size="xs" variant="light">
-                {actionMode === "REQUEST_MORE_INFO" ? "สร้างคำขอด้วย AI" : "สร้างร่างด้วย AI"}
+              <Button disabled={isActionRunning} leftSection={<AppIcon name="brain" size={15} />} loading={actionState === "rewriting"} onClick={() => void composeWithAi(composerTab === "request-info" ? replyText : undefined)} size="xs" variant="light">
+                {composerTab === "request-info" ? "ให้ AI แนะนำคำถามที่ควรถาม" : "สร้างร่างจากข้อมูลเคส"}
               </Button>
             ) : null}
+            <Button disabled={isActionRunning} onClick={requestDiscardDrafts} size="xs" variant="default">ยกเลิก</Button>
             <Button
               color={composerTab === "close" ? "orange" : undefined}
-              disabled={composerTab === "close" ? !closeSummaryComplete || isActionRunning : !replyText.trim() || isActionRunning || isClosed}
+              disabled={composerTab === "close" ? !closeSummaryComplete || !closeCustomerMessage || isActionRunning : !replyText.trim() || isActionRunning || isClosed}
               loading={composerTab === "close" ? actionState === "closing" : actionState === "replying" || actionState === "requesting"}
               onClick={() => composerTab === "close" ? openCloseConfirmation() : void submitReply()}
               size="xs"
             >
-              {composerTab === "close" ? "ปิดเคส" : actionMode === "REQUEST_MORE_INFO" ? "ส่งคำขอข้อมูลเพิ่ม" : "ส่งข้อความ"}
+              {composerTab === "close" ? "ยืนยันปิดเคส" : composerTab === "request-info" ? "ส่งคำขอข้อมูลเพิ่ม" : "ส่งข้อความ"}
             </Button>
           </Group>
+          <Text c="dimmed" mt="xs" size="xs">Enter เพื่อส่ง · Shift + Enter เพื่อขึ้นบรรทัดใหม่</Text>
+          {composerTab !== "close" && !replyText.trim() ? <Text c="dimmed" mt={4} size="xs">กรอกข้อความก่อนส่ง</Text> : null}
           {composerTab !== "close" && actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
             <Alert color="yellow" mt="sm" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
               <Text size="sm">ข้อมูลที่ยังขาด: {aiMissingInformation.join(", ")}</Text>
@@ -1653,6 +1543,17 @@ function CaseDetail({
       </Box>
       </Box>
       <Modal
+        opened={discardDraftConfirmationOpen}
+        onClose={() => setDiscardDraftConfirmationOpen(false)}
+        title="ยกเลิกข้อความที่ยังไม่ได้ส่ง"
+      >
+        <Text>มีข้อความที่ยังไม่ได้ส่ง ต้องการล้างข้อความและเริ่มใหม่ใช่ไหม?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button onClick={() => setDiscardDraftConfirmationOpen(false)} variant="default">กลับไปแก้ไข</Button>
+          <Button color="red" onClick={() => { resetComposerDrafts(); setDiscardDraftConfirmationOpen(false); }} variant="light">ล้างข้อความ</Button>
+        </Group>
+      </Modal>
+      <Modal
         opened={closeConfirmationOpen}
         onClose={() => actionState === "idle" && setCloseConfirmationOpen(false)}
         title="ยืนยันการปิดเคส"
@@ -1668,7 +1569,7 @@ function CaseDetail({
         </Text>
         <Paper bg="gray.0" mt="md" p="sm" radius="sm" withBorder>
           <Text c="dimmed" size="xs">ข้อความสรุปที่จะส่งให้ลูกค้า</Text>
-          <Text mt={4} style={{ whiteSpace: "pre-wrap" }}>{closeMessageText}</Text>
+          <Text mt={4} style={{ whiteSpace: "pre-wrap" }}>{closeCustomerMessage}</Text>
         </Paper>
         {actionError ? <Alert color="red" mt="md" title="ดำเนินการไม่สำเร็จ">{actionError}</Alert> : null}
         <Group justify="flex-end" mt="md">
