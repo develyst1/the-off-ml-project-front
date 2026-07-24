@@ -602,8 +602,13 @@ function CaseInbox({
                   <Table.Td className="tableCellText">
                     <Text fw={item.hasUnreadCustomerMessage ? 700 : 600} lineClamp={1} style={{ overflowWrap: "anywhere" }} title={item.problemSummary}>{item.problemSummary}</Text>
                     {item.problemSummaryStatus === "SUCCESS" ? <Badge color="violet" mt={4} size="xs" variant="light">AI สรุป</Badge> : null}
-                    {item.latestCustomerMessage && item.latestCustomerMessage !== item.problemSummary && item.latestCustomerMessage !== item.initialCustomerMessage ? (
-                      <Text c="dimmed" lineClamp={1} mt={4} size="xs" title={item.latestCustomerMessage}>ล่าสุด: {item.latestCustomerMessage}</Text>
+                    {item.latestMessage?.text && item.latestMessage.text !== item.problemSummary && item.latestMessage.text !== item.initialCustomerMessage ? (
+                      <Group gap={4} mt={4} wrap="nowrap">
+                        <Badge color={item.latestMessage.source === "CUSTOMER" ? "blue" : item.latestMessage.source === "TECH_SUPPORT" ? "indigo" : item.latestMessage.source === "LINE_BOT" ? "green" : "gray"} size="xs" variant="light">
+                          {item.latestMessage.source === "CUSTOMER" ? "ลูกค้า" : item.latestMessage.source === "TECH_SUPPORT" ? "Tech Support" : item.latestMessage.source === "LINE_BOT" ? "LINE Bot" : "ระบบ"}
+                        </Badge>
+                        <Text c="dimmed" lineClamp={1} size="xs" title={item.latestMessage.text}>{item.latestMessage.text}</Text>
+                      </Group>
                     ) : null}
                   </Table.Td>
                   <Table.Td ta="center">
@@ -712,10 +717,10 @@ function CaseDetail({
   onInitialActionHandled: () => void;
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
-  onCloseCase: (text: string, closedWithoutTechConfirmation?: boolean) => Promise<void>;
+  onCloseCase: (text: string, closedWithoutTechConfirmation?: boolean, closeSummary?: { cause: string; resolution: string; prevention: string }) => Promise<void>;
   onComposeAi: (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => Promise<AiComposeResult>;
   onRewriteAi: (mode: AiRewriteMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
-  onReopenCase: () => Promise<void>;
+  onReopenCase: (reason: string) => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
   onBackToInbox: () => void;
 }) {
@@ -748,6 +753,7 @@ function CaseDetail({
   const [closeToastVisible, setCloseToastVisible] = useState(false);
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
+  const [reopenReason, setReopenReason] = useState("ลูกค้ายังพบปัญหา");
   const [discardDraftConfirmationOpen, setDiscardDraftConfirmationOpen] = useState(false);
   const [replaceReplyDraftOpen, setReplaceReplyDraftOpen] = useState(false);
   const [replaceRequestDraftOpen, setReplaceRequestDraftOpen] = useState(false);
@@ -826,7 +832,9 @@ function CaseDetail({
         : autoAnswerEligible === false
           ? { color: "yellow", text: "ยังไม่ผ่านเกณฑ์ Auto-answer ตามผลประเมินล่าสุด" }
           : { color: "blue", text: "ยังไม่มีข้อมูลความมั่นใจเพียงพอสำหรับประเมิน Auto-answer" };
-  const teamLearningMeta = item.confidenceReviewStatus === "APPROVED"
+  const teamLearningMeta = isClosed && item.closedWithoutTechConfirmation
+    ? { color: "yellow", text: "ปิดเคสโดยไม่รอการยืนยันคำแนะนำจากทีม Tech" }
+    : item.confidenceReviewStatus === "APPROVED"
     ? { color: "green", text: "ทีม Tech ยืนยันว่าคำแนะนำถูกต้อง" }
     : item.confidenceReviewStatus === "REJECTED"
       ? { color: "red", text: "ทีม Tech ระบุว่าคำแนะนำไม่ถูกต้อง" }
@@ -838,7 +846,7 @@ function CaseDetail({
     : undefined;
   const hasConfirmedTechSolution = item.hasConfirmedTechSolution === true;
   const latestTechMessage = [...item.conversation]
-    .filter((message) => message.senderType === "TECH" && Boolean(message.originalText.trim()))
+    .filter((message) => message.senderType === "TECH" && message.messageType !== "CASE_CLOSED" && Boolean(message.originalText.trim()))
     .at(-1);
   const latestTechSolution = [...item.conversation]
     .filter((message) => message.senderType === "TECH" && message.messageType === "TECH_SOLUTION" && Boolean(message.originalText.trim()))
@@ -847,7 +855,7 @@ function CaseDetail({
     ? latestTechMessage.metadata.attachmentUrl
     : undefined;
   const closedWithoutTechConfirmationEvent = item.conversation.find((message) => (
-    message.messageType === "SYSTEM_EVENT" && message.metadata?.closedWithoutTechConfirmation === true
+    message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED" && message.metadata?.closedWithoutTechConfirmation === true
   ));
   const timelineCandidates = [
     { label: "รับเรื่อง", at: item.caseCreatedAt },
@@ -861,10 +869,7 @@ function CaseDetail({
       by: item.closedBy,
     },
   ];
-  const timelineSteps = timelineCandidates.map((step, index) => ({
-    ...step,
-    at: index === 0 || timelineCandidates.slice(0, index).every((previousStep) => previousStep.at) ? step.at : undefined,
-  }));
+  const timelineSteps = timelineCandidates;
   const timelineStyle = {
     "--timeline-line-inset": `${100 / (timelineSteps.length * 2)}%`,
   } as CSSProperties;
@@ -914,7 +919,11 @@ function CaseDetail({
     const completed = await runAction(
       "closing",
       "ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว",
-      () => onCloseCase(message, closeWithoutTechConfirmation),
+      () => onCloseCase(message, closeWithoutTechConfirmation, {
+        cause: closeCause.trim(),
+        resolution: closeResolution.trim(),
+        prevention: closePrevention.trim(),
+      }),
     );
     if (completed) {
       setCloseConfirmationOpen(false);
@@ -1489,9 +1498,7 @@ function CaseDetail({
                   {latestTechMessage.messageType === "TECH_SOLUTION" ? <Button mt="sm" onClick={useLatestTechReplyAsDraft} size="xs" variant="light">ใช้เป็นร่างตอบลูกค้า</Button> : null}
                   {latestTechMessage.messageType === "TECH_MORE_INFO_REQUEST" ? <Button mt="sm" onClick={useLatestTechInfoRequestAsDraft} size="xs" variant="light">ใช้เป็นร่างขอข้อมูลเพิ่ม</Button> : null}
                   {latestTechMessage.messageType === "TECH_ATTACHMENT" ? latestTechAttachmentUrl ? <Button component="a" href={latestTechAttachmentUrl} mt="sm" rel="noreferrer" size="xs" target="_blank" variant="light">ดูไฟล์แนบ</Button> : <Text c="dimmed" mt="sm" size="xs">ไฟล์แนบหรือภาพหน้าจอ ไม่ถูกนำไปใช้เป็นร่างข้อความลูกค้า</Text> : null}
-                  {latestTechMessage.messageType === "TECH_GENERAL_MESSAGE" || latestTechMessage.messageType === "TECH_RAW_REPLY" ? <Text c="dimmed" mt="sm" size="xs">ข้อความทั่วไปจากทีม ไม่ถูกนำไปใช้เป็นร่างข้อความลูกค้า</Text> : null}
                 </> : <Text c="dimmed" mt={4} size="sm">ยังไม่มีคำตอบจากทีม Tech Support</Text>}
-                {!latestTechSolution ? <Text c="dimmed" mt="sm" size="xs">ยังไม่มีวิธีแก้จากทีม Tech ที่พร้อมใช้สร้างร่างตอบลูกค้า</Text> : null}
               </Paper>
               <Group justify="space-between" wrap="nowrap">
                 <Text size="sm">ผลการตรวจของทีม Tech</Text>
@@ -1531,6 +1538,31 @@ function CaseDetail({
             ) : null}
           </Box>
 
+        <Box className="caseOperationPanelSection">
+          <Group gap="sm">
+            <ThemeIcon color="blue" radius="xl" variant="light"><AppIcon name="brain" /></ThemeIcon>
+            <Text c="dimmed" fw={700} size="sm">คำแนะนำจาก Solution ที่มีอยู่</Text>
+          </Group>
+          <Text className="compactText" mt="sm" size="sm">
+            {hasSuggestedSolution ? extractedSolution : "ยังไม่มี Solution ที่ตรงกับเคสนี้"}
+          </Text>
+          {hasSuggestedSolution ? <Text c="dimmed" mt={4} size="xs">Confidence: {item.aiConfidence}% · ใช้ข้อมูล Solution แยกจากสรุปการปิดเคส</Text> : null}
+        </Box>
+
+        {item.closeSummary ? (
+          <Box className="caseOperationPanelSection">
+            <Group gap="sm">
+              <ThemeIcon color="orange" radius="xl" variant="light"><AppIcon name="check" /></ThemeIcon>
+              <Text c="dimmed" fw={700} size="sm">สรุปจากการปิดเคส</Text>
+            </Group>
+            <Stack gap={4} mt="sm">
+              <Text size="sm"><b>สาเหตุ:</b> {item.closeSummary.cause}</Text>
+              <Text size="sm"><b>วิธีแก้:</b> {item.closeSummary.resolution}</Text>
+              <Text size="sm"><b>วิธีป้องกัน:</b> {item.closeSummary.prevention}</Text>
+            </Stack>
+          </Box>
+        ) : null}
+
         {isClosed ? (
           <Box className="caseClosedComposer caseOperationPanelSection">
             <Group gap="sm">
@@ -1542,8 +1574,8 @@ function CaseDetail({
                 <Badge color="green" mt={4} variant="light">ปิดเคสแล้ว</Badge>
               </Box>
             </Group>
-            <Text mt="sm" size="sm">ลูกค้ายืนยันว่าใช้งานได้แล้ว</Text>
-            <Text c="dimmed" mt={4} size="xs">ปิดเคสเมื่อ {formatEventTime(item.closedAt)}</Text>
+            <Text mt="sm" size="sm">{item.hasCustomerConfirmation ? "ลูกค้ายืนยันว่าใช้งานได้แล้ว" : "ส่งข้อความสรุปและปิดเคสให้ลูกค้าแล้ว"}</Text>
+            <Text c="dimmed" mt={4} size="xs">ปิดเคสเมื่อ {formatEventTime(item.closedAt)}{item.closedBy ? ` · โดย ${item.closedBy}` : ""}</Text>
             {item.customerOutcome?.text ? <Text c="dimmed" mt={4} size="xs">รายละเอียด: {item.customerOutcome.text}</Text> : null}
             <Button
               disabled={isActionRunning}
@@ -1826,6 +1858,13 @@ function CaseDetail({
       >
         <Text>ต้องการเปิดเคส {item.caseNumber} กลับมาดำเนินการต่อใช่ไหม?</Text>
         <Text c="dimmed" mt="xs" size="sm">สถานะเคสจะกลับเป็นเปิดอยู่ เพื่อให้ทีม Tech Support ตรวจสอบต่อ</Text>
+        <Select
+          data={["ลูกค้ายังพบปัญหา", "ปิดเคสผิด", "มีข้อมูลใหม่", "อื่น ๆ"]}
+          label="เหตุผลที่เปิดเคสอีกครั้ง"
+          mt="md"
+          onChange={(value) => setReopenReason(value ?? "อื่น ๆ")}
+          value={reopenReason}
+        />
         <Group justify="flex-end" mt="md">
           <Button disabled={actionState !== "idle"} onClick={() => setReopenConfirmationOpen(false)} variant="default">
             ยกเลิก
@@ -1834,7 +1873,7 @@ function CaseDetail({
             disabled={actionState !== "idle"}
             loading={actionState === "reopening"}
             onClick={() => {
-              void runAction("reopening", `เปิดเคส ${item.caseNumber} อีกครั้งแล้ว`, onReopenCase)
+              void runAction("reopening", `เปิดเคส ${item.caseNumber} อีกครั้งแล้ว`, () => onReopenCase(reopenReason))
                 .then((completed) => {
                   if (completed) setReopenConfirmationOpen(false);
                 });
@@ -2798,9 +2837,9 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleCloseCase = async (text: string, closedWithoutTechConfirmation?: boolean) => {
+  const handleCloseCase = async (text: string, closedWithoutTechConfirmation?: boolean, closeSummary?: { cause: string; resolution: string; prevention: string }) => {
     if (!selectedCase) return;
-    const updatedCase = await closeCaseWithReply(selectedCase.id, text, closedWithoutTechConfirmation);
+    const updatedCase = await closeCaseWithReply(selectedCase.id, text, closedWithoutTechConfirmation, closeSummary);
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
@@ -2818,9 +2857,9 @@ export default function OffMlProjectDashboardContent({
     return rewriteCustomerReply(selectedCase.id, text, mode === "CLOSING_SUMMARY" ? "CLOSING_REPLY" : "NORMAL_REPLY");
   };
 
-  const handleReopenCase = async () => {
+  const handleReopenCase = async (reason: string) => {
     if (!selectedCase) return;
-    const updatedCase = await reopenCase(selectedCase.id);
+    const updatedCase = await reopenCase(selectedCase.id, reason);
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };

@@ -181,7 +181,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     : customerMessageList.at(-1);
   const customerMessage = initialCustomerMessage?.originalText ?? "";
   const latestCustomerText = latestCustomerMessage?.originalText ?? "";
-  const techReply = firstText(caseItem, "TECH");
+  const techReply = latestByCreatedAt(caseItem.messages.filter((message) => (
+    message.senderType === "TECH" && message.messageType !== "CASE_CLOSED" && Boolean(message.originalText.trim())
+  )))[0]?.originalText;
   const outboundReply = firstText(caseItem, "BOT");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
@@ -197,6 +199,25 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   )))[0];
   const teamActions = teamActionsFromAnalysis(techAnalysis);
   const customerOutcome = customerOutcomeFromAnalysis(customerOutcomeAnalysis);
+  const hasCustomerConfirmation = Boolean(customerOutcome && customerOutcomeAnalysis?.messageId && caseItem.messages.some((message) => (
+    message.id === customerOutcomeAnalysis.messageId && message.senderType === "CUSTOMER"
+  )));
+  const latestMessage = latestByCreatedAt(caseItem.messages)[0];
+  const latestCloseEvent = latestByCreatedAt(caseItem.messages.filter((message) => (
+    message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED"
+  )))[0];
+  const closeMetadata = latestCloseEvent?.metadata ?? {};
+  const closeSummary = closeMetadata.closeSummary;
+  const normalizedCloseSummary = closeSummary && typeof closeSummary === "object"
+    && typeof (closeSummary as Record<string, unknown>).cause === "string"
+    && typeof (closeSummary as Record<string, unknown>).resolution === "string"
+    && typeof (closeSummary as Record<string, unknown>).prevention === "string"
+    ? {
+      cause: (closeSummary as Record<string, string>).cause,
+      resolution: (closeSummary as Record<string, string>).resolution,
+      prevention: (closeSummary as Record<string, string>).prevention,
+    }
+    : undefined;
   const analysisStatus = !customerMessage
     ? "NO_CUSTOMER_MESSAGE"
     : caseItem.aiStatus ?? "AI_LOW_CONFIDENCE";
@@ -244,6 +265,11 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     initialCustomerMessage: customerMessage,
     latestCustomerMessage: latestCustomerText,
     latestCustomerMessageAt: latestCustomerMessage?.receivedAt ?? latestCustomerMessage?.createdAt,
+    latestMessage: latestMessage ? {
+      text: latestMessage.displayText ?? latestMessage.originalText,
+      source: getMessageSource(latestMessage),
+      at: latestMessage.sentAt ?? latestMessage.receivedAt ?? latestMessage.processedAt ?? latestMessage.createdAt,
+    } : undefined,
     problemSummary,
     problemSummaryStatus,
     problemSummaryGeneratedAt: caseItem.problemSummaryGeneratedAt,
@@ -272,9 +298,19 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     confirmedTechSolutionText: confirmedSolution?.rawReplyText,
     teamActions,
     customerOutcome,
+    hasCustomerConfirmation,
+    closedWithoutTechConfirmation: closeMetadata.closedWithoutTechConfirmation === true,
+    closeSummary: normalizedCloseSummary,
     customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
     learningStatus: caseItem.learningStatus,
   };
+}
+
+function getMessageSource(message: OffMlProjectCaseResponse["messages"][number]): "CUSTOMER" | "LINE_BOT" | "TECH_SUPPORT" | "SYSTEM" {
+  if (message.senderType === "CUSTOMER") return "CUSTOMER";
+  if (message.senderType === "TECH") return "TECH_SUPPORT";
+  if (message.senderType === "BOT" || message.senderType === "AI") return "LINE_BOT";
+  return "SYSTEM";
 }
 
 export async function getCases(query?: { category?: string; kpi?: string }): Promise<SupportCase[]> {
@@ -356,10 +392,10 @@ export async function composeAiMessage(caseId: string, input: { mode: AiComposeM
   });
 }
 
-export async function closeCaseWithReply(caseId: string, text: string, closedWithoutTechConfirmation = false): Promise<SupportCase> {
+export async function closeCaseWithReply(caseId: string, text: string, closedWithoutTechConfirmation = false, closeSummary?: { cause: string; resolution: string; prevention: string }): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/close`, {
     method: "POST",
-    body: JSON.stringify({ text, closedBy: "Tech Support Console", closedWithoutTechConfirmation }),
+    body: JSON.stringify({ text, closedBy: "Tech Support Console", closedWithoutTechConfirmation, closeSummary }),
   });
   return mapCaseResponse(caseItem);
 }
@@ -371,10 +407,10 @@ export async function rewriteCustomerReply(caseId: string, text: string, mode: "
   });
 }
 
-export async function reopenCase(caseId: string): Promise<SupportCase> {
+export async function reopenCase(caseId: string, reopenReason: string): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/reopen`, {
     method: "POST",
-    body: JSON.stringify({ reopenedBy: "Tech Support Console" }),
+    body: JSON.stringify({ reopenedBy: "Tech Support Console", reopenReason }),
   });
   return mapCaseResponse(caseItem);
 }

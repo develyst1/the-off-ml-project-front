@@ -16,6 +16,9 @@
   | "sent"
   | "sla_breach";
 
+export type MessageSource = "CUSTOMER" | "LINE_BOT" | "TECH_SUPPORT" | "SYSTEM";
+export type CaseEventType = "CASE_RECEIVED" | "AI_ANALYZED" | "TEAMS_SENT" | "TECH_REPLIED" | "LINE_REPLY_SENT" | "CASE_CLOSED" | "CASE_REOPENED";
+
 export interface SupportCase {
   id: string;
   caseNumber: string;
@@ -42,6 +45,7 @@ export interface SupportCase {
   initialCustomerMessage: string;
   latestCustomerMessage: string;
   latestCustomerMessageAt?: string;
+  latestMessage?: { text: string; source: MessageSource; at?: string };
   problemSummary: string;
   problemSummaryStatus: "PENDING" | "SUCCESS" | "FAILED";
   problemSummaryGeneratedAt?: string;
@@ -72,6 +76,9 @@ export interface SupportCase {
     confirmedAt: string;
   };
   customerReply?: string;
+  hasCustomerConfirmation?: boolean;
+  closedWithoutTechConfirmation?: boolean;
+  closeSummary?: { cause: string; resolution: string; prevention: string };
   learningStatus?: AiLearningStatus;
 }
 
