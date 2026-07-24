@@ -287,6 +287,8 @@ const DEFAULT_CASE_INBOX_FILTERS = {
   page: 1,
 } as const;
 
+type CaseInboxKpi = "waiting-tech" | "awaiting-confirmation" | "closed-this-month" | "sla";
+
 function CaseInbox({
   cases,
   drillDown,
@@ -307,7 +309,9 @@ function CaseInbox({
   const [search, setSearch] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.search);
   const [statusFilter, setStatusFilter] = useState<string | null>(DEFAULT_CASE_INBOX_FILTERS.status);
   const categoryFromUrl = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("category");
+  const kpiFromUrl = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("kpi") as CaseInboxKpi | null;
   const [categoryFilter, setCategoryFilter] = useState<string | null>(drillDown?.category ?? categoryFromUrl ?? DEFAULT_CASE_INBOX_FILTERS.category);
+  const [activeKpi, setActiveKpi] = useState<CaseInboxKpi | null>(kpiFromUrl);
   const [confidenceFilter, setConfidenceFilter] = useState<string>(drillDown?.confidence ?? DEFAULT_CASE_INBOX_FILTERS.confidence);
   const [timeFilter, setTimeFilter] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.time);
   const [timeFilterReference, setTimeFilterReference] = useState<number | null>(null);
@@ -320,11 +324,15 @@ function CaseInbox({
   const [casePage, setCasePage] = useState<number>(DEFAULT_CASE_INBOX_FILTERS.page);
   const [casePageSize, setCasePageSize] = useState<10 | 20 | 50>(10);
   const [filtersOpen, setFiltersOpen] = useState(Boolean(drillDown));
-  const updateCategoryQuery = (category?: string | null) => {
+  const updateInboxQuery = (input: { category?: string | null; kpi?: CaseInboxKpi | null }) => {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "inbox");
-    if (category) url.searchParams.set("category", category);
+    const nextCategory = input.category === undefined ? categoryFilter : input.category;
+    const nextKpi = input.kpi === undefined ? activeKpi : input.kpi;
+    if (nextCategory) url.searchParams.set("category", nextCategory);
     else url.searchParams.delete("category");
+    if (nextKpi) url.searchParams.set("kpi", nextKpi);
+    else url.searchParams.delete("kpi");
     window.history.replaceState(null, "", `${url.pathname}${url.search}`);
     onRefresh();
   };
@@ -400,6 +408,7 @@ function CaseInbox({
     search !== DEFAULT_CASE_INBOX_FILTERS.search
     || statusFilter !== DEFAULT_CASE_INBOX_FILTERS.status
     || categoryFilter !== DEFAULT_CASE_INBOX_FILTERS.category
+    || activeKpi !== null
     || unreadOnly !== DEFAULT_CASE_INBOX_FILTERS.unreadOnly
     || slaOnly !== DEFAULT_CASE_INBOX_FILTERS.slaOnly
     || confidenceFilter !== DEFAULT_CASE_INBOX_FILTERS.confidence
@@ -412,7 +421,8 @@ function CaseInbox({
     setSearch(DEFAULT_CASE_INBOX_FILTERS.search);
     setStatusFilter(DEFAULT_CASE_INBOX_FILTERS.status);
     setCategoryFilter(DEFAULT_CASE_INBOX_FILTERS.category);
-    updateCategoryQuery();
+    setActiveKpi(null);
+    updateInboxQuery({ category: null, kpi: null });
     setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence);
     setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time);
     setTimeFilterReference(null);
@@ -431,33 +441,36 @@ function CaseInbox({
   const closedCount = cases.filter((item) => ["resolved", "closed", "sent_to_customer", "sent"].includes(item.status)).length;
   const slaCount = cases.filter((item) => item.isSlaBreached).length;
 
-  const handleSummaryFilter = (filter: "waiting-tech" | "awaiting-confirmation" | "closed" | "sla") => {
+  const handleSummaryFilter = (filter: CaseInboxKpi) => {
+    const nextKpi = activeKpi === filter ? null : filter;
+    setActiveKpi(nextKpi);
+    updateInboxQuery({ kpi: nextKpi });
     if (filter === "waiting-tech") {
-      setStatusFilter((current) => current === "awaiting_tech" ? null : "awaiting_tech");
+      setStatusFilter(nextKpi ? "awaiting_tech" : null);
       setCasePage(1);
       return;
     }
     if (filter === "awaiting-confirmation") {
-      setStatusFilter((current) => current === "awaiting_confirmation" ? null : "awaiting_confirmation");
+      setStatusFilter(nextKpi ? "awaiting_confirmation" : null);
       setCasePage(1);
       return;
     }
-    if (filter === "closed") {
-      setCaseScope((current) => current === "closed" ? DEFAULT_CASE_INBOX_FILTERS.scope : "closed");
+    if (filter === "closed-this-month") {
+      setCaseScope(nextKpi ? "closed" : DEFAULT_CASE_INBOX_FILTERS.scope);
       setCasePage(1);
       return;
     }
-    setSlaOnly((current) => !current);
+    setSlaOnly(Boolean(nextKpi));
     setCasePage(1);
   };
 
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        <MetricCard active={statusFilter === "awaiting_tech"} color="blue" icon="inbox" isLoading={isLoading} label="รอตรวจสอบ" onClick={() => handleSummaryFilter("waiting-tech")} value={String(waitingCount)} />
-        <MetricCard active={statusFilter === "awaiting_confirmation"} color="yellow" icon="brain" isLoading={isLoading} label="รอทีมยืนยันคำแนะนำ AI" onClick={() => handleSummaryFilter("awaiting-confirmation")} value={String(confirmationCount)} />
-        <MetricCard active={slaOnly} color="red" icon="alert" isLoading={isLoading} label="เกิน SLA" onClick={() => handleSummaryFilter("sla")} value={String(slaCount)} />
-        <MetricCard active={caseScope === "closed"} color="green" icon="check" isLoading={isLoading} label="ปิดแล้วเดือนนี้" onClick={() => handleSummaryFilter("closed")} value={String(closedCount)} />
+        <MetricCard active={activeKpi === "waiting-tech"} color="blue" icon="inbox" isLoading={isLoading} label="รอตรวจสอบ" onClick={() => handleSummaryFilter("waiting-tech")} value={String(waitingCount)} />
+        <MetricCard active={activeKpi === "awaiting-confirmation"} color="yellow" icon="brain" isLoading={isLoading} label="รอทีมยืนยันคำแนะนำ AI" onClick={() => handleSummaryFilter("awaiting-confirmation")} value={String(confirmationCount)} />
+        <MetricCard active={activeKpi === "sla"} color="red" icon="alert" isLoading={isLoading} label="เกิน SLA" onClick={() => handleSummaryFilter("sla")} value={String(slaCount)} />
+        <MetricCard active={activeKpi === "closed-this-month"} color="green" icon="check" isLoading={isLoading} label="ปิดแล้วเดือนนี้" onClick={() => handleSummaryFilter("closed-this-month")} value={String(closedCount)} />
       </SimpleGrid>
 
       {error ? (
@@ -511,7 +524,7 @@ function CaseInbox({
             <Paper className="caseInboxFilterPanel" p="md" radius="md" withBorder>
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
                 <Select clearable data={statusOptions} label="สถานะ" onChange={(value) => { setStatusFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={statusFilter} />
-                <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); updateCategoryQuery(value); }} placeholder="ทั้งหมด" value={categoryFilter} />
+                <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); updateInboxQuery({ category: value }); }} placeholder="ทั้งหมด" value={categoryFilter} />
                 <Select data={[{ value: "all", label: "ทุกระดับ" }, { value: "0-59", label: "ต่ำกว่า 60%" }, { value: "60-89", label: "ควรตรวจสอบ 60-89%" }, { value: "90-97", label: "สูง 90-97%" }, { value: "98-100", label: "สูงมาก 98-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} value={confidenceFilter} />
                 <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "today", label: "วันนี้" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }, { value: "custom", label: "กำหนดเอง" }]} label="ช่วงเวลา" onChange={(value) => { const nextValue = value ?? DEFAULT_CASE_INBOX_FILTERS.time; setTimeFilter(nextValue); setTimeFilterReference(nextValue !== "all" && nextValue !== "custom" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
                 {timeFilter === "custom" ? <Group align="flex-end" gap="sm" wrap="nowrap"><TextInput label="ตั้งแต่วันที่" onChange={(event) => { setCustomDateFrom(event.currentTarget.value); setCasePage(1); }} type="date" value={customDateFrom} /><TextInput label="ถึงวันที่" onChange={(event) => { setCustomDateTo(event.currentTarget.value); setCasePage(1); }} type="date" value={customDateTo} /></Group> : null}
@@ -527,7 +540,8 @@ function CaseInbox({
             <Group gap="xs" wrap="wrap">
               {search ? <Button onClick={() => { setSearch(DEFAULT_CASE_INBOX_FILTERS.search); setCasePage(1); }} size="compact-xs" variant="light">ค้นหา: {search} ×</Button> : null}
               {statusFilter ? <Button onClick={() => { setStatusFilter(null); setCasePage(1); }} size="compact-xs" variant="light">สถานะ: {getStatusMeta(statusFilter as CaseStatus).label} ×</Button> : null}
-              {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); updateCategoryQuery(); }} size="compact-xs" variant="light">หมวดหมู่: {categories.find((category) => category.value === categoryFilter)?.label ?? categoryFilter} ×</Button> : null}
+              {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); updateInboxQuery({ category: null }); }} size="compact-xs" variant="light">หมวดหมู่: {categories.find((category) => category.value === categoryFilter)?.label ?? categoryFilter} ×</Button> : null}
+              {activeKpi ? <Button color={activeKpi === "sla" ? "red" : undefined} onClick={() => handleSummaryFilter(activeKpi)} size="compact-xs" variant="light">{activeKpi === "waiting-tech" ? "สถานะ: รอตรวจสอบ" : activeKpi === "awaiting-confirmation" ? "สถานะ: รอทีมยืนยันคำแนะนำ AI" : activeKpi === "closed-this-month" ? "สถานะ: ปิดแล้วเดือนนี้" : "สถานะ: เกิน SLA"} ×</Button> : null}
               {confidenceFilter !== "all" ? <Button onClick={() => { setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} size="compact-xs" variant="light">Confidence: {confidenceFilter} ×</Button> : null}
               {timeFilter !== "all" ? <Button onClick={() => { setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(null); setCustomDateFrom(""); setCustomDateTo(""); setCasePage(1); }} size="compact-xs" variant="light">ช่วงเวลา: {timeFilter === "today" ? "วันนี้" : timeFilter === "custom" ? "กำหนดเอง" : timeFilterLabel(timeFilter)} ×</Button> : null}
               {caseScope !== "all" ? <Button onClick={() => { setCaseScope(DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} size="compact-xs" variant="light">แสดงเคส: {caseScope === "open" ? "เปิดอยู่" : "ปิดแล้ว"} ×</Button> : null}
@@ -2598,8 +2612,11 @@ export default function OffMlProjectDashboardContent({
     setCaseError(undefined);
 
     try {
-      const category = new URLSearchParams(window.location.search).get("category") ?? undefined;
-      const nextCases = await getCases({ category });
+      const query = new URLSearchParams(window.location.search);
+      const nextCases = await getCases({
+        category: query.get("category") ?? undefined,
+        kpi: query.get("kpi") ?? undefined,
+      });
       const requestedAction = new URLSearchParams(window.location.search).get("action");
       setCases(nextCases);
       setSelectedCase((current) => {
@@ -2708,8 +2725,11 @@ export default function OffMlProjectDashboardContent({
   useEffect(() => {
     const refreshInbox = async () => {
       try {
-        const category = new URLSearchParams(window.location.search).get("category") ?? undefined;
-        const nextCases = await getCases({ category });
+        const query = new URLSearchParams(window.location.search);
+        const nextCases = await getCases({
+          category: query.get("category") ?? undefined,
+          kpi: query.get("kpi") ?? undefined,
+        });
         setCases(nextCases);
         setSelectedCase((current) => {
           if (!current) return nextCases[0] ?? null;

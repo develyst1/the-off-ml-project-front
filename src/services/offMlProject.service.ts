@@ -277,8 +277,11 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   };
 }
 
-export async function getCases(query?: { category?: string }): Promise<SupportCase[]> {
-  const search = query?.category ? `?category=${encodeURIComponent(query.category)}` : "";
+export async function getCases(query?: { category?: string; kpi?: string }): Promise<SupportCase[]> {
+  const params = new URLSearchParams();
+  if (query?.category) params.set("category", query.category);
+  if (query?.kpi) params.set("kpi", query.kpi);
+  const search = params.size ? `?${params.toString()}` : "";
   const cases = await request<OffMlProjectCaseResponse[]>(`/cases${search}`);
   return cases.map(mapCaseResponse);
 }
