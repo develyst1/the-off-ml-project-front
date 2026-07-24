@@ -857,6 +857,9 @@ function CaseDetail({
   const closedWithoutTechConfirmationEvent = item.conversation.find((message) => (
     message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED" && message.metadata?.closedWithoutTechConfirmation === true
   ));
+  const closedEventAt = isClosed
+    ? item.closedAt ?? closedWithoutTechConfirmationEvent?.processedAt ?? closedWithoutTechConfirmationEvent?.createdAt
+    : undefined;
   const timelineCandidates = [
     { label: "รับเรื่อง", at: item.caseCreatedAt },
     { label: "AI วิเคราะห์", at: item.aiAnalyzedAt },
@@ -864,8 +867,8 @@ function CaseDetail({
     { label: "ตอบรับลูกค้า", at: item.customerAcknowledgedAt },
     { label: "ส่งวิธีแก้ให้ลูกค้า", at: item.resolutionSentAt },
     {
-      label: closedWithoutTechConfirmationEvent ? "ปิดเคสโดยไม่รอการยืนยันจากทีม Tech" : "ปิดเคส",
-      at: item.closedAt,
+      label: isClosed && closedWithoutTechConfirmationEvent ? "ปิดเคสโดยไม่รอการยืนยันจากทีม Tech" : "ปิดเคส",
+      at: closedEventAt,
       by: item.closedBy,
     },
   ];
