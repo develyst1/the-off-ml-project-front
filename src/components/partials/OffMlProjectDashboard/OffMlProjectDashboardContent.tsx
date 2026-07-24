@@ -684,12 +684,20 @@ function CaseDetail({
   const [closeCause, setCloseCause] = useState("");
   const [closeResolution, setCloseResolution] = useState("");
   const [closePrevention, setClosePrevention] = useState("");
-  const [closeValidationVisible, setCloseValidationVisible] = useState(false);
+  const [closeValidationAttempted, setCloseValidationAttempted] = useState(false);
+  const [closeTouchedFields, setCloseTouchedFields] = useState<Record<"cause" | "resolution" | "prevention" | "message", boolean>>({
+    cause: false,
+    resolution: false,
+    prevention: false,
+    message: false,
+  });
   const [supportInstruction, setSupportInstruction] = useState("");
   const [moreInfoGoal, setMoreInfoGoal] = useState("");
   const [aiMissingInformation, setAiMissingInformation] = useState<string[]>([]);
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
   const [closeMessageText, setCloseMessageText] = useState("");
+  const [closeMessageManuallyEdited, setCloseMessageManuallyEdited] = useState(false);
+  const [closeSummaryOverwriteOpen, setCloseSummaryOverwriteOpen] = useState(false);
   const [closeToastVisible, setCloseToastVisible] = useState(false);
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
@@ -831,8 +839,8 @@ function CaseDetail({
   };
 
   const submitCloseCase = async () => {
-    if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim()) {
-      setCloseValidationVisible(true);
+    if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim() || !closeMessageText.trim()) {
+      setCloseValidationAttempted(true);
       return;
     }
     const message = closeCustomerMessage.trim();
@@ -843,7 +851,13 @@ function CaseDetail({
     );
     if (completed) {
       setCloseConfirmationOpen(false);
+      setCloseCause("");
+      setCloseResolution("");
+      setClosePrevention("");
       setCloseMessageText("");
+      setCloseMessageManuallyEdited(false);
+      setCloseValidationAttempted(false);
+      setCloseTouchedFields({ cause: false, resolution: false, prevention: false, message: false });
       setActionMode("CUSTOMER_REPLY");
       setComposerTab("reply");
       setCloseToastVisible(true);
@@ -900,7 +914,11 @@ function CaseDetail({
   const selectComposerTab = (tab: "reply" | "request-info" | "close") => {
     setComposerTab(tab);
     setActionMode(tab === "request-info" ? "REQUEST_MORE_INFO" : "CUSTOMER_REPLY");
-    if (tab === "close") setCloseValidationVisible(true);
+    if (tab === "close") {
+      setCloseValidationAttempted(false);
+      setCloseTouchedFields({ cause: false, resolution: false, prevention: false, message: false });
+      setActionError(undefined);
+    }
     setRequestInfoDraftMessageId(undefined);
     setAiMissingInformation([]);
   };
@@ -914,17 +932,42 @@ function CaseDetail({
   ].join("\n\n");
 
   const openCloseConfirmation = () => {
-    if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim()) {
-      setCloseValidationVisible(true);
+    if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim() || !closeMessageText.trim()) {
+      setCloseValidationAttempted(true);
       return;
     }
     setActionError(undefined);
-    if (!closeMessageText.trim()) setCloseMessageText(buildCloseMessage());
     setCloseConfirmationOpen(true);
   };
 
   const closeSummaryComplete = Boolean(closeCause.trim() && closeResolution.trim() && closePrevention.trim());
-  const closeCustomerMessage = closeMessageText.trim() || (closeSummaryComplete ? buildCloseMessage() : "");
+  const closeCustomerMessage = closeMessageText.trim();
+  const showCloseFieldError = (field: "cause" | "resolution" | "prevention" | "message") => closeValidationAttempted || closeTouchedFields[field];
+  const createCloseSummaryWithAi = async (overwriteExisting = false) => {
+    if (!closeSummaryComplete || isActionRunning) return;
+    if (!overwriteExisting && closeMessageManuallyEdited && closeCustomerMessage) {
+      setCloseSummaryOverwriteOpen(true);
+      return;
+    }
+
+    setActionState("rewriting");
+    setActionError(undefined);
+    setActionNotice(undefined);
+    try {
+      const rewritten = await onRewriteAi("CUSTOMER_REPLY", buildCloseMessage());
+      if (!rewritten.rewrittenMessage.trim()) throw new Error("AI ไม่สามารถสร้างข้อความสรุปได้ในขณะนี้");
+      setCloseMessageText(rewritten.rewrittenMessage);
+      setCloseMessageManuallyEdited(false);
+      setActionNotice("AI สร้างข้อความสรุปแล้ว กรุณาตรวจสอบก่อนยืนยันปิดเคส");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "AI ไม่สามารถสร้างข้อความสรุปได้ในขณะนี้");
+    } finally {
+      setActionState("idle");
+    }
+  };
+  const markCloseFieldTouched = (field: "cause" | "resolution" | "prevention" | "message") => {
+    setCloseTouchedFields((current) => ({ ...current, [field]: true }));
+  };
   const hasUnsentDraft = Boolean(replyText.trim() || closeCause.trim() || closeResolution.trim() || closePrevention.trim() || closeMessageText.trim());
   const resetComposerDrafts = () => {
     setReplyText("");
@@ -934,7 +977,9 @@ function CaseDetail({
     setCloseResolution("");
     setClosePrevention("");
     setCloseMessageText("");
-    setCloseValidationVisible(false);
+    setCloseMessageManuallyEdited(false);
+    setCloseValidationAttempted(false);
+    setCloseTouchedFields({ cause: false, resolution: false, prevention: false, message: false });
     setActionError(undefined);
     setActionNotice(undefined);
   };
@@ -951,7 +996,7 @@ function CaseDetail({
     if (isActionRunning) return;
     if (composerTab === "close") {
       if (closeSummaryComplete && closeCustomerMessage) openCloseConfirmation();
-      else setCloseValidationVisible(true);
+      else setCloseValidationAttempted(true);
       return;
     }
     if (replyText.trim()) void submitReply();
@@ -964,10 +1009,11 @@ function CaseDetail({
       </Box>
       <Textarea
         autosize
-        error={closeValidationVisible && !closeCause.trim() ? "กรุณาระบุสาเหตุที่เกิด" : undefined}
+        error={showCloseFieldError("cause") && !closeCause.trim() ? "กรุณาระบุสาเหตุที่เกิด" : undefined}
         label="สาเหตุที่เกิด"
-        minRows={2}
+        minRows={1}
         onChange={(event) => setCloseCause(event.currentTarget.value)}
+        onBlur={() => markCloseFieldTouched("cause")}
         onKeyDown={handleComposerKeyDown}
         placeholder="สรุปสาเหตุของปัญหา"
         required
@@ -975,10 +1021,11 @@ function CaseDetail({
       />
       <Textarea
         autosize
-        error={closeValidationVisible && !closeResolution.trim() ? "กรุณาระบุวิธีแก้ไข" : undefined}
+        error={showCloseFieldError("resolution") && !closeResolution.trim() ? "กรุณาระบุวิธีแก้ไข" : undefined}
         label="วิธีแก้ไข"
-        minRows={2}
+        minRows={1}
         onChange={(event) => setCloseResolution(event.currentTarget.value)}
+        onBlur={() => markCloseFieldTouched("resolution")}
         onKeyDown={handleComposerKeyDown}
         placeholder="อธิบายสิ่งที่ดำเนินการแก้ไข"
         required
@@ -986,24 +1033,44 @@ function CaseDetail({
       />
       <Textarea
         autosize
-        error={closeValidationVisible && !closePrevention.trim() ? "กรุณาระบุวิธีป้องกันในอนาคต" : undefined}
+        error={showCloseFieldError("prevention") && !closePrevention.trim() ? "กรุณาระบุวิธีป้องกันในอนาคต" : undefined}
         label="วิธีป้องกันในอนาคต"
-        minRows={2}
+        minRows={1}
         onChange={(event) => setClosePrevention(event.currentTarget.value)}
+        onBlur={() => markCloseFieldTouched("prevention")}
         onKeyDown={handleComposerKeyDown}
         placeholder="ระบุแนวทางป้องกันปัญหาในครั้งถัดไป"
         required
         value={closePrevention}
       />
+      <Box>
+        <Button
+          disabled={!closeSummaryComplete || isActionRunning}
+          leftSection={<AppIcon name="brain" size={15} />}
+          loading={actionState === "rewriting"}
+          onClick={() => void createCloseSummaryWithAi()}
+          size="xs"
+          variant="light"
+        >
+          สร้างข้อความสรุปด้วย AI
+        </Button>
+        {!closeSummaryComplete ? (
+          <Text c="dimmed" mt={4} size="xs">กรอกสาเหตุ วิธีแก้ไข และวิธีป้องกันให้ครบก่อนสร้างข้อความสรุป</Text>
+        ) : null}
+      </Box>
       <Textarea
         autosize
-        error={closeValidationVisible && !closeCustomerMessage ? "กรุณาระบุข้อความสรุปที่จะส่งให้ลูกค้า" : undefined}
+        error={showCloseFieldError("message") && !closeCustomerMessage ? "กรุณาระบุข้อความสรุปที่จะส่งให้ลูกค้า" : undefined}
         label="ข้อความสรุปที่จะส่งให้ลูกค้าทาง LINE"
-        minRows={4}
-        onChange={(event) => setCloseMessageText(event.currentTarget.value)}
+        minRows={1}
+        onBlur={() => markCloseFieldTouched("message")}
+        onChange={(event) => {
+          setCloseMessageText(event.currentTarget.value);
+          setCloseMessageManuallyEdited(true);
+        }}
         onKeyDown={handleComposerKeyDown}
         placeholder="ข้อความสรุปจะสร้างจากข้อมูลด้านบน และสามารถแก้ไขได้"
-        value={closeCustomerMessage}
+        value={closeMessageText}
       />
     </Stack>
   );
@@ -1402,7 +1469,7 @@ function CaseDetail({
               <Textarea
                 autosize
                 label={composerTab === "reply" ? "ข้อความที่จะส่งถึงลูกค้า" : "ข้อมูลที่ต้องการจากลูกค้า"}
-                minRows={5}
+                minRows={1}
                 onChange={(event) => setReplyText(event.currentTarget.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder={composerTab === "reply"
@@ -1449,7 +1516,11 @@ function CaseDetail({
               {composerTab === "close" ? "ยืนยันปิดเคส" : composerTab === "request-info" ? "ส่งคำขอข้อมูลเพิ่ม" : "ส่งข้อความ"}
             </Button>
           </Group>
-          <Text c="dimmed" mt="xs" size="xs">Enter เพื่อส่ง · Shift + Enter เพื่อขึ้นบรรทัดใหม่</Text>
+          <Text c="dimmed" mt="xs" size="xs">
+            {composerTab === "close"
+              ? "Enter เพื่อไปขั้นตอนยืนยัน · Shift + Enter เพื่อขึ้นบรรทัดใหม่"
+              : "Enter เพื่อส่ง · Shift + Enter เพื่อขึ้นบรรทัดใหม่"}
+          </Text>
           {composerTab !== "close" && !replyText.trim() ? <Text c="dimmed" mt={4} size="xs">กรอกข้อความก่อนส่ง</Text> : null}
           {composerTab !== "close" && actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
             <Alert color="yellow" mt="sm" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
@@ -1551,6 +1622,26 @@ function CaseDetail({
         <Group justify="flex-end" mt="md">
           <Button onClick={() => setDiscardDraftConfirmationOpen(false)} variant="default">กลับไปแก้ไข</Button>
           <Button color="red" onClick={() => { resetComposerDrafts(); setDiscardDraftConfirmationOpen(false); }} variant="light">ล้างข้อความ</Button>
+        </Group>
+      </Modal>
+      <Modal
+        opened={closeSummaryOverwriteOpen}
+        onClose={() => actionState === "idle" && setCloseSummaryOverwriteOpen(false)}
+        title="แทนที่ข้อความสรุปเดิม"
+      >
+        <Text>มีข้อความสรุปที่แก้ไขไว้แล้ว ต้องการให้ AI สร้างข้อความใหม่มาแทนที่ใช่ไหม?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button disabled={actionState !== "idle"} onClick={() => setCloseSummaryOverwriteOpen(false)} variant="default">กลับไปแก้ไข</Button>
+          <Button
+            disabled={actionState !== "idle"}
+            loading={actionState === "rewriting"}
+            onClick={() => {
+              setCloseSummaryOverwriteOpen(false);
+              void createCloseSummaryWithAi(true);
+            }}
+          >
+            สร้างแทนที่
+          </Button>
         </Group>
       </Modal>
       <Modal
