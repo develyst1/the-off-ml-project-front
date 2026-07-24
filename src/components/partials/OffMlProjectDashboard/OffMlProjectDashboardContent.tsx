@@ -310,6 +310,8 @@ function CaseInbox({
   const [confidenceFilter, setConfidenceFilter] = useState<string>(drillDown?.confidence ?? DEFAULT_CASE_INBOX_FILTERS.confidence);
   const [timeFilter, setTimeFilter] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.time);
   const [timeFilterReference, setTimeFilterReference] = useState<number | null>(null);
+  const [customDateFrom, setCustomDateFrom] = useState("");
+  const [customDateTo, setCustomDateTo] = useState("");
   const [unreadOnly, setUnreadOnly] = useState<boolean>(DEFAULT_CASE_INBOX_FILTERS.unreadOnly);
   const [slaOnly, setSlaOnly] = useState<boolean>(DEFAULT_CASE_INBOX_FILTERS.slaOnly);
   const [caseScope, setCaseScope] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.scope);
@@ -356,8 +358,19 @@ function CaseInbox({
         if (!inRange || item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE") return false;
       }
       if (timeFilter !== "all") {
-        const days = Number(timeFilter);
-        if (timeFilterReference !== null && timeFilterReference - new Date(item.lastActivityAt).getTime() > days * 24 * 60 * 60 * 1000) return false;
+        const activityAt = new Date(item.lastActivityAt).getTime();
+        if (timeFilter === "today" && timeFilterReference !== null) {
+          const today = new Date(timeFilterReference);
+          today.setHours(0, 0, 0, 0);
+          if (activityAt < today.getTime()) return false;
+        } else if (timeFilter === "custom") {
+          const from = customDateFrom ? new Date(`${customDateFrom}T00:00:00`).getTime() : undefined;
+          const to = customDateTo ? new Date(`${customDateTo}T23:59:59.999`).getTime() : undefined;
+          if ((from !== undefined && activityAt < from) || (to !== undefined && activityAt > to)) return false;
+        } else {
+          const days = Number(timeFilter);
+          if (timeFilterReference !== null && timeFilterReference - activityAt > days * 24 * 60 * 60 * 1000) return false;
+        }
       }
       return true;
     })
@@ -381,6 +394,7 @@ function CaseInbox({
     || slaOnly !== DEFAULT_CASE_INBOX_FILTERS.slaOnly
     || confidenceFilter !== DEFAULT_CASE_INBOX_FILTERS.confidence
     || timeFilter !== DEFAULT_CASE_INBOX_FILTERS.time
+    || Boolean(customDateFrom || customDateTo)
     || caseScope !== DEFAULT_CASE_INBOX_FILTERS.scope
     || sortMode !== DEFAULT_CASE_INBOX_FILTERS.sort,
   );
@@ -391,6 +405,8 @@ function CaseInbox({
     setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence);
     setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time);
     setTimeFilterReference(null);
+    setCustomDateFrom("");
+    setCustomDateTo("");
     setUnreadOnly(DEFAULT_CASE_INBOX_FILTERS.unreadOnly);
     setSlaOnly(DEFAULT_CASE_INBOX_FILTERS.slaOnly);
     setCaseScope(DEFAULT_CASE_INBOX_FILTERS.scope);
@@ -486,7 +502,8 @@ function CaseInbox({
                 <Select clearable data={statusOptions} label="สถานะ" onChange={(value) => { setStatusFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={statusFilter} />
                 <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={categoryFilter} />
                 <Select data={[{ value: "all", label: "ทุกระดับ" }, { value: "0-59", label: "ต่ำกว่า 60%" }, { value: "60-89", label: "ควรตรวจสอบ 60-89%" }, { value: "90-97", label: "สูง 90-97%" }, { value: "98-100", label: "สูงมาก 98-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} value={confidenceFilter} />
-                <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "1", label: "24 ชั่วโมง" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }]} label="ช่วงเวลา" onChange={(value) => { setTimeFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(value && value !== "all" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
+                <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "today", label: "วันนี้" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }, { value: "custom", label: "กำหนดเอง" }]} label="ช่วงเวลา" onChange={(value) => { const nextValue = value ?? DEFAULT_CASE_INBOX_FILTERS.time; setTimeFilter(nextValue); setTimeFilterReference(nextValue !== "all" && nextValue !== "custom" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
+                {timeFilter === "custom" ? <Group align="flex-end" gap="sm" wrap="nowrap"><TextInput label="ตั้งแต่วันที่" onChange={(event) => { setCustomDateFrom(event.currentTarget.value); setCasePage(1); }} type="date" value={customDateFrom} /><TextInput label="ถึงวันที่" onChange={(event) => { setCustomDateTo(event.currentTarget.value); setCasePage(1); }} type="date" value={customDateTo} /></Group> : null}
                 <Select data={[{ value: "open", label: "เคสที่เปิดอยู่" }, { value: "closed", label: "เคสที่ปิดแล้ว" }, { value: "all", label: "ทุกเคส" }]} label="แสดงเคส" onChange={(value) => { setCaseScope(value ?? DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} value={caseScope} />
                 <Group align="flex-end" gap="lg" wrap="wrap">
                   <Switch checked={unreadOnly} label="เฉพาะข้อความใหม่" onChange={(event) => { setUnreadOnly(event.currentTarget.checked); setCasePage(1); }} />
@@ -501,7 +518,7 @@ function CaseInbox({
               {statusFilter ? <Button onClick={() => { setStatusFilter(null); setCasePage(1); }} size="compact-xs" variant="light">สถานะ: {getStatusMeta(statusFilter as CaseStatus).label} ×</Button> : null}
               {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); }} size="compact-xs" variant="light">หมวดหมู่: {categoryFilter} ×</Button> : null}
               {confidenceFilter !== "all" ? <Button onClick={() => { setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} size="compact-xs" variant="light">Confidence: {confidenceFilter} ×</Button> : null}
-              {timeFilter !== "all" ? <Button onClick={() => { setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(null); setCasePage(1); }} size="compact-xs" variant="light">ช่วงเวลา: {timeFilterLabel(timeFilter)} ×</Button> : null}
+              {timeFilter !== "all" ? <Button onClick={() => { setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(null); setCustomDateFrom(""); setCustomDateTo(""); setCasePage(1); }} size="compact-xs" variant="light">ช่วงเวลา: {timeFilter === "today" ? "วันนี้" : timeFilter === "custom" ? "กำหนดเอง" : timeFilterLabel(timeFilter)} ×</Button> : null}
               {caseScope !== "all" ? <Button onClick={() => { setCaseScope(DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} size="compact-xs" variant="light">แสดงเคส: {caseScope === "open" ? "เปิดอยู่" : "ปิดแล้ว"} ×</Button> : null}
               {unreadOnly ? <Button onClick={() => { setUnreadOnly(false); setCasePage(1); }} size="compact-xs" variant="light">ข้อความใหม่ ×</Button> : null}
               {slaOnly ? <Button color="red" onClick={() => { setSlaOnly(false); setCasePage(1); }} size="compact-xs" variant="light">เกิน SLA ×</Button> : null}
@@ -708,6 +725,7 @@ function CaseDetail({
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
   const [discardDraftConfirmationOpen, setDiscardDraftConfirmationOpen] = useState(false);
   const [replaceReplyDraftOpen, setReplaceReplyDraftOpen] = useState(false);
+  const [replaceRequestDraftOpen, setReplaceRequestDraftOpen] = useState(false);
   const handledInitialAction = useRef(false);
 
   useEffect(() => {
@@ -797,6 +815,12 @@ function CaseDetail({
   const latestTechMessage = [...item.conversation]
     .filter((message) => message.senderType === "TECH" && Boolean(message.originalText.trim()))
     .at(-1);
+  const latestTechSolution = [...item.conversation]
+    .filter((message) => message.senderType === "TECH" && message.messageType === "TECH_SOLUTION" && Boolean(message.originalText.trim()))
+    .at(-1);
+  const latestTechAttachmentUrl = latestTechMessage && typeof latestTechMessage.metadata?.attachmentUrl === "string"
+    ? latestTechMessage.metadata.attachmentUrl
+    : undefined;
   const closedWithoutTechConfirmationEvent = item.conversation.find((message) => (
     message.messageType === "SYSTEM_EVENT" && message.metadata?.closedWithoutTechConfirmation === true
   ));
@@ -1015,7 +1039,7 @@ function CaseDetail({
     resetComposerDrafts();
   };
   const useLatestTechReplyAsDraft = () => {
-    if (!latestTechMessage) return;
+    if (!latestTechMessage || latestTechMessage.messageType !== "TECH_SOLUTION") return;
     if (customerReplyDraft.trim()) {
       setReplaceReplyDraftOpen(true);
       return;
@@ -1024,6 +1048,17 @@ function CaseDetail({
     setActionMode("CUSTOMER_REPLY");
     setCustomerReplyDraft(latestTechMessage.originalText);
     setActionNotice("อ้างอิงคำตอบจากทีม Tech Support แล้ว กรุณาตรวจสอบก่อนส่ง");
+  };
+  const useLatestTechInfoRequestAsDraft = () => {
+    if (!latestTechMessage || latestTechMessage.messageType !== "TECH_MORE_INFO_REQUEST") return;
+    if (requestInfoDraft.trim()) {
+      setReplaceRequestDraftOpen(true);
+      return;
+    }
+    setComposerTab("request-info");
+    setActionMode("REQUEST_MORE_INFO");
+    setRequestInfoDraft(latestTechMessage.originalText);
+    setActionNotice("อ้างอิงคำขอข้อมูลจากทีม Tech Support แล้ว กรุณาตรวจสอบก่อนส่ง");
   };
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey) return;
@@ -1235,8 +1270,8 @@ function CaseDetail({
               return (
                 <Box className="caseTimelineStep" key={step.label}>
                   <Box className="caseTimelineStepMarker">
-                    <ThemeIcon color={isDone ? "green" : isCurrent ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isCurrent ? "filled" : "light"}>
-                      {isDone ? <AppIcon name="check" size={15} /> : index + 1}
+                    <ThemeIcon color={isDone ? "green" : isCurrent ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isCurrent ? "filled" : "outline"}>
+                      {isDone ? <AppIcon name="check" size={15} /> : isCurrent ? <AppIcon name="message" size={14} /> : null}
                     </ThemeIcon>
                   </Box>
                   <Text fw={isCurrent ? 800 : 600} size="sm">{step.label}</Text>
@@ -1426,8 +1461,12 @@ function CaseDetail({
                     ทีม Tech Support · {formatEventTime(latestTechMessage.sentAt ?? latestTechMessage.createdAt)}
                   </Text>
                   <Text className="compactText" mt="xs" size="sm">{latestTechMessage.originalText}</Text>
-                  <Button mt="sm" onClick={useLatestTechReplyAsDraft} size="xs" variant="light">ใช้เป็นร่างตอบลูกค้า</Button>
+                  {latestTechMessage.messageType === "TECH_SOLUTION" ? <Button mt="sm" onClick={useLatestTechReplyAsDraft} size="xs" variant="light">ใช้เป็นร่างตอบลูกค้า</Button> : null}
+                  {latestTechMessage.messageType === "TECH_MORE_INFO_REQUEST" ? <Button mt="sm" onClick={useLatestTechInfoRequestAsDraft} size="xs" variant="light">ใช้เป็นร่างขอข้อมูลเพิ่ม</Button> : null}
+                  {latestTechMessage.messageType === "TECH_ATTACHMENT" ? latestTechAttachmentUrl ? <Button component="a" href={latestTechAttachmentUrl} mt="sm" rel="noreferrer" size="xs" target="_blank" variant="light">ดูไฟล์แนบ</Button> : <Text c="dimmed" mt="sm" size="xs">ไฟล์แนบหรือภาพหน้าจอ ไม่ถูกนำไปใช้เป็นร่างข้อความลูกค้า</Text> : null}
+                  {latestTechMessage.messageType === "TECH_GENERAL_MESSAGE" || latestTechMessage.messageType === "TECH_RAW_REPLY" ? <Text c="dimmed" mt="sm" size="xs">ข้อความทั่วไปจากทีม ไม่ถูกนำไปใช้เป็นร่างข้อความลูกค้า</Text> : null}
                 </> : <Text c="dimmed" mt={4} size="sm">ยังไม่มีคำตอบจากทีม Tech Support</Text>}
+                {!latestTechSolution ? <Text c="dimmed" mt="sm" size="xs">ยังไม่มีวิธีแก้จากทีม Tech ที่พร้อมใช้สร้างร่างตอบลูกค้า</Text> : null}
               </Paper>
               <Group justify="space-between" wrap="nowrap">
                 <Text size="sm">ผลการตรวจของทีม Tech</Text>
@@ -1678,6 +1717,13 @@ function CaseDetail({
         <Group justify="flex-end" mt="md">
           <Button onClick={() => setReplaceReplyDraftOpen(false)} variant="default">กลับไปแก้ไข</Button>
           <Button onClick={() => { setReplaceReplyDraftOpen(false); setComposerTab("reply"); setActionMode("CUSTOMER_REPLY"); setCustomerReplyDraft(latestTechMessage?.originalText ?? ""); setActionNotice("อ้างอิงคำตอบจากทีม Tech Support แล้ว กรุณาตรวจสอบก่อนส่ง"); }}>ใช้ร่างจากทีม Tech</Button>
+        </Group>
+      </Modal>
+      <Modal opened={replaceRequestDraftOpen} onClose={() => setReplaceRequestDraftOpen(false)} title="แทนที่ร่างขอข้อมูลเพิ่มเดิม">
+        <Text>มีร่างขอข้อมูลเพิ่มที่ยังไม่ได้ส่ง ต้องการใช้ข้อความล่าสุดจากทีม Tech มาแทนที่ใช่ไหม?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button onClick={() => setReplaceRequestDraftOpen(false)} variant="default">กลับไปแก้ไข</Button>
+          <Button onClick={() => { setReplaceRequestDraftOpen(false); setComposerTab("request-info"); setActionMode("REQUEST_MORE_INFO"); setRequestInfoDraft(latestTechMessage?.originalText ?? ""); setActionNotice("อ้างอิงคำขอข้อมูลจากทีม Tech Support แล้ว กรุณาตรวจสอบก่อนส่ง"); }}>ใช้ร่างจากทีม Tech</Button>
         </Group>
       </Modal>
       <Modal
