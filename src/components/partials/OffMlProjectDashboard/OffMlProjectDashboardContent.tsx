@@ -306,7 +306,8 @@ function CaseInbox({
 }) {
   const [search, setSearch] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.search);
   const [statusFilter, setStatusFilter] = useState<string | null>(DEFAULT_CASE_INBOX_FILTERS.status);
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(drillDown?.category ?? DEFAULT_CASE_INBOX_FILTERS.category);
+  const categoryFromUrl = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("category");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(drillDown?.category ?? categoryFromUrl ?? DEFAULT_CASE_INBOX_FILTERS.category);
   const [confidenceFilter, setConfidenceFilter] = useState<string>(drillDown?.confidence ?? DEFAULT_CASE_INBOX_FILTERS.confidence);
   const [timeFilter, setTimeFilter] = useState<string>(DEFAULT_CASE_INBOX_FILTERS.time);
   const [timeFilterReference, setTimeFilterReference] = useState<number | null>(null);
@@ -319,6 +320,14 @@ function CaseInbox({
   const [casePage, setCasePage] = useState<number>(DEFAULT_CASE_INBOX_FILTERS.page);
   const [casePageSize, setCasePageSize] = useState<10 | 20 | 50>(10);
   const [filtersOpen, setFiltersOpen] = useState(Boolean(drillDown));
+  const updateCategoryQuery = (category?: string | null) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "inbox");
+    if (category) url.searchParams.set("category", category);
+    else url.searchParams.delete("category");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    onRefresh();
+  };
 
   const closedStatuses = new Set<CaseStatus>(["resolved", "closed", "sent_to_customer", "sent"]);
   const priorityOrder: Partial<Record<CaseStatus, number>> = {
@@ -333,17 +342,18 @@ function CaseInbox({
     sent_to_customer: 5,
     sent: 5,
   };
-  const categories = [...new Set(cases.map((item) => item.category).filter((value) => value && value !== "-"))];
+  const categories = [...new Map(cases.map((item) => [item.categoryKey, item.category])).entries()]
+    .map(([value, label]) => ({ value, label }));
   const statusOptions = Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }));
 
   const filteredCases = cases
     .filter((item) => {
-      const searchable = [item.caseNumber, item.customerName, item.problemSummary, item.initialCustomerMessage, item.latestCustomerMessage, item.category]
+      const searchable = [item.caseNumber, item.customerName, item.problemSummary, item.initialCustomerMessage, item.latestCustomerMessage, item.categoryKey, item.category]
         .join(" ")
         .toLocaleLowerCase();
       if (search.trim() && !searchable.includes(search.trim().toLocaleLowerCase())) return false;
       if (statusFilter && item.status !== statusFilter) return false;
-      if (categoryFilter && item.category !== categoryFilter) return false;
+      if (categoryFilter && item.categoryKey !== categoryFilter) return false;
       if (unreadOnly && !item.hasUnreadCustomerMessage) return false;
       if (slaOnly && !item.isSlaBreached) return false;
       if (caseScope === "open" && closedStatuses.has(item.status)) return false;
@@ -402,6 +412,7 @@ function CaseInbox({
     setSearch(DEFAULT_CASE_INBOX_FILTERS.search);
     setStatusFilter(DEFAULT_CASE_INBOX_FILTERS.status);
     setCategoryFilter(DEFAULT_CASE_INBOX_FILTERS.category);
+    updateCategoryQuery();
     setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence);
     setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time);
     setTimeFilterReference(null);
@@ -500,7 +511,7 @@ function CaseInbox({
             <Paper className="caseInboxFilterPanel" p="md" radius="md" withBorder>
               <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
                 <Select clearable data={statusOptions} label="สถานะ" onChange={(value) => { setStatusFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={statusFilter} />
-                <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); }} placeholder="ทั้งหมด" value={categoryFilter} />
+                <Select clearable data={categories} label="หมวดหมู่" onChange={(value) => { setCategoryFilter(value); setCasePage(1); updateCategoryQuery(value); }} placeholder="ทั้งหมด" value={categoryFilter} />
                 <Select data={[{ value: "all", label: "ทุกระดับ" }, { value: "0-59", label: "ต่ำกว่า 60%" }, { value: "60-89", label: "ควรตรวจสอบ 60-89%" }, { value: "90-97", label: "สูง 90-97%" }, { value: "98-100", label: "สูงมาก 98-100%" }]} label="Confidence" onChange={(value) => { setConfidenceFilter(value ?? DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} value={confidenceFilter} />
                 <Select data={[{ value: "all", label: "ทุกช่วงเวลา" }, { value: "today", label: "วันนี้" }, { value: "7", label: "7 วัน" }, { value: "30", label: "30 วัน" }, { value: "custom", label: "กำหนดเอง" }]} label="ช่วงเวลา" onChange={(value) => { const nextValue = value ?? DEFAULT_CASE_INBOX_FILTERS.time; setTimeFilter(nextValue); setTimeFilterReference(nextValue !== "all" && nextValue !== "custom" ? Date.now() : null); setCasePage(1); }} value={timeFilter} />
                 {timeFilter === "custom" ? <Group align="flex-end" gap="sm" wrap="nowrap"><TextInput label="ตั้งแต่วันที่" onChange={(event) => { setCustomDateFrom(event.currentTarget.value); setCasePage(1); }} type="date" value={customDateFrom} /><TextInput label="ถึงวันที่" onChange={(event) => { setCustomDateTo(event.currentTarget.value); setCasePage(1); }} type="date" value={customDateTo} /></Group> : null}
@@ -516,7 +527,7 @@ function CaseInbox({
             <Group gap="xs" wrap="wrap">
               {search ? <Button onClick={() => { setSearch(DEFAULT_CASE_INBOX_FILTERS.search); setCasePage(1); }} size="compact-xs" variant="light">ค้นหา: {search} ×</Button> : null}
               {statusFilter ? <Button onClick={() => { setStatusFilter(null); setCasePage(1); }} size="compact-xs" variant="light">สถานะ: {getStatusMeta(statusFilter as CaseStatus).label} ×</Button> : null}
-              {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); }} size="compact-xs" variant="light">หมวดหมู่: {categoryFilter} ×</Button> : null}
+              {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); updateCategoryQuery(); }} size="compact-xs" variant="light">หมวดหมู่: {categories.find((category) => category.value === categoryFilter)?.label ?? categoryFilter} ×</Button> : null}
               {confidenceFilter !== "all" ? <Button onClick={() => { setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} size="compact-xs" variant="light">Confidence: {confidenceFilter} ×</Button> : null}
               {timeFilter !== "all" ? <Button onClick={() => { setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(null); setCustomDateFrom(""); setCustomDateTo(""); setCasePage(1); }} size="compact-xs" variant="light">ช่วงเวลา: {timeFilter === "today" ? "วันนี้" : timeFilter === "custom" ? "กำหนดเอง" : timeFilterLabel(timeFilter)} ×</Button> : null}
               {caseScope !== "all" ? <Button onClick={() => { setCaseScope(DEFAULT_CASE_INBOX_FILTERS.scope); setCasePage(1); }} size="compact-xs" variant="light">แสดงเคส: {caseScope === "open" ? "เปิดอยู่" : "ปิดแล้ว"} ×</Button> : null}
@@ -1968,13 +1979,13 @@ function AnalyticsDashboard({
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>หมวดหมู่เคสที่พบบ่อย</Title>
-          {summary.categories.map(({ label, value }, index) => (
+          {summary.categories.map(({ key, label, value }, index) => (
             <Box
               aria-label={`ดูเคสหมวดหมู่ ${displayCategory(label)}`}
               component="button"
               key={`${label}-${index}`}
               mb="md"
-              onClick={() => onDrillDown({ category: displayCategory(label) })}
+              onClick={() => onDrillDown({ category: key })}
               style={{ background: "transparent", border: 0, cursor: "pointer", padding: 0, textAlign: "left", width: "100%" }}
               type="button"
             >
@@ -2587,7 +2598,8 @@ export default function OffMlProjectDashboardContent({
     setCaseError(undefined);
 
     try {
-      const nextCases = await getCases();
+      const category = new URLSearchParams(window.location.search).get("category") ?? undefined;
+      const nextCases = await getCases({ category });
       const requestedAction = new URLSearchParams(window.location.search).get("action");
       setCases(nextCases);
       setSelectedCase((current) => {
@@ -2696,7 +2708,8 @@ export default function OffMlProjectDashboardContent({
   useEffect(() => {
     const refreshInbox = async () => {
       try {
-        const nextCases = await getCases();
+        const category = new URLSearchParams(window.location.search).get("category") ?? undefined;
+        const nextCases = await getCases({ category });
         setCases(nextCases);
         setSelectedCase((current) => {
           if (!current) return nextCases[0] ?? null;
@@ -2739,7 +2752,9 @@ export default function OffMlProjectDashboardContent({
   const handleAnalyticsDrillDown = (filter: { category?: string; confidence?: string }) => {
     setInboxDrillDown({ ...filter, requestId: Date.now() });
     setActiveTab("inbox");
-    router.push("/");
+    const params = new URLSearchParams({ tab: "inbox" });
+    if (filter.category) params.set("category", filter.category);
+    router.push(`/?${params.toString()}`);
   };
 
   const handleAcceptCase = async () => {

@@ -55,13 +55,41 @@ function latestByCreatedAt<T extends { createdAt: string }>(items: T[]) {
   });
 }
 
-function normalizeCategory(category?: string | null) {
+const categoryMeta: Record<string, { key: string; label: string }> = {
+  NETWORK_CONNECTION: { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
+  NETWORK_ISSUE: { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
+  NETWORK_CONNECTIVITY: { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
+  "ปัญหาการเชื่อมต่อเครือข่าย": { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
+  LOGIN_ACCESS: { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
+  LOGIN_ISSUE: { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
+  LOGIN_FAILURE: { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
+  "ปัญหาการเข้าสู่ระบบ": { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
+  STATUS_UPDATE: { key: "STATUS_UPDATE", label: "ปัญหาการอัปเดตสถานะ" },
+  "ปัญหาการอัปเดตสถานะ": { key: "STATUS_UPDATE", label: "ปัญหาการอัปเดตสถานะ" },
+  HARDWARE_DEVICE: { key: "HARDWARE_DEVICE", label: "ปัญหาฮาร์ดแวร์" },
+  "ปัญหาฮาร์ดแวร์": { key: "HARDWARE_DEVICE", label: "ปัญหาฮาร์ดแวร์" },
+  SOFTWARE_APPLICATION: { key: "SOFTWARE_APPLICATION", label: "ปัญหาซอฟต์แวร์" },
+  "ปัญหาซอฟต์แวร์": { key: "SOFTWARE_APPLICATION", label: "ปัญหาซอฟต์แวร์" },
+  DATA_DISPLAY: { key: "DATA_DISPLAY", label: "ปัญหาการแสดงข้อมูล" },
+  "ปัญหาการแสดงข้อมูล": { key: "DATA_DISPLAY", label: "ปัญหาการแสดงข้อมูล" },
+  OTHER: { key: "OTHER", label: "อื่นๆ" },
+};
+
+function getCategoryMeta(category?: string | null) {
   const value = category?.trim();
   if (!value || value === "-" || value.toLowerCase() === "undefined" || value.toLowerCase() === "null") {
-    return "ยังไม่ระบุหมวดหมู่";
+    return categoryMeta.OTHER;
   }
-
-  return value;
+  const known = categoryMeta[value.toUpperCase()] ?? categoryMeta[value];
+  if (known) return known;
+  if (value.startsWith("AI_")) {
+    try {
+      return { key: value, label: decodeURIComponent(value.slice(3)) };
+    } catch {
+      return categoryMeta.OTHER;
+    }
+  }
+  return { key: `AI_${encodeURIComponent(value)}`, label: value };
 }
 
 function wasDeliveredToCustomer(message: OffMlProjectCaseResponse["messages"][number]) {
@@ -186,6 +214,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     ?? Boolean(latestCustomerMessage && (!latestOutbound || new Date(latestCustomerMessage.receivedAt ?? latestCustomerMessage.createdAt).getTime() > new Date(latestOutbound.createdAt).getTime()));
   const slaHours = SLA_HOURS;
   const isSlaBreached = calculateSlaBreached(caseItem.status, latestCustomerMessage?.receivedAt ?? latestCustomerMessage?.createdAt ?? caseItem.updatedAt);
+  const resolvedCategory = caseItem.aiStatus === "AI_FAILED"
+    ? { key: "OTHER", label: "AI วิเคราะห์ไม่สำเร็จ" }
+    : getCategoryMeta(customerAnalysis?.category ?? caseItem.category);
 
   return {
     id: caseItem.id,
@@ -224,9 +255,8 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     lastActivityAt: caseItem.updatedAt,
     hasUnreadCustomerMessage,
     isSlaBreached,
-    category: caseItem.aiStatus === "AI_FAILED"
-      ? "AI วิเคราะห์ไม่สำเร็จ"
-      : normalizeCategory(customerAnalysis?.category ?? caseItem.category),
+    category: resolvedCategory.label,
+    categoryKey: resolvedCategory.key,
     aiConfidence: caseItem.aiStatus === "AI_FAILED" ? 0 : customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),
@@ -247,8 +277,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   };
 }
 
-export async function getCases(): Promise<SupportCase[]> {
-  const cases = await request<OffMlProjectCaseResponse[]>("/cases");
+export async function getCases(query?: { category?: string }): Promise<SupportCase[]> {
+  const search = query?.category ? `?category=${encodeURIComponent(query.category)}` : "";
+  const cases = await request<OffMlProjectCaseResponse[]>(`/cases${search}`);
   return cases.map(mapCaseResponse);
 }
 
@@ -374,18 +405,7 @@ export async function reviewConfidenceSuggestion(input: {
 }
 
 export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  const summary = await request<AnalyticsSummary>("/analytics/summary");
-  const categoryTotals = new Map<string, number>();
-
-  for (const category of summary.categories) {
-    const label = normalizeCategory(category.label);
-    categoryTotals.set(label, (categoryTotals.get(label) ?? 0) + category.value);
-  }
-
-  return {
-    ...summary,
-    categories: Array.from(categoryTotals, ([label, value]) => ({ label, value })),
-  };
+  return request<AnalyticsSummary>("/analytics/summary");
 }
 
 export async function getAutomationSettings(): Promise<AutomationSettings> {

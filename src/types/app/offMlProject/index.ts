@@ -54,6 +54,7 @@ export interface SupportCase {
   hasUnreadCustomerMessage: boolean;
   isSlaBreached: boolean;
   category: string;
+  categoryKey: string;
   aiConfidence: number;
   status: CaseStatus;
   createdAt: string;
@@ -244,7 +245,7 @@ export interface AnalyticsSummary {
   solvedFromExistingSolutionPct: number;
   overSla: number;
   readyForAutoAnswer: number;
-  categories: Array<{ label: string; value: number }>;
+  categories: Array<{ key: string; label: string; count: number; value: number }>;
   confidenceDistribution: Array<{ label: string; value: number }>;
 }
 
