@@ -159,6 +159,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
   const customerOutcomeAnalysis = latestAnalysis(caseItem, "customer_outcome");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
+  const confirmedSolution = latestByCreatedAt(caseItem.solutions.filter((solution) => solution.validatedByTeam))[0];
   const customerAcknowledgement = latestByCreatedAt(caseItem.messages.filter((message) => (
     message.messageType === "CASE_ACKNOWLEDGEMENT" && wasDeliveredToCustomer(message)
   )))[0];
@@ -237,6 +238,8 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     ],
     conversation: [...caseItem.messages].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()),
     supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary,
+    hasConfirmedTechSolution: Boolean(confirmedSolution),
+    confirmedTechSolutionText: confirmedSolution?.rawReplyText,
     teamActions,
     customerOutcome,
     customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
@@ -318,10 +321,10 @@ export async function composeAiMessage(caseId: string, input: { mode: AiComposeM
   });
 }
 
-export async function closeCaseWithReply(caseId: string, text: string): Promise<SupportCase> {
+export async function closeCaseWithReply(caseId: string, text: string, closedWithoutTechConfirmation = false): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/close`, {
     method: "POST",
-    body: JSON.stringify({ text, closedBy: "Tech Support Console" }),
+    body: JSON.stringify({ text, closedBy: "Tech Support Console", closedWithoutTechConfirmation }),
   });
   return mapCaseResponse(caseItem);
 }

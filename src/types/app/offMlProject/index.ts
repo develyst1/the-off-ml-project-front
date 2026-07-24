@@ -62,6 +62,8 @@ export interface SupportCase {
   teamsThread: string[];
   conversation: OffMlProjectMessageResponse[];
   supportSolution?: string;
+  hasConfirmedTechSolution?: boolean;
+  confirmedTechSolutionText?: string;
   teamActions?: string[];
   customerOutcome?: {
     type: "RESOLVED" | "IMPROVED";

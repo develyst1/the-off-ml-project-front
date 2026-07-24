@@ -666,7 +666,7 @@ function CaseDetail({
   onInitialActionHandled: () => void;
   onAcceptCase: () => Promise<void>;
   onReply: (text: string) => Promise<void>;
-  onCloseCase: (text: string) => Promise<void>;
+  onCloseCase: (text: string, closedWithoutTechConfirmation?: boolean) => Promise<void>;
   onComposeAi: (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => Promise<AiComposeResult>;
   onRewriteAi: (mode: AiComposeMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
   onReopenCase: () => Promise<void>;
@@ -678,7 +678,8 @@ function CaseDetail({
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
   const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
-  const [replyText, setReplyText] = useState("");
+  const [customerReplyDraft, setCustomerReplyDraft] = useState("");
+  const [requestInfoDraft, setRequestInfoDraft] = useState("");
   const [actionMode, setActionMode] = useState<"CUSTOMER_REPLY" | "REQUEST_MORE_INFO">("CUSTOMER_REPLY");
   const [composerTab, setComposerTab] = useState<"reply" | "request-info" | "close">("reply");
   const [closeCause, setCloseCause] = useState("");
@@ -691,10 +692,10 @@ function CaseDetail({
     prevention: false,
     message: false,
   });
-  const [supportInstruction, setSupportInstruction] = useState("");
-  const [moreInfoGoal, setMoreInfoGoal] = useState("");
   const [aiMissingInformation, setAiMissingInformation] = useState<string[]>([]);
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
+  const [closeWithoutTechWarningOpen, setCloseWithoutTechWarningOpen] = useState(false);
+  const [closeWithoutTechConfirmation, setCloseWithoutTechConfirmation] = useState(false);
   const [closeMessageText, setCloseMessageText] = useState("");
   const [closeMessageManuallyEdited, setCloseMessageManuallyEdited] = useState(false);
   const [closeSummaryOverwriteOpen, setCloseSummaryOverwriteOpen] = useState(false);
@@ -784,16 +785,24 @@ function CaseDetail({
       : item.techRepliedAt
         ? { color: "blue", text: "ทีม Tech ตอบกลับแล้ว รอการยืนยันคำแนะนำ" }
         : { color: "yellow", text: "รอทีม Tech ตรวจสอบคำแนะนำ" };
-  const latestTechReply = [...item.conversation]
-    .filter((message) => message.senderType === "TECH" && Boolean(message.originalText.trim()))
-    .at(-1);
+  const confirmedTechSolution = item.confirmedTechSolutionText
+    ? item.conversation.find((message) => message.senderType === "TECH" && message.originalText === item.confirmedTechSolutionText)
+    : undefined;
+  const hasConfirmedTechSolution = item.hasConfirmedTechSolution === true;
+  const closedWithoutTechConfirmationEvent = item.conversation.find((message) => (
+    message.messageType === "SYSTEM_EVENT" && message.metadata?.closedWithoutTechConfirmation === true
+  ));
   const timelineCandidates = [
     { label: "รับเรื่อง", at: item.caseCreatedAt },
     { label: "AI วิเคราะห์", at: item.aiAnalyzedAt },
     { label: "ส่ง Teams", at: item.teamsSentAt },
     { label: "ตอบรับลูกค้า", at: item.customerAcknowledgedAt },
     { label: "ส่งวิธีแก้ให้ลูกค้า", at: item.resolutionSentAt },
-    { label: "ปิดเคส", at: item.closedAt, by: item.closedBy },
+    {
+      label: closedWithoutTechConfirmationEvent ? "ปิดเคสโดยไม่รอการยืนยันจากทีม Tech" : "ปิดเคส",
+      at: item.closedAt,
+      by: item.closedBy,
+    },
   ];
   const timelineSteps = timelineCandidates.map((step, index) => ({
     ...step,
@@ -821,7 +830,7 @@ function CaseDetail({
   };
 
   const submitReply = async () => {
-    const text = replyText.trim();
+    const text = (actionMode === "REQUEST_MORE_INFO" ? requestInfoDraft : customerReplyDraft).trim();
     if (!text) {
       setActionError("กรุณากรอกข้อความที่จะส่ง");
       return;
@@ -833,7 +842,8 @@ function CaseDetail({
       () => actionMode === "REQUEST_MORE_INFO" ? onRequestInfo(text, requestInfoDraftMessageId) : onReply(text),
     );
     if (completed) {
-      setReplyText("");
+      if (actionMode === "REQUEST_MORE_INFO") setRequestInfoDraft("");
+      else setCustomerReplyDraft("");
       setRequestInfoDraftMessageId(undefined);
     }
   };
@@ -847,7 +857,7 @@ function CaseDetail({
     const completed = await runAction(
       "closing",
       "ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว",
-      () => onCloseCase(message),
+      () => onCloseCase(message, closeWithoutTechConfirmation),
     );
     if (completed) {
       setCloseConfirmationOpen(false);
@@ -856,6 +866,7 @@ function CaseDetail({
       setClosePrevention("");
       setCloseMessageText("");
       setCloseMessageManuallyEdited(false);
+      setCloseWithoutTechConfirmation(false);
       setCloseValidationAttempted(false);
       setCloseTouchedFields({ cause: false, resolution: false, prevention: false, message: false });
       setActionMode("CUSTOMER_REPLY");
@@ -866,7 +877,7 @@ function CaseDetail({
 
   const composeWithAi = async (draftOverride?: string, requireDraft = false) => {
     if (actionState !== "idle") return;
-    const draftText = (draftOverride ?? (actionMode === "CUSTOMER_REPLY" ? supportInstruction : moreInfoGoal)).trim();
+    const draftText = (draftOverride ?? (actionMode === "CUSTOMER_REPLY" ? customerReplyDraft : requestInfoDraft)).trim();
     if (requireDraft && !draftText) {
       setActionError("กรุณาพิมพ์ข้อความก่อนให้ AI ช่วยเรียบเรียง");
       return;
@@ -882,7 +893,8 @@ function CaseDetail({
         if (!rewritten.rewrittenMessage.trim()) {
           throw new Error("AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้");
         }
-        setReplyText(rewritten.rewrittenMessage);
+        if (actionMode === "REQUEST_MORE_INFO") setRequestInfoDraft(rewritten.rewrittenMessage);
+        else setCustomerReplyDraft(rewritten.rewrittenMessage);
         setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? rewritten.rewrittenMessageId : undefined);
         setActionNotice(rewritten.usedFallback
           ? "AI ยังไม่พร้อม จึงคงข้อความเดิมไว้ กรุณาตรวจสอบก่อนส่ง"
@@ -898,7 +910,8 @@ function CaseDetail({
       if (!draft.suggestedMessage.trim()) {
         throw new Error("AI ไม่สามารถเรียบเรียงข้อความได้ในขณะนี้");
       }
-      setReplyText(draft.suggestedMessage);
+      if (actionMode === "REQUEST_MORE_INFO") setRequestInfoDraft(draft.suggestedMessage);
+      else setCustomerReplyDraft(draft.suggestedMessage);
       setRequestInfoDraftMessageId(actionMode === "REQUEST_MORE_INFO" ? draft.rewrittenMessageId : undefined);
       setAiMissingInformation(actionMode === "CUSTOMER_REPLY" ? draft.missingInformation : []);
       setActionNotice(actionMode === "CUSTOMER_REPLY"
@@ -919,16 +932,15 @@ function CaseDetail({
       setCloseTouchedFields({ cause: false, resolution: false, prevention: false, message: false });
       setActionError(undefined);
     }
+    if (tab !== "close") setCloseWithoutTechConfirmation(false);
     setRequestInfoDraftMessageId(undefined);
     setAiMissingInformation([]);
   };
 
   const buildCloseMessage = () => [
-    "สรุปก่อนปิดเคส",
     `สาเหตุที่เกิด: ${closeCause.trim()}`,
     `วิธีแก้ไข: ${closeResolution.trim()}`,
     `วิธีป้องกันในอนาคต: ${closePrevention.trim()}`,
-    "หากยังพบปัญหา สามารถติดต่อทีมงานได้อีกครั้งนะคะ",
   ].join("\n\n");
 
   const openCloseConfirmation = () => {
@@ -937,6 +949,10 @@ function CaseDetail({
       return;
     }
     setActionError(undefined);
+    if (!hasConfirmedTechSolution && !closeWithoutTechConfirmation) {
+      setCloseWithoutTechWarningOpen(true);
+      return;
+    }
     setCloseConfirmationOpen(true);
   };
 
@@ -968,16 +984,16 @@ function CaseDetail({
   const markCloseFieldTouched = (field: "cause" | "resolution" | "prevention" | "message") => {
     setCloseTouchedFields((current) => ({ ...current, [field]: true }));
   };
-  const hasUnsentDraft = Boolean(replyText.trim() || closeCause.trim() || closeResolution.trim() || closePrevention.trim() || closeMessageText.trim());
+  const hasUnsentDraft = Boolean(customerReplyDraft.trim() || requestInfoDraft.trim() || closeCause.trim() || closeResolution.trim() || closePrevention.trim() || closeMessageText.trim());
   const resetComposerDrafts = () => {
-    setReplyText("");
-    setSupportInstruction("");
-    setMoreInfoGoal("");
+    setCustomerReplyDraft("");
+    setRequestInfoDraft("");
     setCloseCause("");
     setCloseResolution("");
     setClosePrevention("");
     setCloseMessageText("");
     setCloseMessageManuallyEdited(false);
+    setCloseWithoutTechConfirmation(false);
     setCloseValidationAttempted(false);
     setCloseTouchedFields({ cause: false, resolution: false, prevention: false, message: false });
     setActionError(undefined);
@@ -999,7 +1015,7 @@ function CaseDetail({
       else setCloseValidationAttempted(true);
       return;
     }
-    if (replyText.trim()) void submitReply();
+    if ((composerTab === "request-info" ? requestInfoDraft : customerReplyDraft).trim()) void submitReply();
   };
   const closeCaseSummaryForm = (
     <Stack gap="sm" mt="sm">
@@ -1056,7 +1072,7 @@ function CaseDetail({
         </Button>
         {!closeSummaryComplete ? (
           <Text c="dimmed" mt={4} size="xs">กรอกสาเหตุ วิธีแก้ไข และวิธีป้องกันให้ครบก่อนสร้างข้อความสรุป</Text>
-        ) : null}
+        ) : <Text c="dimmed" mt={4} size="xs">AI จะสร้างร่างข้อความจากข้อมูลที่กรอก คุณสามารถแก้ไขก่อนยืนยันปิดเคสได้</Text>}
       </Box>
       <Textarea
         autosize
@@ -1077,13 +1093,13 @@ function CaseDetail({
 
   const composerTabs = (
     <Group gap={6} wrap="wrap">
-      <Button onClick={() => selectComposerTab("reply")} size="xs" variant={composerTab === "reply" ? "filled" : "default"}>
+      <Button color="blue" onClick={() => selectComposerTab("reply")} size="xs" variant={composerTab === "reply" ? "filled" : "default"}>
         ตอบลูกค้า
       </Button>
-      <Button onClick={() => selectComposerTab("request-info")} size="xs" variant={composerTab === "request-info" ? "filled" : "default"}>
+      <Button color="yellow" onClick={() => selectComposerTab("request-info")} size="xs" variant={composerTab === "request-info" ? "filled" : "default"}>
         ขอข้อมูลเพิ่ม
       </Button>
-      <Button onClick={() => selectComposerTab("close")} size="xs" variant={composerTab === "close" ? "filled" : "default"}>
+      <Button color="red" onClick={() => selectComposerTab("close")} size="xs" variant={composerTab === "close" ? "filled" : "default"}>
         ปิดเคส
       </Button>
     </Group>
@@ -1458,38 +1474,41 @@ function CaseDetail({
                   : "ระบุข้อมูลที่ต้องการ เพื่อให้ทีม Tech Support ตรวจสอบปัญหาได้ครบถ้วน"}
               </Text>
             </Box>
-            {composerTab === "reply" && latestTechReply ? (
+            {composerTab === "reply" && hasConfirmedTechSolution ? (
               <Paper bg="blue.0" mt="sm" p="sm" radius="sm">
                 <Text c="dimmed" size="xs">อ้างอิงคำตอบจากทีม Tech Support</Text>
-                <Text lineClamp={2} mt={4} size="sm">{latestTechReply.originalText}</Text>
-                <Text c="dimmed" mt={4} size="xs">ทีม Tech Support · {formatEventTime(latestTechReply.sentAt ?? latestTechReply.createdAt)}</Text>
+                <Text lineClamp={2} mt={4} size="sm">{confirmedTechSolution?.originalText ?? item.confirmedTechSolutionText}</Text>
+                {confirmedTechSolution ? <Text c="dimmed" mt={4} size="xs">ทีม Tech Support · {formatEventTime(confirmedTechSolution.sentAt ?? confirmedTechSolution.createdAt)}</Text> : null}
               </Paper>
+            ) : null}
+            {composerTab === "reply" && !hasConfirmedTechSolution ? (
+              <Text c="dimmed" mt="sm" size="xs">ยังไม่มีวิธีแก้จากทีม Tech ที่พร้อมใช้สร้างร่างตอบลูกค้า</Text>
             ) : null}
             <Box pos="relative" mt="sm">
               <Textarea
                 autosize
                 label={composerTab === "reply" ? "ข้อความที่จะส่งถึงลูกค้า" : "ข้อมูลที่ต้องการจากลูกค้า"}
                 minRows={1}
-                onChange={(event) => setReplyText(event.currentTarget.value)}
+                onChange={(event) => composerTab === "request-info" ? setRequestInfoDraft(event.currentTarget.value) : setCustomerReplyDraft(event.currentTarget.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder={composerTab === "reply"
                   ? "พิมพ์ข้อความตอบกลับลูกค้า หรือสร้างร่างจากข้อมูลเคส"
                   : "เช่น กรุณาส่งภาพหน้าจอ ข้อความ Error รุ่นอุปกรณ์ หรือเวลาที่พบปัญหาเพิ่มเติม"}
-                styles={{ input: { paddingRight: composerTab === "reply" ? 52 : undefined } }}
-                value={replyText}
+                styles={{ input: { paddingRight: composerTab === "reply" ? 56 : undefined } }}
+                value={composerTab === "request-info" ? requestInfoDraft : customerReplyDraft}
               />
               {composerTab === "reply" ? (
                 <Tooltip label="ช่วยเรียบเรียงข้อความที่พิมพ์" withArrow>
                   <ActionIcon
                     aria-label="ช่วยเรียบเรียงข้อความที่พิมพ์ด้วย AI"
                     color="blue"
-                    disabled={!replyText.trim() || isActionRunning}
+                    disabled={!customerReplyDraft.trim() || isActionRunning}
                     loading={actionState === "rewriting"}
-                    onClick={() => void composeWithAi(replyText, true)}
+                    onClick={() => void composeWithAi(customerReplyDraft, true)}
                     pos="absolute"
-                    right={10}
-                    size="lg"
-                    top={34}
+                    right={12}
+                    size="md"
+                    top={28}
                     variant="light"
                     radius="xl"
                   >
@@ -1501,14 +1520,14 @@ function CaseDetail({
           </>}
           <Group className="caseActionComposerButtons" gap="xs" mt="sm" wrap="wrap">
             {composerTab !== "close" ? (
-              <Button disabled={isActionRunning} leftSection={<AppIcon name="brain" size={15} />} loading={actionState === "rewriting"} onClick={() => void composeWithAi(composerTab === "request-info" ? replyText : undefined)} size="xs" variant="light">
+              <Button disabled={isActionRunning} leftSection={<AppIcon name="brain" size={15} />} loading={actionState === "rewriting"} onClick={() => void composeWithAi(composerTab === "request-info" ? requestInfoDraft : undefined)} size="xs" variant="light">
                 {composerTab === "request-info" ? "ให้ AI แนะนำคำถามที่ควรถาม" : "สร้างร่างจากข้อมูลเคส"}
               </Button>
             ) : null}
             <Button disabled={isActionRunning} onClick={requestDiscardDrafts} size="xs" variant="default">ยกเลิก</Button>
             <Button
               color={composerTab === "close" ? "orange" : undefined}
-              disabled={composerTab === "close" ? !closeSummaryComplete || !closeCustomerMessage || isActionRunning : !replyText.trim() || isActionRunning || isClosed}
+              disabled={composerTab === "close" ? !closeSummaryComplete || !closeCustomerMessage || isActionRunning : !(composerTab === "request-info" ? requestInfoDraft : customerReplyDraft).trim() || isActionRunning || isClosed}
               loading={composerTab === "close" ? actionState === "closing" : actionState === "replying" || actionState === "requesting"}
               onClick={() => composerTab === "close" ? openCloseConfirmation() : void submitReply()}
               size="xs"
@@ -1521,7 +1540,7 @@ function CaseDetail({
               ? "Enter เพื่อไปขั้นตอนยืนยัน · Shift + Enter เพื่อขึ้นบรรทัดใหม่"
               : "Enter เพื่อส่ง · Shift + Enter เพื่อขึ้นบรรทัดใหม่"}
           </Text>
-          {composerTab !== "close" && !replyText.trim() ? <Text c="dimmed" mt={4} size="xs">กรอกข้อความก่อนส่ง</Text> : null}
+          {composerTab !== "close" && !(composerTab === "request-info" ? requestInfoDraft : customerReplyDraft).trim() ? <Text c="dimmed" mt={4} size="xs">กรอกข้อความก่อนส่ง</Text> : null}
           {composerTab !== "close" && actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
             <Alert color="yellow" mt="sm" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">
               <Text size="sm">ข้อมูลที่ยังขาด: {aiMissingInformation.join(", ")}</Text>
@@ -1641,6 +1660,26 @@ function CaseDetail({
             }}
           >
             สร้างแทนที่
+          </Button>
+        </Group>
+      </Modal>
+      <Modal
+        opened={closeWithoutTechWarningOpen}
+        onClose={() => setCloseWithoutTechWarningOpen(false)}
+        title="ยังไม่มีวิธีแก้ที่ยืนยันจากทีม Tech Support"
+      >
+        <Text>เคสนี้ยังไม่มีวิธีแก้ที่ทีม Tech Support ยืนยัน คุณต้องการปิดเคสต่อหรือไม่?</Text>
+        <Group justify="flex-end" mt="md">
+          <Button onClick={() => setCloseWithoutTechWarningOpen(false)} variant="default">กลับไปตรวจสอบ</Button>
+          <Button
+            color="orange"
+            onClick={() => {
+              setCloseWithoutTechConfirmation(true);
+              setCloseWithoutTechWarningOpen(false);
+              setCloseConfirmationOpen(true);
+            }}
+          >
+            ยืนยันปิดเคสต่อ
           </Button>
         </Group>
       </Modal>
@@ -2580,9 +2619,9 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleCloseCase = async (text: string) => {
+  const handleCloseCase = async (text: string, closedWithoutTechConfirmation?: boolean) => {
     if (!selectedCase) return;
-    const updatedCase = await closeCaseWithReply(selectedCase.id, text);
+    const updatedCase = await closeCaseWithReply(selectedCase.id, text, closedWithoutTechConfirmation);
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
