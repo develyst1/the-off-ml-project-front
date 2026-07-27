@@ -346,6 +346,16 @@ export async function openInboxCase(customerId: string, title?: string): Promise
   return mapCaseResponse(caseItem);
 }
 
+export async function composeInboxReply(
+  customerId: string,
+  input: { mode: "DRAFT" | "REWRITE"; rawSupportMessage?: string },
+): Promise<{ message: string }> {
+  return request<{ message: string }>(`/inbox/${encodeURIComponent(customerId)}/ai-compose`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function getCase(caseId: string): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}`);
   return mapCaseResponse(caseItem);

@@ -10,6 +10,7 @@ export type IconName =
   | "message"
   | "copy"
   | "brain"
+  | "sparkles"
   | "info"
   | "menu";
 
@@ -71,6 +72,12 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M9 3a4 4 0 0 0-4 4 4 4 0 0 0 0 8 4 4 0 0 0 4 4" />
       <path d="M15 3a4 4 0 0 1 4 4 4 4 0 0 1 0 8 4 4 0 0 1-4 4" />
       <path d="M9 3v16M15 3v16M9 8h6M9 13h6" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="m12 3-1.2 4.8L6 9l4.8 1.2L12 15l1.2-4.8L18 9l-4.8-1.2L12 3Z" />
+      <path d="m19 15-.6 2.4L16 18l2.4.6L19 21l.6-2.4L22 18l-2.4-.6L19 15Z" />
     </>
   ),
   info: (

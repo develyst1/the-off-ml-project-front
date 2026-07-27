@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Badge, Box, Button, Card, Divider, Group, ScrollArea, SimpleGrid, Stack, Text, TextInput, Title } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Box, Button, Card, Divider, Group, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { useRouter } from "next/navigation";
-import { getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
+import { composeInboxReply, getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
 import type { InboxUser } from "@/types/app/offMlProject";
+import { AppIcon } from "@/components/common";
 
 function formatTime(value?: string) {
   if (!value) return "ยังไม่มีข้อความ";
@@ -20,6 +21,9 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
+  const [isAiRewriting, setIsAiRewriting] = useState(false);
+  const [isAiDrafting, setIsAiDrafting] = useState(false);
+  const [isDraftConfirmOpen, setIsDraftConfirmOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [showAllCases, setShowAllCases] = useState(false);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
@@ -86,6 +90,43 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     }
   };
 
+  const handleRewrite = async () => {
+    if (!selected || !draft.trim() || isAiRewriting) return;
+    setIsAiRewriting(true);
+    setError(undefined);
+    try {
+      const result = await composeInboxReply(selected.customer.id, { mode: "REWRITE", rawSupportMessage: draft });
+      setDraft(result.message);
+    } catch (composeError) {
+      setError(composeError instanceof Error ? composeError.message : "AI ช่วยเรียบเรียงข้อความไม่สำเร็จ ข้อความเดิมยังคงอยู่");
+    } finally {
+      setIsAiRewriting(false);
+    }
+  };
+
+  const generateDraft = async () => {
+    if (!selected || isAiDrafting) return;
+    setIsAiDrafting(true);
+    setError(undefined);
+    try {
+      const result = await composeInboxReply(selected.customer.id, { mode: "DRAFT" });
+      setDraft(result.message);
+      setIsDraftConfirmOpen(false);
+    } catch (composeError) {
+      setError(composeError instanceof Error ? composeError.message : "AI สร้างร่างคำตอบไม่สำเร็จ");
+    } finally {
+      setIsAiDrafting(false);
+    }
+  };
+
+  const handleDraftRequest = () => {
+    if (draft.trim()) {
+      setIsDraftConfirmOpen(true);
+      return;
+    }
+    void generateDraft();
+  };
+
   const filteredUsers = users.filter((user) => `${user.customer.displayName ?? "ไม่ทราบชื่อ"} ${user.latestMessage?.text ?? ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
 
   const getNewMessageCount = (user: InboxUser) => {
@@ -105,6 +146,15 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
 
   return (
     <Stack gap="lg">
+      <Modal opened={isDraftConfirmOpen} onClose={() => setIsDraftConfirmOpen(false)} title="แทนที่ข้อความปัจจุบัน?" centered>
+        <Stack>
+          <Text size="sm">AI จะสร้างร่างข้อความใหม่แทนข้อความที่กำลังพิมพ์อยู่</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setIsDraftConfirmOpen(false)}>ยกเลิก</Button>
+            <Button onClick={() => void generateDraft()} loading={isAiDrafting}>สร้างร่างใหม่</Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Group justify="space-between">
         <Box><Title order={2}>ผู้ใช้งาน</Title><Text c="dimmed" size="sm">ผู้ใช้งานที่ติดต่อเข้ามาทาง LINE และยังไม่จำเป็นต้องเปิดเคส</Text></Box>
         <Button variant="light" onClick={() => void load()}>รีเฟรช</Button>
@@ -135,7 +185,28 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
               <ScrollArea mah={420} type="auto" style={{ minHeight: 0 }}><Stack gap="sm">
                 {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}
               </Stack></ScrollArea>
-              <Group align="end"><TextInput flex={1} label="ข้อความตอบกลับทาง LINE" placeholder="พิมพ์ข้อความ" value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void handleSend(); } }} /><Button onClick={() => void handleSend()} loading={isSending} disabled={!draft.trim()}>ส่ง</Button></Group>
+              <Group gap="xs" align="end" wrap="wrap">
+                <Textarea
+                  autosize
+                  flex={1}
+                  label="ข้อความตอบกลับทาง LINE"
+                  minRows={1}
+                  maxRows={6}
+                  placeholder="พิมพ์ข้อความ"
+                  value={draft}
+                  onChange={(event) => setDraft(event.currentTarget.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void handleSend(); } }}
+                  rightSection={(
+                    <Tooltip label={draft.trim() ? "ช่วยเรียบเรียงข้อความ" : "พิมพ์ข้อความก่อนใช้ AI ช่วยเรียบเรียง"} withArrow>
+                      <ActionIcon aria-label="ช่วยเรียบเรียงข้อความ" color="blue" variant="light" disabled={!draft.trim() || isAiRewriting} loading={isAiRewriting} onClick={() => void handleRewrite()}>
+                        <AppIcon name="brain" size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                />
+                <Button variant="outline" leftSection={<AppIcon name="sparkles" size={15} />} onClick={handleDraftRequest} loading={isAiDrafting}>สร้างร่างคำตอบ</Button>
+                <Button onClick={() => void handleSend()} loading={isSending} disabled={!draft.trim()}>ส่ง</Button>
+              </Group>
               <Divider />
               <Title order={5}>รายการเคส</Title>
               {sortedCases.length === 0 ? <Text c="dimmed" size="sm">ยังไม่มีรายการเคส</Text> : <>
