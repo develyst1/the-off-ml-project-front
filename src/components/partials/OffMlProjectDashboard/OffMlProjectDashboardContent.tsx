@@ -71,6 +71,7 @@ import type {
 } from "@/types/app/offMlProject";
 import { CaseConversation } from "./Conversation/CaseConversation";
 import { OFF_ML_PROJECT_TABS } from "./OffMlProjectDashboard.config";
+import InboxWorkspace from "./InboxWorkspace";
 
 const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   new: { label: "เคสใหม่", color: "gray" },
@@ -696,6 +697,8 @@ function CaseInbox({
     </Stack>
   );
 }
+
+export { CaseInbox };
 
 function CaseDetail({
   item,
@@ -2655,9 +2658,11 @@ function AutomationSettings({
 export default function OffMlProjectDashboardContent({
   caseId,
   initialTab,
+  initialInboxUserId,
 }: {
   caseId?: string;
   initialTab?: string;
+  initialInboxUserId?: string;
 }) {
   const router = useRouter();
   const requestedRootTab = getRootTab(initialTab ?? null);
@@ -2665,7 +2670,7 @@ export default function OffMlProjectDashboardContent({
   const [cases, setCases] = useState<SupportCase[]>([]);
   const [selectedCase, setSelectedCase] = useState<SupportCase | null>(null);
   const [isLoadingCases, setIsLoadingCases] = useState(true);
-  const [caseError, setCaseError] = useState<string>();
+  const [, setCaseError] = useState<string>();
   const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary>(EMPTY_ANALYTICS_SUMMARY);
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
   const [autoAnswerLogsState, setAutoAnswerLogsState] = useState<AutoAnswerLogsPage>(EMPTY_AUTO_ANSWER_LOGS_PAGE);
@@ -2676,7 +2681,7 @@ export default function OffMlProjectDashboardContent({
   const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
   const [dashboardError, setDashboardError] = useState<string>();
   const [initialAction, setInitialAction] = useState<"accept" | "request-info">();
-  const [inboxDrillDown, setInboxDrillDown] = useState<{ category?: string; confidence?: string; requestId: number }>();
+  const [, setInboxDrillDown] = useState<{ category?: string; confidence?: string; requestId: number }>();
   const selectedCaseId = selectedCase?.id;
 
   const loadCases = useCallback(async () => {
@@ -2981,20 +2986,7 @@ export default function OffMlProjectDashboardContent({
           ) : null}
           <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
             <Tabs.Panel value="inbox">
-              <CaseInbox
-                cases={cases}
-                drillDown={inboxDrillDown}
-                error={caseError}
-                isLoading={isLoadingCases}
-                onOpenCase={(item) => {
-                  handleOpenCase(item);
-                }}
-                onRefresh={() => {
-                  void loadCases();
-                }}
-                selectedCaseId={selectedCase?.id}
-                key={inboxDrillDown?.requestId ?? "default"}
-              />
+              <InboxWorkspace initialUserId={initialInboxUserId} />
             </Tabs.Panel>
             <Tabs.Panel value="detail">
               <CaseDetail

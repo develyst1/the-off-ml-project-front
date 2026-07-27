@@ -6,6 +6,7 @@
   AutomationSettings,
   CaseStatus,
   ConfidenceSuggestion,
+  InboxUser,
   OffMlProjectCaseResponse,
   SupportCase,
 } from "@/types/app/offMlProject";
@@ -320,6 +321,29 @@ export async function getCases(query?: { category?: string; kpi?: string }): Pro
   const search = params.size ? `?${params.toString()}` : "";
   const cases = await request<OffMlProjectCaseResponse[]>(`/cases${search}`);
   return cases.map(mapCaseResponse);
+}
+
+export async function getInboxUsers(): Promise<InboxUser[]> {
+  return request<InboxUser[]>("/inbox");
+}
+
+export async function getInboxUser(customerId: string): Promise<InboxUser> {
+  return request<InboxUser>(`/inbox/${encodeURIComponent(customerId)}`);
+}
+
+export async function sendInboxReply(customerId: string, text: string): Promise<InboxUser> {
+  return request<InboxUser>(`/inbox/${encodeURIComponent(customerId)}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function openInboxCase(customerId: string, title?: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/inbox/${encodeURIComponent(customerId)}/open-case`, {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
+  return mapCaseResponse(caseItem);
 }
 
 export async function getCase(caseId: string): Promise<SupportCase> {

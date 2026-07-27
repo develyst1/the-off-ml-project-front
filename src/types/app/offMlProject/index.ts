@@ -101,6 +101,24 @@ export interface OffMlProjectCustomerResponse {
   updatedAt: string;
 }
 
+export interface InboxMessage {
+  id: string;
+  customerId: string;
+  direction: "INBOUND" | "OUTBOUND";
+  senderType: "CUSTOMER" | "TECH";
+  text: string;
+  externalMessageId?: string;
+  webhookEventId?: string;
+  createdAt: string;
+}
+
+export interface InboxUser {
+  customer: OffMlProjectCustomerResponse;
+  latestMessage?: InboxMessage;
+  messages: InboxMessage[];
+  cases: OffMlProjectCaseResponse[];
+}
+
 export interface OffMlProjectMessageResponse {
   id: string;
   caseId: string;

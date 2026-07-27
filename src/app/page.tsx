@@ -3,9 +3,9 @@
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; user?: string }>;
 }) {
-  const { tab } = await searchParams;
+  const { tab, user } = await searchParams;
 
-  return <OffMlProjectDashboardContent initialTab={tab} key={tab ?? "inbox"} />;
+  return <OffMlProjectDashboardContent initialInboxUserId={user} initialTab={tab} key={`${tab ?? "inbox"}:${user ?? ""}`} />;
 }
