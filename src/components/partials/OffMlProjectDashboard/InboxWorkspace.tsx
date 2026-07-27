@@ -161,7 +161,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       </Group>
       {error ? <Alert color="red" title="เกิดข้อผิดพลาด" withCloseButton onClose={() => setError(undefined)}>{error}</Alert> : null}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" style={{ alignItems: "start" }}>
-        <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0 }}>
+        <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0, minWidth: 0 }}>
           <Group justify="space-between" mb="md"><Title order={4}>รายการผู้ใช้งาน</Title><Badge color="blue" variant="light">{filteredUsers.length} รายการ</Badge></Group>
           <TextInput label="ค้นหา" placeholder="ชื่อผู้ใช้งานหรือข้อความล่าสุด" value={search} onChange={(event) => setSearch(event.currentTarget.value)} mb="sm" />
           <ScrollArea mah={560} type="auto">
@@ -179,12 +179,14 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
         </Card>
         <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0 }}>
           {!selected ? <Text c="dimmed" ta="center" py="xl">เลือกผู้ใช้งานเพื่อดูบทสนทนา</Text> : (
-            <Stack>
+            <Stack style={{ minWidth: 0 }}>
               <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Button onClick={() => void handleOpenCase()} loading={isOpening}>เปิดเคส</Button></Group>
               <Divider />
-              <ScrollArea mah={420} type="auto" style={{ minHeight: 0 }}><Stack gap="sm">
-                {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}
-              </Stack></ScrollArea>
+              <ScrollArea h={420} type="auto" style={{ minHeight: 0, minWidth: 0 }}>
+                <Stack gap="sm" style={{ minWidth: 0 }}>
+                  {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}
+                </Stack>
+              </ScrollArea>
               <Group gap="xs" align="end" wrap="wrap">
                 <Textarea
                   autosize
