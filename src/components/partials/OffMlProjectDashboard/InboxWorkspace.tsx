@@ -21,6 +21,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isSending, setIsSending] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string>();
+  const [showAllCases, setShowAllCases] = useState(false);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
 
   const load = useCallback(async (customerId?: string) => {
@@ -48,6 +49,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const selectUser = async (user: InboxUser) => {
     selectedCustomerIdRef.current = user.customer.id;
     setSelected(user);
+    setShowAllCases(false);
     router.push(`/?tab=inbox&user=${encodeURIComponent(user.customer.id)}`);
     try {
       setSelected(await getInboxUser(user.customer.id));
@@ -86,6 +88,21 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
 
   const filteredUsers = users.filter((user) => `${user.customer.displayName ?? "ไม่ทราบชื่อ"} ${user.latestMessage?.text ?? ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
 
+  const getNewMessageCount = (user: InboxUser) => {
+    let count = 0;
+    for (const message of [...user.messages].reverse()) {
+      if (message.senderType === "TECH") break;
+      if (message.senderType !== "CUSTOMER") return undefined;
+      count += 1;
+    }
+    return count > 0 ? count : undefined;
+  };
+
+  const sortedCases = selected
+    ? [...selected.cases].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    : [];
+  const visibleCases = showAllCases ? sortedCases : sortedCases.slice(0, 6);
+
   return (
     <Stack gap="lg">
       <Group justify="space-between">
@@ -93,35 +110,38 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
         <Button variant="light" onClick={() => void load()}>รีเฟรช</Button>
       </Group>
       {error ? <Alert color="red" title="เกิดข้อผิดพลาด" withCloseButton onClose={() => setError(undefined)}>{error}</Alert> : null}
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <Card withBorder radius="md" padding="md">
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" style={{ alignItems: "start" }}>
+        <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0 }}>
           <Group justify="space-between" mb="md"><Title order={4}>รายการผู้ใช้งาน</Title><Badge color="blue" variant="light">{filteredUsers.length} รายการ</Badge></Group>
           <TextInput label="ค้นหา" placeholder="ชื่อผู้ใช้งานหรือข้อความล่าสุด" value={search} onChange={(event) => setSearch(event.currentTarget.value)} mb="sm" />
-          <ScrollArea h={560} type="auto">
+          <ScrollArea mah={560} type="auto">
             <Stack gap="xs">
               {isLoading ? <Text c="dimmed">กำลังโหลดข้อมูล...</Text> : null}
               {!isLoading && filteredUsers.length === 0 ? <Text c="dimmed" py="xl" ta="center">ยังไม่มีผู้ใช้งานที่ติดต่อเข้ามา</Text> : null}
               {filteredUsers.map((user) => (
                 <Button key={user.customer.id} variant={selected?.customer.id === user.customer.id ? "light" : "subtle"} color="blue" justify="space-between" h="auto" p="sm" onClick={() => void selectUser(user)} styles={{ inner: { justifyContent: "space-between" } }}>
-                  <Box ta="left"><Text fw={600}>{user.customer.displayName ?? "ไม่ทราบชื่อ"}</Text><Text c="dimmed" lineClamp={1} size="xs">{user.latestMessage?.text ?? "ยังไม่มีข้อความ"}</Text></Box>
+                  <Box ta="left"><Group gap="xs"><Text fw={600}>{user.customer.displayName ?? "ไม่ทราบชื่อ"}</Text>{getNewMessageCount(user) ? <Badge color="cyan" size="xs" variant="light">{getNewMessageCount(user) === 1 ? "ข้อความใหม่" : `ใหม่ ${getNewMessageCount(user)}`}</Badge> : null}</Group><Text c="dimmed" lineClamp={1} size="xs">{user.latestMessage?.text ?? "ยังไม่มีข้อความ"}</Text></Box>
                   <Text c="dimmed" size="xs">{formatTime(user.latestMessage?.createdAt)}</Text>
                 </Button>
               ))}
             </Stack>
           </ScrollArea>
         </Card>
-        <Card withBorder radius="md" padding="md">
+        <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0 }}>
           {!selected ? <Text c="dimmed" ta="center" py="xl">เลือกผู้ใช้งานเพื่อดูบทสนทนา</Text> : (
-            <Stack h="100%">
+            <Stack>
               <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Button onClick={() => void handleOpenCase()} loading={isOpening}>เปิดเคส</Button></Group>
               <Divider />
-              <ScrollArea h={390} type="auto"><Stack gap="sm">
+              <ScrollArea mah={420} type="auto" style={{ minHeight: 0 }}><Stack gap="sm">
                 {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}
               </Stack></ScrollArea>
               <Group align="end"><TextInput flex={1} label="ข้อความตอบกลับทาง LINE" placeholder="พิมพ์ข้อความ" value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void handleSend(); } }} /><Button onClick={() => void handleSend()} loading={isSending} disabled={!draft.trim()}>ส่ง</Button></Group>
               <Divider />
               <Title order={5}>รายการเคส</Title>
-              {selected.cases.length === 0 ? <Text c="dimmed" size="sm">ยังไม่มีรายการเคส</Text> : selected.cases.map((item) => <Button key={item.id} variant="light" justify="space-between" onClick={() => router.push(`/cases/${encodeURIComponent(item.id)}`)}>{item.caseNumber}<Badge color="gray">{item.status}</Badge></Button>)}
+              {sortedCases.length === 0 ? <Text c="dimmed" size="sm">ยังไม่มีรายการเคส</Text> : <>
+                <Stack gap="xs">{visibleCases.map((item) => <Button key={item.id} variant="light" justify="space-between" onClick={() => router.push(`/cases/${encodeURIComponent(item.id)}`)}>{item.caseNumber}<Badge color="gray">{item.status}</Badge></Button>)}</Stack>
+                {sortedCases.length > 6 ? <Button size="xs" variant="subtle" onClick={() => setShowAllCases((current) => !current)}>{showAllCases ? "ย่อรายการเคส" : `ดูเคสทั้งหมด (${sortedCases.length})`}</Button> : null}
+              </>}
             </Stack>
           )}
         </Card>
