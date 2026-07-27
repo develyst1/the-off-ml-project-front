@@ -339,10 +339,16 @@ export async function sendInboxReply(customerId: string, text: string): Promise<
   });
 }
 
-export async function openInboxCase(customerId: string, title?: string): Promise<SupportCase> {
+export async function openInboxCase(customerId: string, input: {
+  title: string;
+  description: string;
+  from: string;
+  to: string;
+  selectedMessageIds?: string[];
+}): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/inbox/${encodeURIComponent(customerId)}/open-case`, {
     method: "POST",
-    body: JSON.stringify({ title }),
+    body: JSON.stringify(input),
   });
   return mapCaseResponse(caseItem);
 }

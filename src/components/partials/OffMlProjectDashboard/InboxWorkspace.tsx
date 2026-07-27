@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActionIcon, Alert, Badge, Box, Button, Card, Divider, Group, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Box, Button, Card, Checkbox, Divider, Group, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { useRouter } from "next/navigation";
 import { composeInboxReply, getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
 import type { InboxUser } from "@/types/app/offMlProject";
@@ -10,6 +10,11 @@ import { AppIcon } from "@/components/common";
 function formatTime(value?: string) {
   if (!value) return "ยังไม่มีข้อความ";
   return new Intl.DateTimeFormat("th-TH", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function toDateTimeInput(value: Date) {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
 }
 
 export default function InboxWorkspace({ initialUserId }: { initialUserId?: string }) {
@@ -24,6 +29,12 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isAiRewriting, setIsAiRewriting] = useState(false);
   const [isAiDrafting, setIsAiDrafting] = useState(false);
   const [isDraftConfirmOpen, setIsDraftConfirmOpen] = useState(false);
+  const [isOpenCaseModalOpen, setIsOpenCaseModalOpen] = useState(false);
+  const [caseTitle, setCaseTitle] = useState("");
+  const [caseDescription, setCaseDescription] = useState("");
+  const [caseFrom, setCaseFrom] = useState("");
+  const [caseTo, setCaseTo] = useState("");
+  const [selectedCaseMessageIds, setSelectedCaseMessageIds] = useState<string[]>([]);
   const [error, setError] = useState<string>();
   const [showAllCases, setShowAllCases] = useState(false);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
@@ -77,17 +88,77 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     }
   };
 
+  const openCaseModal = () => {
+    if (!selected) return;
+    const latestAt = Math.max(...selected.messages.map((message) => new Date(message.createdAt).getTime()));
+    const to = new Date(latestAt);
+    setCaseFrom(toDateTimeInput(new Date(latestAt - 24 * 60 * 60 * 1000)));
+    setCaseTo(toDateTimeInput(to));
+    setCaseTitle("");
+    setCaseDescription("");
+    setSelectedCaseMessageIds([]);
+    setIsOpenCaseModalOpen(true);
+  };
+
   const handleOpenCase = async () => {
     if (!selected || isOpening) return;
+    if (caseRangeError) {
+      setError(caseRangeError);
+      return;
+    }
+    const hasManualCaseDetails = Boolean(caseTitle.trim() && caseDescription.trim());
+    if (!hasManualCaseDetails && selectedMessagesInCaseRange.length === 0) {
+      setError("กรุณากรอกข้อมูลเคสให้ครบ หรือเลือกข้อความจากแชทอย่างน้อย 1 รายการ");
+      return;
+    }
     setIsOpening(true);
     try {
-      const created = await openInboxCase(selected.customer.id);
+      const created = await openInboxCase(selected.customer.id, {
+        title: caseTitle.trim(),
+        description: caseDescription.trim(),
+        from: new Date(caseFrom).toISOString(),
+        to: new Date(caseTo).toISOString(),
+        selectedMessageIds: selectedMessagesInCaseRange.length > 0 ? selectedMessagesInCaseRange.map((message) => message.id) : undefined,
+      });
+      setIsOpenCaseModalOpen(false);
       router.push(`/cases/${encodeURIComponent(created.id)}`);
     } catch (openError) {
       setError(openError instanceof Error ? openError.message : "เปิดเคสไม่สำเร็จ");
     } finally {
       setIsOpening(false);
     }
+  };
+
+  const messagesInCaseRange = selected?.messages.filter((message) => {
+    const timestamp = new Date(message.createdAt).getTime();
+    const from = caseFrom ? new Date(caseFrom).getTime() : Number.NEGATIVE_INFINITY;
+    const to = caseTo ? new Date(caseTo).getTime() : Number.POSITIVE_INFINITY;
+    return timestamp >= from && timestamp <= to;
+  }) ?? [];
+  const fromTimestamp = caseFrom ? new Date(caseFrom).getTime() : Number.NaN;
+  const toTimestamp = caseTo ? new Date(caseTo).getTime() : Number.NaN;
+  const caseRangeError = Number.isNaN(fromTimestamp) || Number.isNaN(toTimestamp)
+    ? "กรุณาเลือกวันและเวลาให้ครบ"
+    : fromTimestamp > toTimestamp
+      ? "วันสิ้นสุดต้องไม่อยู่ก่อนวันเริ่มต้น"
+      : toTimestamp - fromTimestamp > 14 * 24 * 60 * 60 * 1000
+        ? "เลือกช่วงข้อมูลสนทนาได้ไม่เกิน 14 วัน"
+        : undefined;
+  const selectedMessagesInCaseRange = messagesInCaseRange.filter((message) => selectedCaseMessageIds.includes(message.id));
+
+  const toggleCaseMessage = (messageId: string, checked: boolean) => {
+    setSelectedCaseMessageIds((current) => {
+      const next = checked ? [...new Set([...current, messageId])] : current.filter((id) => id !== messageId);
+      const selectedMessages = messagesInCaseRange.filter((message) => next.includes(message.id));
+      if (!caseTitle.trim() && selectedMessages.length > 0) {
+        const latestCustomer = [...selectedMessages].reverse().find((message) => message.senderType === "CUSTOMER");
+        setCaseTitle(latestCustomer?.text.slice(0, 120) ?? "เรื่องที่แจ้งผ่าน LINE");
+      }
+      if (!caseDescription.trim() && selectedMessages.length > 0) {
+        setCaseDescription(selectedMessages.map((message) => `${message.senderType === "CUSTOMER" ? "ผู้ใช้งาน" : "ทีม Tech"}: ${message.text}`).join("\n"));
+      }
+      return next;
+    });
   };
 
   const handleRewrite = async () => {
@@ -155,6 +226,51 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           </Group>
         </Stack>
       </Modal>
+      <Modal opened={isOpenCaseModalOpen} onClose={() => !isOpening && setIsOpenCaseModalOpen(false)} title="เปิดเคส" centered size="xl" closeOnClickOutside={!isOpening}>
+        <Stack gap="md">
+          <Text c="dimmed" size="sm">กรอกข้อมูลเคส เลือกข้อความจากแชท หรือใช้ทั้งสองอย่างร่วมกันได้</Text>
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <TextInput type="datetime-local" label="ตั้งแต่วันที่" value={caseFrom} max={caseTo || undefined} onChange={(event) => setCaseFrom(event.currentTarget.value)} />
+            <TextInput type="datetime-local" label="ถึงวันที่" value={caseTo} min={caseFrom || undefined} onChange={(event) => setCaseTo(event.currentTarget.value)} />
+          </SimpleGrid>
+          <Text c="dimmed" size="xs">เลือกข้อความสนทนาเพื่อใช้เป็นข้อมูลประกอบเคสได้ครั้งละไม่เกิน 14 วัน</Text>
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+            <Stack gap="sm">
+              <TextInput label="หัวข้อปัญหา" placeholder="ระบุหัวข้อปัญหาโดยสรุป" value={caseTitle} onChange={(event) => setCaseTitle(event.currentTarget.value)} required />
+              <Textarea label="รายละเอียด" placeholder="อธิบายรายละเอียดของปัญหาให้ชัดเจน เพื่อให้ทีมตรวจสอบได้รวดเร็วขึ้น" minRows={8} value={caseDescription} onChange={(event) => setCaseDescription(event.currentTarget.value)} required />
+              <Text c="dimmed" size="xs">กรอกหัวข้อและรายละเอียดให้ครบเพื่อเปิดเคสจากข้อมูลที่ทีม Tech ระบุเอง</Text>
+            </Stack>
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text fw={600} size="sm">เลือกข้อความจากแชท</Text>
+                <Badge color="blue" variant="light">เลือกแล้ว {selectedMessagesInCaseRange.length}</Badge>
+              </Group>
+              <ScrollArea h={330} type="auto">
+                <Stack gap="xs" pr="sm">
+                  {messagesInCaseRange.length === 0 ? <Text c="dimmed" size="sm" py="xl" ta="center">ไม่พบข้อความในช่วงเวลาที่เลือก</Text> : null}
+                  {messagesInCaseRange.map((message) => (
+                    <Card key={message.id} withBorder padding="sm" radius="md">
+                      <Group align="flex-start" gap="sm" wrap="nowrap">
+                        <Checkbox aria-label={`เลือกข้อความ ${formatTime(message.createdAt)}`} checked={selectedCaseMessageIds.includes(message.id)} onChange={(event) => toggleCaseMessage(message.id, event.currentTarget.checked)} />
+                        <Box style={{ minWidth: 0, flex: 1 }}>
+                          <Group justify="space-between" gap="xs" wrap="nowrap"><Badge color={message.senderType === "CUSTOMER" ? "blue" : "gray"} variant="light" size="sm">{message.senderType === "CUSTOMER" ? "ผู้ใช้งาน" : "ทีม Tech"}</Badge><Text c="dimmed" size="xs">{formatTime(message.createdAt)}</Text></Group>
+                          <Text mt={4} size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.text}</Text>
+                        </Box>
+                      </Group>
+                    </Card>
+                  ))}
+                </Stack>
+              </ScrollArea>
+            </Stack>
+          </SimpleGrid>
+          {caseRangeError ? <Alert color="red" variant="light">{caseRangeError}</Alert> : null}
+          <Group justify="flex-end" mt="sm">
+            <Button variant="default" onClick={() => setIsOpenCaseModalOpen(false)} disabled={isOpening}>ยกเลิก</Button>
+            <Button onClick={() => void handleOpenCase()} loading={isOpening} disabled={Boolean(caseRangeError) || (!(caseTitle.trim() && caseDescription.trim()) && selectedMessagesInCaseRange.length === 0)}>เปิดเคส</Button>
+          </Group>
+          {!(caseTitle.trim() && caseDescription.trim()) && selectedMessagesInCaseRange.length === 0 ? <Text c="dimmed" size="xs" ta="right">ต้องกรอกข้อมูลเคสให้ครบ หรือเลือกข้อความจากแชทอย่างน้อย 1 รายการ</Text> : null}
+        </Stack>
+      </Modal>
       <Group justify="space-between">
         <Box><Title order={2}>ผู้ใช้งาน</Title><Text c="dimmed" size="sm">ผู้ใช้งานที่ติดต่อเข้ามาทาง LINE และยังไม่จำเป็นต้องเปิดเคส</Text></Box>
         <Button variant="light" onClick={() => void load()}>รีเฟรช</Button>
@@ -180,7 +296,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
         <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0 }}>
           {!selected ? <Text c="dimmed" ta="center" py="xl">เลือกผู้ใช้งานเพื่อดูบทสนทนา</Text> : (
             <Stack style={{ minWidth: 0 }}>
-              <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Button onClick={() => void handleOpenCase()} loading={isOpening}>เปิดเคส</Button></Group>
+              <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Button onClick={openCaseModal}>เปิดเคส</Button></Group>
               <Divider />
               <ScrollArea h={420} type="auto" style={{ minHeight: 0, minWidth: 0 }}>
                 <Stack gap="sm" style={{ minWidth: 0 }}>
