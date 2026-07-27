@@ -79,6 +79,7 @@ export interface SupportCase {
   hasCustomerConfirmation?: boolean;
   closedWithoutTechConfirmation?: boolean;
   closeSummary?: { cause: string; resolution: string; prevention: string };
+  rawMessageTimelineExpired?: boolean;
   learningStatus?: AiLearningStatus;
 }
 
@@ -143,7 +144,7 @@ export interface OffMlProjectMessageResponse {
 export interface OffMlProjectAnalysisResponse {
   id: string;
   caseId: string;
-  messageId: string;
+  messageId?: string;
   analysisType: "customer_message" | "customer_outcome" | "tech_solution" | "customer_rewrite" | "case_match" | "tech_message_review";
   summary?: string;
   category?: string;
@@ -180,6 +181,7 @@ export interface OffMlProjectCaseResponse {
   lineDeliveredAt?: string;
   closedAt?: string;
   closedBy?: string;
+  closeSummary?: { cause: string; resolution: string; prevention: string };
   customerId: string;
   teamsDeliveryStatus?: "not_sent" | "accepted" | "failed";
   teamsDeliveryAt?: string;
@@ -196,6 +198,7 @@ export interface OffMlProjectCaseResponse {
   confidenceReviewedBy?: string;
   assigneeName?: string;
   hasUnreadCustomerMessage?: boolean;
+  rawMessageTimelineExpired?: boolean;
   status: CaseStatus;
   category?: string;
   priority?: "low" | "medium" | "high" | "critical";

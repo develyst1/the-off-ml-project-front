@@ -184,6 +184,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
               <Divider />
               <ScrollArea h={420} type="auto" style={{ minHeight: 0, minWidth: 0 }}>
                 <Stack gap="sm" style={{ minWidth: 0 }}>
+                  {selected.messages.length === 0 ? <Text c="dimmed" py="xl" ta="center">ไม่พบประวัติการสนทนาในช่วง 14 วันที่ผ่านมา</Text> : null}
                   {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}
                 </Stack>
               </ScrollArea>

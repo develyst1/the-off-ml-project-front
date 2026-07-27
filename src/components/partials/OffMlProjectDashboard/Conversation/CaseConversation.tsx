@@ -42,6 +42,7 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   const [viewMode, setViewMode] = useState<ConversationViewMode>("CONVERSATION_ONLY");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const messages = useMemo(() => item.conversation ?? [], [item.conversation]);
+  const rawMessageRetentionExpired = messages.length === 0 && item.rawMessageTimelineExpired === true;
   const conversationCount = useMemo(() => messages.filter(isConversationMessage).length, [messages]);
   const systemEventCount = useMemo(() => messages.filter((message) => getConversationMeta(message).isSystemEvent).length, [messages]);
 
@@ -126,7 +127,7 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
           range={range}
           search={searchInput}
         />
-        <ConversationTimeline
+        {rawMessageRetentionExpired ? <ConversationEmptyState kind="retention" /> : <ConversationTimeline
           hasActiveFilters={hasActiveFilters}
           isConversationOnly={viewMode === "CONVERSATION_ONLY"}
           latestMessageId={latestMatchingMessageId}
@@ -140,7 +141,7 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
           sort={sort}
           totalMatching={filteredMessages.length}
           viewMode={viewMode}
-        />
+        />}
       </Stack>
     </Card>
   );

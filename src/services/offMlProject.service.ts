@@ -208,7 +208,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED"
   )))[0];
   const closeMetadata = latestCloseEvent?.metadata ?? {};
-  const closeSummary = closeMetadata.closeSummary;
+  const closeSummary = caseItem.closeSummary ?? closeMetadata.closeSummary;
   const normalizedCloseSummary = closeSummary && typeof closeSummary === "object"
     && typeof (closeSummary as Record<string, unknown>).cause === "string"
     && typeof (closeSummary as Record<string, unknown>).resolution === "string"
@@ -302,6 +302,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     hasCustomerConfirmation,
     closedWithoutTechConfirmation: closeMetadata.closedWithoutTechConfirmation === true,
     closeSummary: normalizedCloseSummary,
+    rawMessageTimelineExpired: caseItem.rawMessageTimelineExpired,
     customerReply: latestSolution?.rewrittenCustomerText ?? outboundReply,
     learningStatus: caseItem.learningStatus,
   };
