@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Badge, Box, Button, Card, Divider, Group, ScrollArea, SimpleGrid, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useRouter } from "next/navigation";
 import { getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
@@ -21,6 +21,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isSending, setIsSending] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string>();
+  const selectedCustomerIdRef = useRef<string | undefined>(undefined);
 
   const load = useCallback(async (customerId?: string) => {
     setIsLoading(true);
@@ -28,15 +29,16 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     try {
       const nextUsers = await getInboxUsers();
       setUsers(nextUsers);
-      const selectedId = customerId ?? selected?.customer.id;
+      const selectedId = customerId ?? selectedCustomerIdRef.current;
       const nextSelected = selectedId ? nextUsers.find((item) => item.customer.id === selectedId) : undefined;
+      selectedCustomerIdRef.current = nextSelected?.customer.id ?? nextUsers[0]?.customer.id;
       setSelected(nextSelected ?? nextUsers[0] ?? null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "โหลด Inbox ไม่สำเร็จ");
     } finally {
       setIsLoading(false);
     }
-  }, [selected]);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(initialUserId), 0);
@@ -44,6 +46,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   }, [initialUserId, load]);
 
   const selectUser = async (user: InboxUser) => {
+    selectedCustomerIdRef.current = user.customer.id;
     setSelected(user);
     router.push(`/?tab=inbox&user=${encodeURIComponent(user.customer.id)}`);
     try {
@@ -87,7 +90,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     <Stack gap="lg">
       <Group justify="space-between">
         <Box><Title order={2}>ผู้ใช้งาน</Title><Text c="dimmed" size="sm">ผู้ใช้งานที่ติดต่อเข้ามาทาง LINE และยังไม่จำเป็นต้องเปิดเคส</Text></Box>
-        <Button variant="light" onClick={() => void load(selected?.customer.id)}>รีเฟรช</Button>
+        <Button variant="light" onClick={() => void load()}>รีเฟรช</Button>
       </Group>
       {error ? <Alert color="red" title="เกิดข้อผิดพลาด" withCloseButton onClose={() => setError(undefined)}>{error}</Alert> : null}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
