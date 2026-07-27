@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
@@ -1694,11 +1694,11 @@ function CaseDetail({
               {composerTab === "close" ? "ยืนยันปิดเคส" : composerTab === "request-info" ? "ส่งคำขอข้อมูลเพิ่ม" : "ส่งข้อความ"}
             </Button>
           </Group>
-          <Text c="dimmed" mt="xs" size="xs">
+          {/* <Text c="dimmed" mt="xs" size="xs">
             {composerTab === "close"
               ? "Enter เพื่อไปขั้นตอนยืนยัน · Shift + Enter เพื่อขึ้นบรรทัดใหม่"
               : "Enter เพื่อส่ง · Shift + Enter เพื่อขึ้นบรรทัดใหม่"}
-          </Text>
+          </Text> */}
           {composerTab !== "close" && !(composerTab === "request-info" ? requestInfoDraft : customerReplyDraft).trim() ? <Text c="dimmed" mt={4} size="xs">กรอกข้อความก่อนส่ง</Text> : null}
           {composerTab !== "close" && actionMode === "CUSTOMER_REPLY" && aiMissingInformation.length > 0 ? (
             <Alert color="yellow" mt="sm" title="ข้อมูลยังไม่เพียงพอสำหรับร่างคำตอบ">

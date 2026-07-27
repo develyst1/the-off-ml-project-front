@@ -937,10 +937,10 @@ body {
 
 .caseTimelineConnector {
   height: 2px;
-  left: 50%;
+  left: calc(50% + (var(--timeline-icon-size) / 2));
   position: absolute;
   top: calc((var(--timeline-icon-size) / 2) + 3px);
-  width: 100%;
+  width: calc(100% - var(--timeline-icon-size));
   z-index: -1;
 }
 
