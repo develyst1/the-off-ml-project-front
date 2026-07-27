@@ -851,35 +851,52 @@ function CaseDetail({
   const latestTechAttachmentUrl = latestTechMessage && typeof latestTechMessage.metadata?.attachmentUrl === "string"
     ? latestTechMessage.metadata.attachmentUrl
     : undefined;
-  const closedWithoutTechConfirmationEvent = item.conversation.find((message) => (
-    message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED" && message.metadata?.closedWithoutTechConfirmation === true
-  ));
   const caseClosedEvent = [...item.conversation].filter((message) => message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED").at(-1);
-  const caseReopenedEvent = [...item.conversation].filter((message) => message.senderType === "SYSTEM" && message.messageType === "CASE_REOPENED").at(-1);
-  type CaseTimelineStep = { key: string; title: string; occurredAt?: string; sequence: number; by?: string };
-  const TIMELINE_SEQUENCE = { CASE_RECEIVED: 1, AI_ANALYZED: 2, TEAMS_SENT: 3, LINE_ACK_SENT: 4, LINE_SOLUTION_SENT: 5, CASE_CLOSED: 6, CASE_REOPENED: 7 } as const;
-  const timelineCandidates: CaseTimelineStep[] = [
-    { key: "CASE_RECEIVED", title: "รับเรื่อง", occurredAt: item.caseCreatedAt, sequence: TIMELINE_SEQUENCE.CASE_RECEIVED },
-    { key: "AI_ANALYZED", title: "AI วิเคราะห์", occurredAt: item.aiAnalyzedAt, sequence: TIMELINE_SEQUENCE.AI_ANALYZED },
-    { key: "TEAMS_SENT", title: "ส่ง Teams", occurredAt: item.teamsSentAt, sequence: TIMELINE_SEQUENCE.TEAMS_SENT },
-    { key: "LINE_ACK_SENT", title: "ตอบรับลูกค้า", occurredAt: item.customerAcknowledgedAt, sequence: TIMELINE_SEQUENCE.LINE_ACK_SENT },
-    { key: "LINE_SOLUTION_SENT", title: "ส่งวิธีแก้ให้ลูกค้า", occurredAt: item.resolutionSentAt, sequence: TIMELINE_SEQUENCE.LINE_SOLUTION_SENT },
-    { key: "CASE_CLOSED", title: closedWithoutTechConfirmationEvent ? "ปิดเคสโดยไม่รอการยืนยันจากทีม Tech" : "ปิดเคส", occurredAt: item.closedAt ?? caseClosedEvent?.processedAt ?? caseClosedEvent?.createdAt, sequence: TIMELINE_SEQUENCE.CASE_CLOSED, by: item.closedBy ?? (typeof caseClosedEvent?.metadata?.closedBy === "string" ? caseClosedEvent.metadata.closedBy : undefined) },
+  type CaseProgressState = "completed" | "active" | "pending";
+  type CaseProgressStep = {
+    key: "received" | "ai_analyzed" | "teams_sent" | "line_acknowledged" | "waiting_tech" | "solution_sent" | "closed";
+    title: string;
+    description: string;
+    occurredAt?: string;
+    state: CaseProgressState;
+  };
+  const closedAt = item.closedAt ?? caseClosedEvent?.processedAt ?? caseClosedEvent?.createdAt;
+  const solutionSentAt = item.resolutionSentAt ?? (isClosed ? closedAt : undefined);
+  const completedProgress = {
+    received: Boolean(item.caseCreatedAt),
+    ai_analyzed: Boolean(item.aiAnalyzedAt),
+    teams_sent: Boolean(item.teamsSentAt),
+    line_acknowledged: Boolean(item.customerAcknowledgedAt),
+    waiting_tech: Boolean(item.techRepliedAt),
+    solution_sent: Boolean(solutionSentAt),
+    closed: Boolean(isClosed && closedAt),
+  };
+  const activeProgressKey: CaseProgressStep["key"] | undefined = isClosed
+    ? undefined
+    : !completedProgress.received
+      ? "received"
+      : !completedProgress.ai_analyzed
+        ? "ai_analyzed"
+        : !completedProgress.teams_sent
+          ? "teams_sent"
+          : !completedProgress.line_acknowledged
+            ? "line_acknowledged"
+            : !completedProgress.waiting_tech
+              ? "waiting_tech"
+              : !completedProgress.solution_sent
+                ? "solution_sent"
+                : "closed";
+  const caseProgressSteps: CaseProgressStep[] = [
+    { key: "received", title: "รับเรื่อง", description: "รับเรื่องจาก LINE แล้ว", occurredAt: item.caseCreatedAt, state: completedProgress.received ? "completed" : activeProgressKey === "received" ? "active" : "pending" },
+    { key: "ai_analyzed", title: "AI วิเคราะห์", description: "กำลังวิเคราะห์ข้อมูลเคส", occurredAt: item.aiAnalyzedAt, state: completedProgress.ai_analyzed ? "completed" : activeProgressKey === "ai_analyzed" ? "active" : "pending" },
+    { key: "teams_sent", title: "ส่ง Teams", description: "กำลังส่งข้อมูลให้ทีม Tech", occurredAt: item.teamsSentAt, state: completedProgress.teams_sent ? "completed" : activeProgressKey === "teams_sent" ? "active" : "pending" },
+    { key: "line_acknowledged", title: "ส่งข้อความรับเรื่องผ่าน LINE", description: "กำลังแจ้งรับเรื่องให้ผู้แจ้ง", occurredAt: item.customerAcknowledgedAt, state: completedProgress.line_acknowledged ? "completed" : activeProgressKey === "line_acknowledged" ? "active" : "pending" },
+    { key: "waiting_tech", title: "รอคำตอบจากทีม Tech", description: "กำลังรอทีม Tech Support ตอบกลับ", occurredAt: item.techRepliedAt, state: completedProgress.waiting_tech ? "completed" : activeProgressKey === "waiting_tech" ? "active" : "pending" },
+    { key: "solution_sent", title: "ส่งวิธีแก้ให้ผู้แจ้ง", description: completedProgress.waiting_tech ? "พร้อมส่งวิธีแก้ให้ผู้แจ้ง" : "รอวิธีแก้จากทีม Tech", occurredAt: solutionSentAt, state: completedProgress.solution_sent ? "completed" : activeProgressKey === "solution_sent" ? "active" : "pending" },
+    { key: "closed", title: "ปิดเคส", description: "รอส่งวิธีแก้และสรุปผล", occurredAt: closedAt, state: completedProgress.closed ? "completed" : activeProgressKey === "closed" ? "active" : "pending" },
   ];
-  if (caseReopenedEvent) timelineCandidates.push({ key: "CASE_REOPENED", title: typeof caseReopenedEvent.metadata?.reopenReason === "string" ? `เปิดเคสอีกครั้ง: ${caseReopenedEvent.metadata.reopenReason}` : "เปิดเคสอีกครั้ง", occurredAt: caseReopenedEvent.processedAt ?? caseReopenedEvent.createdAt, sequence: TIMELINE_SEQUENCE.CASE_REOPENED, by: typeof caseReopenedEvent.metadata?.reopenedBy === "string" ? caseReopenedEvent.metadata.reopenedBy : undefined });
-  const timelineSteps = [...timelineCandidates].sort((left, right) => {
-    const leftTime = left.occurredAt ? new Date(left.occurredAt).getTime() : Number.MAX_SAFE_INTEGER;
-    const rightTime = right.occurredAt ? new Date(right.occurredAt).getTime() : Number.MAX_SAFE_INTEGER;
-    return leftTime === rightTime ? left.sequence - right.sequence : leftTime - rightTime;
-  });
-  type TimelineStatus = "completed" | "current" | "pending";
-  const currentTimelineIndex = timelineSteps.findIndex((step) => !step.occurredAt);
-  const timelineStepsWithStatus: Array<CaseTimelineStep & { status: TimelineStatus }> = timelineSteps.map((step, index) => ({
-    ...step,
-    status: step.occurredAt ? "completed" : index === currentTimelineIndex ? "current" : "pending",
-  }));
   const timelineStyle = {
-    "--timeline-step-count": timelineStepsWithStatus.length,
+    "--timeline-step-count": caseProgressSteps.length,
   } as CSSProperties;
 
   const runAction = async (action: "accepting" | "requesting" | "replying" | "closing" | "reopening", successMessage: string, handler: () => Promise<void>) => {
@@ -1308,21 +1325,21 @@ function CaseDetail({
           <Box className="caseTimelineScroll">
           <Box className="caseTimelineContent">
           <Box className="caseTimelineSteps" style={timelineStyle}>
-            {timelineStepsWithStatus.map((step, index) => {
-              const isDone = step.status === "completed";
-              const isCurrent = step.status === "current";
+            {caseProgressSteps.map((step, index) => {
+              const isDone = step.state === "completed";
+              const isActive = step.state === "active";
               return (
-                <Box className={`caseTimelineStep caseTimelineStep--${step.status}`} key={step.key}>
-                  {index > 0 ? <Box className={`caseTimelineConnector caseTimelineConnector--${step.status}`} /> : null}
+                <Box className={`caseTimelineStep caseTimelineStep--${step.state}`} key={step.key}>
+                  {index > 0 ? <Box className={`caseTimelineConnector caseTimelineConnector--${step.state}`} /> : null}
                   <Box className="caseTimelineStepMarker">
-                    <ThemeIcon color={isDone ? "green" : isCurrent ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isCurrent ? "filled" : "outline"}>
-                      {isDone ? <AppIcon name="check" size={15} /> : isCurrent ? <AppIcon name="message" size={14} /> : null}
+                    <ThemeIcon color={isDone ? "green" : isActive ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isActive ? "filled" : "outline"}>
+                      {isDone ? <AppIcon name="check" size={15} /> : isActive ? <AppIcon name="message" size={14} /> : null}
                     </ThemeIcon>
                   </Box>
-                  <Text c={isCurrent ? "blue.7" : step.status === "pending" ? "gray.6" : undefined} fw={isCurrent ? 800 : 600} size="sm">{step.title}</Text>
-                  {isCurrent ? <Text c="blue.7" fw={700} size="sm">กำลังดำเนินการ</Text> : null}
-                  <Text c={step.status === "pending" ? "gray.5" : "dimmed"} size="xs">{step.occurredAt ? `${formatEventTime(step.occurredAt)} · ขั้นตอนที่ ${step.sequence}` : isCurrent && step.key === "LINE_SOLUTION_SENT" ? "รอคำตอบจากทีม Tech" : "ยังไม่มีข้อมูล"}</Text>
-                  {step.by ? <Text c="dimmed" size="xs">โดย {step.by}</Text> : null}
+                  <Text c={isActive ? "blue.7" : step.state === "pending" ? "gray.6" : undefined} fw={isActive ? 800 : 600} size="sm">{step.title}</Text>
+                  <Text c={isActive ? "blue.7" : step.state === "pending" ? "gray.5" : "dimmed"} fw={isActive ? 700 : undefined} size="xs">
+                    {isDone && step.occurredAt ? formatEventTime(step.occurredAt) : step.description}
+                  </Text>
                 </Box>
               );
             })}

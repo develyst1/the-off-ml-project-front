@@ -1,5 +1,4 @@
 import { Box, Button, Group, Select, SegmentedControl, Stack, Text } from "@mantine/core";
-import { useEffect, useState } from "react";
 import { ConversationEmptyState } from "./ConversationEmptyState";
 import { conversationDateKey, formatConversationDateLabel, getConversationMeta } from "./conversation.config";
 import { ConversationTimelineItem } from "./ConversationTimelineItem";
@@ -20,22 +19,6 @@ interface ConversationTimelineProps {
 }
 
 export function ConversationTimeline({ hasActiveFilters, isConversationOnly, latestMessageId, messages, onGoToLatest, onLoadMore, onSortChange, onViewModeChange, sort, totalMatching, viewMode }: ConversationTimelineProps) {
-  const [showGoToLatest, setShowGoToLatest] = useState(false);
-
-  useEffect(() => {
-    const updateScrollState = () => {
-      const distanceFromBottom = document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
-      setShowGoToLatest(Boolean(latestMessageId) && distanceFromBottom > 220);
-    };
-    updateScrollState();
-    window.addEventListener("scroll", updateScrollState, { passive: true });
-    window.addEventListener("resize", updateScrollState);
-    return () => {
-      window.removeEventListener("scroll", updateScrollState);
-      window.removeEventListener("resize", updateScrollState);
-    };
-  }, [latestMessageId, messages.length]);
-
   const toolbar = (
     <Group className="caseConversationTimelineToolbar" justify="space-between" gap="sm" wrap="wrap">
       <Group gap="xs" wrap="wrap">
@@ -100,7 +83,6 @@ export function ConversationTimeline({ hasActiveFilters, isConversationOnly, lat
       })}
       {sort === "newest" ? loadPreviousButton : null}
       </Box>
-      {showGoToLatest && latestMessageId ? <Button className="caseConversationGoLatest" leftSection={<Text component="span">↓</Text>} onClick={onGoToLatest} size="xs" variant="light">ไปข้อความล่าสุด</Button> : null}
     </Stack>
   );
 }

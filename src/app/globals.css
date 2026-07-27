@@ -945,7 +945,7 @@ body {
 }
 
 .caseTimelineConnector--completed,
-.caseTimelineConnector--current {
+.caseTimelineConnector--active {
   background: #40c463;
 }
 
@@ -963,6 +963,17 @@ body {
 
 .caseTimelineStepMarker > .mantine-ThemeIcon-root {
   flex: none;
+}
+
+.caseTimelineStep--active .caseTimelineStepMarker > .mantine-ThemeIcon-root {
+  animation: caseTimelinePulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 0 5px rgba(34, 139, 230, 0.12);
+}
+
+@keyframes caseTimelinePulse {
+  50% {
+    box-shadow: 0 0 0 9px rgba(34, 139, 230, 0.04);
+  }
 }
 
 .caseCurrentStatus {
