@@ -1325,12 +1325,12 @@ function CaseDetail({
           <Box className="caseTimelineScroll">
           <Box className="caseTimelineContent">
           <Box className="caseTimelineSteps" style={timelineStyle}>
-            {caseProgressSteps.map((step, index) => {
+            {caseProgressSteps.map((step, index, steps) => {
               const isDone = step.state === "completed";
               const isActive = step.state === "active";
               return (
                 <Box className={`caseTimelineStep caseTimelineStep--${step.state}`} key={step.key}>
-                  {index > 0 ? <Box className={`caseTimelineConnector caseTimelineConnector--${step.state}`} /> : null}
+                  {index < steps.length - 1 ? <Box className={`caseTimelineConnector caseTimelineConnector--${steps[index + 1].state}`} /> : null}
                   <Box className="caseTimelineStepMarker">
                     <ThemeIcon color={isDone ? "green" : isActive ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isActive ? "filled" : "outline"}>
                       {isDone ? <AppIcon name="check" size={15} /> : isActive ? <AppIcon name="message" size={14} /> : null}
