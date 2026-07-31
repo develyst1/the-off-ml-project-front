@@ -46,6 +46,8 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isCaseComposing, setIsCaseComposing] = useState(false);
   const [activeCaseComposeAction, setActiveCaseComposeAction] = useState<CaseComposeAction>();
   const [hasGeneratedCaseDraft, setHasGeneratedCaseDraft] = useState(false);
+  const [generatedCaseDraftMessageIds, setGeneratedCaseDraftMessageIds] = useState<string[]>([]);
+  const [isCaseFormDirty, setIsCaseFormDirty] = useState(false);
   const [caseComposeConfirmation, setCaseComposeConfirmation] = useState<CaseComposeAction | null>(null);
   const [error, setError] = useState<string>();
   const [showAllCases, setShowAllCases] = useState(false);
@@ -110,6 +112,8 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     setCaseDescription("");
     setSelectedCaseMessageIds([]);
     setHasGeneratedCaseDraft(false);
+    setGeneratedCaseDraftMessageIds([]);
+    setIsCaseFormDirty(false);
     setCaseComposeConfirmation(null);
     setIsOpenCaseModalOpen(true);
   };
@@ -121,8 +125,8 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       return;
     }
     const hasManualCaseDetails = Boolean(caseTitle.trim() && caseDescription.trim());
-    if (!hasManualCaseDetails && !(selectedMessagesInCaseRange.length > 0 && hasGeneratedCaseDraft)) {
-      setError("กรุณากรอกข้อมูลเคสให้ครบ หรือสร้างร่างจากข้อความที่เลือกก่อน");
+    if (!hasManualCaseDetails) {
+      setError("กรุณากรอกหัวข้อปัญหาและรายละเอียดให้ครบก่อนเปิดเคส");
       return;
     }
     setIsOpening(true);
@@ -159,11 +163,13 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
         ? "เลือกช่วงข้อมูลสนทนาได้ไม่เกิน 14 วัน"
         : undefined;
   const selectedMessagesInCaseRange = messagesInCaseRange.filter((message) => selectedCaseMessageIds.includes(message.id));
+  const selectedMessageIds = selectedMessagesInCaseRange.map((message) => message.id).sort();
+  const selectionChangedSinceDraft = hasGeneratedCaseDraft
+    && (selectedMessageIds.length !== generatedCaseDraftMessageIds.length || selectedMessageIds.some((id, index) => id !== generatedCaseDraftMessageIds[index]));
 
   const toggleCaseMessage = (messageId: string, checked: boolean) => {
     setSelectedCaseMessageIds((current) => {
       const next = checked ? [...new Set([...current, messageId])] : current.filter((id) => id !== messageId);
-      setHasGeneratedCaseDraft(false);
       return next;
     });
   };
@@ -183,6 +189,8 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       setCaseTitle(result.title);
       setCaseDescription(result.description);
       setHasGeneratedCaseDraft(true);
+      setGeneratedCaseDraftMessageIds([...selectedMessagesInCaseRange.map((message) => message.id)].sort());
+      setIsCaseFormDirty(false);
       setCaseComposeConfirmation(null);
     } catch (composeError) {
       setError(composeError instanceof Error ? composeError.message : "AI ช่วยจัดทำข้อมูลเคสไม่สำเร็จ");
@@ -193,8 +201,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   };
 
   const requestCaseCompose = (action: CaseComposeAction) => {
-    const hasExistingContent = Boolean(caseTitle.trim() || caseDescription.trim());
-    if (hasExistingContent) {
+    if (isCaseFormDirty) {
       setCaseComposeConfirmation(action);
       return;
     }
@@ -285,18 +292,20 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           <Text c="dimmed" size="xs">เลือกข้อความสนทนาเพื่อใช้เป็นข้อมูลประกอบเคสได้ครั้งละไม่เกิน 14 วัน</Text>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
             <Stack gap="sm">
-              <TextInput label="หัวข้อปัญหา" placeholder="ระบุหัวข้อปัญหาโดยสรุป" value={caseTitle} onChange={(event) => setCaseTitle(event.currentTarget.value)} />
-              <Textarea label="รายละเอียด" placeholder="อธิบายรายละเอียดของปัญหาให้ชัดเจน เพื่อให้ทีมตรวจสอบได้รวดเร็วขึ้น" minRows={8} value={caseDescription} onChange={(event) => setCaseDescription(event.currentTarget.value)} />
-              <Button
-                variant="light"
-                size="xs"
-                leftSection={<AppIcon name="brain" size={15} />}
-                loading={activeCaseComposeAction === "REWRITE"}
-                disabled={isCaseComposing || (!(caseTitle.trim() || caseDescription.trim()) && selectedMessagesInCaseRange.length === 0)}
-                onClick={() => requestCaseCompose("REWRITE")}
-              >
-                ช่วยเรียบเรียงข้อมูลเคส
-              </Button>
+              <TextInput label="หัวข้อปัญหา" placeholder="ระบุหัวข้อปัญหาโดยสรุป" value={caseTitle} onChange={(event) => { setCaseTitle(event.currentTarget.value); setIsCaseFormDirty(true); }} />
+              <Textarea autosize minRows={6} maxRows={10} label="รายละเอียด" placeholder="อธิบายรายละเอียดของปัญหาให้ชัดเจน เพื่อให้ทีมตรวจสอบได้รวดเร็วขึ้น" value={caseDescription} onChange={(event) => { setCaseDescription(event.currentTarget.value); setIsCaseFormDirty(true); }} />
+              <Tooltip label="ปรับข้อความฝั่งซ้ายให้อ่านง่ายและกระชับ" withArrow>
+                <Button
+                  variant="light"
+                  size="xs"
+                  leftSection={<AppIcon name="brain" size={15} />}
+                  loading={activeCaseComposeAction === "REWRITE"}
+                  disabled={isCaseComposing || (!(caseTitle.trim() || caseDescription.trim()) && selectedMessagesInCaseRange.length === 0)}
+                  onClick={() => requestCaseCompose("REWRITE")}
+                >
+                  {activeCaseComposeAction === "REWRITE" ? "กำลังเรียบเรียง..." : "ช่วยเรียบเรียงข้อมูลที่กรอก"}
+                </Button>
+              </Tooltip>
               <Text c="dimmed" size="xs">กรอกหัวข้อและรายละเอียดให้ครบเพื่อเปิดเคสจากข้อมูลที่ทีม Tech ระบุเอง</Text>
             </Stack>
             <Stack gap="xs">
@@ -304,16 +313,19 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
                 <Text fw={600} size="sm">เลือกข้อความจากแชท</Text>
                 <Badge color="blue" variant="light">เลือกแล้ว {selectedMessagesInCaseRange.length}</Badge>
               </Group>
-              <Button
-                size="xs"
-                variant="outline"
-                leftSection={<AppIcon name="sparkles" size={15} />}
-                loading={activeCaseComposeAction === "DRAFT"}
-                disabled={isCaseComposing || selectedMessagesInCaseRange.length === 0}
-                onClick={() => requestCaseCompose("DRAFT")}
-              >
-                สร้างร่างจากข้อความที่เลือก
-              </Button>
+              <Tooltip label="สร้างหัวข้อและรายละเอียดจากข้อความที่เลือก" withArrow>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  leftSection={<AppIcon name="sparkles" size={15} />}
+                  loading={activeCaseComposeAction === "DRAFT"}
+                  disabled={isCaseComposing || selectedMessagesInCaseRange.length === 0}
+                  onClick={() => requestCaseCompose("DRAFT")}
+                >
+                  {activeCaseComposeAction === "DRAFT" ? "กำลังสร้างข้อมูล..." : "สร้างข้อมูลเคสจากแชท"}
+                </Button>
+              </Tooltip>
+              {selectionChangedSinceDraft ? <Alert color="yellow" variant="light" py="xs">ข้อความที่เลือกมีการเปลี่ยนแปลง กรุณาสร้างข้อมูลเคสใหม่เพื่ออัปเดตเนื้อหา</Alert> : null}
               <ScrollArea h={330} type="auto">
                 <Stack gap="xs" pr="sm">
                   {messagesInCaseRange.length === 0 ? <Text c="dimmed" size="sm" py="xl" ta="center">ไม่พบข้อความในช่วงเวลาที่เลือก</Text> : null}
@@ -335,9 +347,9 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           {caseRangeError ? <Alert color="red" variant="light">{caseRangeError}</Alert> : null}
           <Group justify="flex-end" mt="sm">
             <Button variant="default" onClick={() => setIsOpenCaseModalOpen(false)} disabled={isOpening}>ยกเลิก</Button>
-            <Button onClick={() => void handleOpenCase()} loading={isOpening} disabled={Boolean(caseRangeError) || (!(caseTitle.trim() && caseDescription.trim()) && !(selectedMessagesInCaseRange.length > 0 && hasGeneratedCaseDraft))}>เปิดเคส</Button>
+            <Button onClick={() => void handleOpenCase()} loading={isOpening} disabled={Boolean(caseRangeError) || !(caseTitle.trim() && caseDescription.trim())}>เปิดเคส</Button>
           </Group>
-          {!(caseTitle.trim() && caseDescription.trim()) && !(selectedMessagesInCaseRange.length > 0 && hasGeneratedCaseDraft) ? <Text c="dimmed" size="xs" ta="right">ต้องกรอกข้อมูลเคสให้ครบ หรือเลือกข้อความแล้วสร้างร่างข้อมูลเคส</Text> : null}
+          {!(caseTitle.trim() && caseDescription.trim()) ? <Text c="dimmed" size="xs" ta="right">กรุณากรอกหัวข้อปัญหาและรายละเอียดให้ครบก่อนเปิดเคส</Text> : null}
         </Stack>
       </Modal>
       <Group justify="space-between">
