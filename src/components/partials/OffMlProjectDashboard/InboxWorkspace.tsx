@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActionIcon, Alert, Badge, Box, Button, Card, Checkbox, Divider, Group, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { useRouter } from "next/navigation";
-import { composeInboxReply, getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
+import { composeInboxCaseDraft, composeInboxReply, getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
 import type { InboxUser } from "@/types/app/offMlProject";
 import { AppIcon } from "@/components/common";
 
@@ -23,6 +23,8 @@ function endOfSelectedMinute(value: string) {
   return date;
 }
 
+type CaseComposeAction = "DRAFT" | "REWRITE";
+
 export default function InboxWorkspace({ initialUserId }: { initialUserId?: string }) {
   const router = useRouter();
   const [users, setUsers] = useState<InboxUser[]>([]);
@@ -41,6 +43,10 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [caseFrom, setCaseFrom] = useState("");
   const [caseTo, setCaseTo] = useState("");
   const [selectedCaseMessageIds, setSelectedCaseMessageIds] = useState<string[]>([]);
+  const [isCaseComposing, setIsCaseComposing] = useState(false);
+  const [activeCaseComposeAction, setActiveCaseComposeAction] = useState<CaseComposeAction>();
+  const [hasGeneratedCaseDraft, setHasGeneratedCaseDraft] = useState(false);
+  const [caseComposeConfirmation, setCaseComposeConfirmation] = useState<CaseComposeAction | null>(null);
   const [error, setError] = useState<string>();
   const [showAllCases, setShowAllCases] = useState(false);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
@@ -103,6 +109,8 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     setCaseTitle("");
     setCaseDescription("");
     setSelectedCaseMessageIds([]);
+    setHasGeneratedCaseDraft(false);
+    setCaseComposeConfirmation(null);
     setIsOpenCaseModalOpen(true);
   };
 
@@ -113,8 +121,8 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       return;
     }
     const hasManualCaseDetails = Boolean(caseTitle.trim() && caseDescription.trim());
-    if (!hasManualCaseDetails && selectedMessagesInCaseRange.length === 0) {
-      setError("กรุณากรอกข้อมูลเคสให้ครบ หรือเลือกข้อความจากแชทอย่างน้อย 1 รายการ");
+    if (!hasManualCaseDetails && !(selectedMessagesInCaseRange.length > 0 && hasGeneratedCaseDraft)) {
+      setError("กรุณากรอกข้อมูลเคสให้ครบ หรือสร้างร่างจากข้อความที่เลือกก่อน");
       return;
     }
     setIsOpening(true);
@@ -155,16 +163,42 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const toggleCaseMessage = (messageId: string, checked: boolean) => {
     setSelectedCaseMessageIds((current) => {
       const next = checked ? [...new Set([...current, messageId])] : current.filter((id) => id !== messageId);
-      const selectedMessages = messagesInCaseRange.filter((message) => next.includes(message.id));
-      if (!caseTitle.trim() && selectedMessages.length > 0) {
-        const latestCustomer = [...selectedMessages].reverse().find((message) => message.senderType === "CUSTOMER");
-        setCaseTitle(latestCustomer?.text.slice(0, 120) ?? "เรื่องที่แจ้งผ่าน LINE");
-      }
-      if (!caseDescription.trim() && selectedMessages.length > 0) {
-        setCaseDescription(selectedMessages.map((message) => `${message.senderType === "CUSTOMER" ? "ผู้ใช้งาน" : "ทีม Tech"}: ${message.text}`).join("\n"));
-      }
+      setHasGeneratedCaseDraft(false);
       return next;
     });
+  };
+
+  const runCaseCompose = async (action: CaseComposeAction) => {
+    if (!selected || isCaseComposing) return;
+    setIsCaseComposing(true);
+    setActiveCaseComposeAction(action);
+    setError(undefined);
+    try {
+      const result = await composeInboxCaseDraft(selected.customer.id, {
+        mode: action,
+        selectedMessageIds: selectedMessagesInCaseRange.map((message) => message.id),
+        title: caseTitle,
+        description: caseDescription,
+      });
+      setCaseTitle(result.title);
+      setCaseDescription(result.description);
+      setHasGeneratedCaseDraft(true);
+      setCaseComposeConfirmation(null);
+    } catch (composeError) {
+      setError(composeError instanceof Error ? composeError.message : "AI ช่วยจัดทำข้อมูลเคสไม่สำเร็จ");
+    } finally {
+      setIsCaseComposing(false);
+      setActiveCaseComposeAction(undefined);
+    }
+  };
+
+  const requestCaseCompose = (action: CaseComposeAction) => {
+    const hasExistingContent = Boolean(caseTitle.trim() || caseDescription.trim());
+    if (hasExistingContent) {
+      setCaseComposeConfirmation(action);
+      return;
+    }
+    void runCaseCompose(action);
   };
 
   const handleRewrite = async () => {
@@ -232,6 +266,15 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           </Group>
         </Stack>
       </Modal>
+      <Modal opened={caseComposeConfirmation !== null} onClose={() => setCaseComposeConfirmation(null)} title="แทนที่ข้อมูลเคสปัจจุบัน?" centered>
+        <Stack>
+          <Text size="sm">AI จะสร้างข้อมูลเคสใหม่และแทนที่หัวข้อปัญหากับรายละเอียดที่กำลังกรอกอยู่</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setCaseComposeConfirmation(null)}>ยกเลิก</Button>
+            <Button onClick={() => caseComposeConfirmation && void runCaseCompose(caseComposeConfirmation)} loading={isCaseComposing}>แทนที่ด้วยข้อมูลจาก AI</Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Modal opened={isOpenCaseModalOpen} onClose={() => !isOpening && setIsOpenCaseModalOpen(false)} title="เปิดเคส" centered size="xl" closeOnClickOutside={!isOpening}>
         <Stack gap="md">
           <Text c="dimmed" size="sm">กรอกข้อมูลเคส เลือกข้อความจากแชท หรือใช้ทั้งสองอย่างร่วมกันได้</Text>
@@ -242,8 +285,18 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           <Text c="dimmed" size="xs">เลือกข้อความสนทนาเพื่อใช้เป็นข้อมูลประกอบเคสได้ครั้งละไม่เกิน 14 วัน</Text>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
             <Stack gap="sm">
-              <TextInput label="หัวข้อปัญหา" placeholder="ระบุหัวข้อปัญหาโดยสรุป" value={caseTitle} onChange={(event) => setCaseTitle(event.currentTarget.value)} required />
-              <Textarea label="รายละเอียด" placeholder="อธิบายรายละเอียดของปัญหาให้ชัดเจน เพื่อให้ทีมตรวจสอบได้รวดเร็วขึ้น" minRows={8} value={caseDescription} onChange={(event) => setCaseDescription(event.currentTarget.value)} required />
+              <TextInput label="หัวข้อปัญหา" placeholder="ระบุหัวข้อปัญหาโดยสรุป" value={caseTitle} onChange={(event) => setCaseTitle(event.currentTarget.value)} />
+              <Textarea label="รายละเอียด" placeholder="อธิบายรายละเอียดของปัญหาให้ชัดเจน เพื่อให้ทีมตรวจสอบได้รวดเร็วขึ้น" minRows={8} value={caseDescription} onChange={(event) => setCaseDescription(event.currentTarget.value)} />
+              <Button
+                variant="light"
+                size="xs"
+                leftSection={<AppIcon name="brain" size={15} />}
+                loading={activeCaseComposeAction === "REWRITE"}
+                disabled={isCaseComposing || (!(caseTitle.trim() || caseDescription.trim()) && selectedMessagesInCaseRange.length === 0)}
+                onClick={() => requestCaseCompose("REWRITE")}
+              >
+                ช่วยเรียบเรียงข้อมูลเคส
+              </Button>
               <Text c="dimmed" size="xs">กรอกหัวข้อและรายละเอียดให้ครบเพื่อเปิดเคสจากข้อมูลที่ทีม Tech ระบุเอง</Text>
             </Stack>
             <Stack gap="xs">
@@ -251,6 +304,16 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
                 <Text fw={600} size="sm">เลือกข้อความจากแชท</Text>
                 <Badge color="blue" variant="light">เลือกแล้ว {selectedMessagesInCaseRange.length}</Badge>
               </Group>
+              <Button
+                size="xs"
+                variant="outline"
+                leftSection={<AppIcon name="sparkles" size={15} />}
+                loading={activeCaseComposeAction === "DRAFT"}
+                disabled={isCaseComposing || selectedMessagesInCaseRange.length === 0}
+                onClick={() => requestCaseCompose("DRAFT")}
+              >
+                สร้างร่างจากข้อความที่เลือก
+              </Button>
               <ScrollArea h={330} type="auto">
                 <Stack gap="xs" pr="sm">
                   {messagesInCaseRange.length === 0 ? <Text c="dimmed" size="sm" py="xl" ta="center">ไม่พบข้อความในช่วงเวลาที่เลือก</Text> : null}
@@ -272,9 +335,9 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           {caseRangeError ? <Alert color="red" variant="light">{caseRangeError}</Alert> : null}
           <Group justify="flex-end" mt="sm">
             <Button variant="default" onClick={() => setIsOpenCaseModalOpen(false)} disabled={isOpening}>ยกเลิก</Button>
-            <Button onClick={() => void handleOpenCase()} loading={isOpening} disabled={Boolean(caseRangeError) || (!(caseTitle.trim() && caseDescription.trim()) && selectedMessagesInCaseRange.length === 0)}>เปิดเคส</Button>
+            <Button onClick={() => void handleOpenCase()} loading={isOpening} disabled={Boolean(caseRangeError) || (!(caseTitle.trim() && caseDescription.trim()) && !(selectedMessagesInCaseRange.length > 0 && hasGeneratedCaseDraft))}>เปิดเคส</Button>
           </Group>
-          {!(caseTitle.trim() && caseDescription.trim()) && selectedMessagesInCaseRange.length === 0 ? <Text c="dimmed" size="xs" ta="right">ต้องกรอกข้อมูลเคสให้ครบ หรือเลือกข้อความจากแชทอย่างน้อย 1 รายการ</Text> : null}
+          {!(caseTitle.trim() && caseDescription.trim()) && !(selectedMessagesInCaseRange.length > 0 && hasGeneratedCaseDraft) ? <Text c="dimmed" size="xs" ta="right">ต้องกรอกข้อมูลเคสให้ครบ หรือเลือกข้อความแล้วสร้างร่างข้อมูลเคส</Text> : null}
         </Stack>
       </Modal>
       <Group justify="space-between">

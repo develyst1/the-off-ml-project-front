@@ -363,6 +363,16 @@ export async function composeInboxReply(
   });
 }
 
+export async function composeInboxCaseDraft(
+  customerId: string,
+  input: { mode: "DRAFT" | "REWRITE"; selectedMessageIds: string[]; title?: string; description?: string },
+): Promise<{ title: string; description: string }> {
+  return request<{ title: string; description: string }>(`/inbox/${encodeURIComponent(customerId)}/ai-compose-case`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function getCase(caseId: string): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}`);
   return mapCaseResponse(caseItem);
