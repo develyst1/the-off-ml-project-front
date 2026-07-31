@@ -7,7 +7,7 @@ import { CaseConversationHeader } from "./CaseConversationHeader";
 import { ConversationEmptyState } from "./ConversationEmptyState";
 import { ConversationFilters } from "./ConversationFilters";
 import { ConversationTimeline } from "./ConversationTimeline";
-import { getConversationContent, getConversationMeta, isConversationMessage, matchesDeliveryStatus, matchesMessageType } from "./conversation.config";
+import { conversationOccurredAt, getConversationContent, getConversationMeta, isConversationMessage, matchesDeliveryStatus, matchesMessageType } from "./conversation.config";
 import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessage, ConversationMessageType, ConversationRange, ConversationSort, ConversationViewMode } from "./types";
 
 const PAGE_SIZE = 10;
@@ -21,7 +21,7 @@ interface CaseConversationProps {
 
 function isInRange(message: ConversationMessage, range: ConversationRange) {
   if (range === "all") return true;
-  const timestamp = new Date(message.createdAt).getTime();
+  const timestamp = new Date(conversationOccurredAt(message)).getTime();
   if (Number.isNaN(timestamp)) return false;
   if (range === "today") {
     const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" });
@@ -72,8 +72,8 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
           .includes(normalizedSearch);
       })
       .sort((left, right) => {
-        const leftTime = new Date(left.createdAt).getTime() || 0;
-        const rightTime = new Date(right.createdAt).getTime() || 0;
+        const leftTime = new Date(conversationOccurredAt(left)).getTime() || 0;
+        const rightTime = new Date(conversationOccurredAt(right)).getTime() || 0;
         return sort === "oldest" ? leftTime - rightTime : rightTime - leftTime;
       });
   }, [deliveryStatus, filter, item.caseNumber, messageType, search, sort, visibleViewMessages]);
@@ -88,7 +88,7 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
     ? filteredMessages.slice(Math.max(filteredMessages.length - visibleCount, 0))
     : filteredMessages.slice(0, visibleCount);
   const latestMatchingMessageId = filteredMessages.reduce<ConversationMessage | undefined>((latest, message) => {
-    if (!latest || new Date(message.createdAt).getTime() > new Date(latest.createdAt).getTime()) return message;
+    if (!latest || new Date(conversationOccurredAt(message)).getTime() > new Date(conversationOccurredAt(latest)).getTime()) return message;
     return latest;
   }, undefined)?.id;
   const clearFilters = () => {

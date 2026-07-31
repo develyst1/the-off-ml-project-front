@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActionIcon, Alert, Badge, Box, Button, Card, Checkbox, Divider, Group, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { useRouter } from "next/navigation";
-import { composeInboxCaseDraft, composeInboxReply, getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
+import { composeInboxCaseDraft, composeInboxReply, getInboxUser, getInboxUsers, markInboxRead, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
 import type { InboxUser } from "@/types/app/offMlProject";
 import { AppIcon } from "@/components/common";
 import { useRealtimeEvents, type ConversationMessageCreatedEvent } from "@/hooks/useRealtimeEvents";
@@ -24,7 +24,33 @@ function endOfSelectedMinute(value: string) {
   return date;
 }
 
+function getUnreadCustomerMessageCount(user: InboxUser) {
+  const lastReadAt = user.customer.inboxLastReadAt ? new Date(user.customer.inboxLastReadAt).getTime() : Number.NaN;
+  return user.messages.filter((message) => (
+    message.senderType === "CUSTOMER" && (!Number.isFinite(lastReadAt) || new Date(message.createdAt).getTime() > lastReadAt)
+  )).length;
+}
+
 type CaseComposeAction = "DRAFT" | "REWRITE";
+
+const caseStatusMeta: Record<string, { label: string; color: string }> = {
+  new: { label: "เคสใหม่", color: "gray" },
+  analyzing: { label: "กำลังวิเคราะห์", color: "blue" },
+  awaiting_tech: { label: "รอทีม Tech ตอบ", color: "yellow" },
+  assigned: { label: "ทีม Tech รับเคสแล้ว", color: "blue" },
+  tech_replied: { label: "ทีม Tech ตอบแล้ว", color: "blue" },
+  analyzing_solution: { label: "AI กำลังวิเคราะห์คำตอบ", color: "blue" },
+  awaiting_confirmation: { label: "รอยืนยันคำแนะนำ AI", color: "blue" },
+  awaiting_customer_info: { label: "รอผู้ใช้งานให้ข้อมูล", color: "orange" },
+  awaiting_tech_review: { label: "รอตรวจสอบข้อความก่อนส่ง", color: "yellow" },
+  resolved: { label: "แก้ไขแล้ว", color: "green" },
+  sent_to_customer: { label: "ส่งคำตอบแล้ว", color: "green" },
+  closed: { label: "ปิดเคสแล้ว", color: "green" },
+  reopened: { label: "เปิดเคสอีกครั้ง", color: "orange" },
+  in_progress: { label: "กำลังดำเนินการ", color: "blue" },
+  sent: { label: "ส่งคำตอบแล้ว", color: "green" },
+  sla_breach: { label: "เกิน SLA", color: "red" },
+};
 
 export default function InboxWorkspace({ initialUserId }: { initialUserId?: string }) {
   const router = useRouter();
@@ -143,7 +169,11 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     setHasUnreadIncomingMessage(false);
     router.push(`/?tab=inbox&user=${encodeURIComponent(user.customer.id)}`);
     try {
-      setSelected(await getInboxUser(user.customer.id));
+      const updated = await getInboxUser(user.customer.id);
+      const hasUnreadCustomerMessage = getUnreadCustomerMessageCount(updated) > 0;
+      const readUser = hasUnreadCustomerMessage ? await markInboxRead(user.customer.id) : updated;
+      moveUserToTop(readUser);
+      setSelected(readUser);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "โหลดบทสนทนาไม่สำเร็จ");
     }
@@ -329,16 +359,6 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
 
   const filteredUsers = users.filter((user) => `${user.customer.displayName ?? "ไม่ทราบชื่อ"} ${user.latestMessage?.text ?? ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
 
-  const getNewMessageCount = (user: InboxUser) => {
-    let count = 0;
-    for (const message of [...user.messages].reverse()) {
-      if (message.senderType === "TECH") break;
-      if (message.senderType !== "CUSTOMER") return undefined;
-      count += 1;
-    }
-    return count > 0 ? count : undefined;
-  };
-
   const sortedCases = selected
     ? [...selected.cases].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
     : [];
@@ -451,7 +471,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
               {!isLoading && filteredUsers.length === 0 ? <Text c="dimmed" py="xl" ta="center">ยังไม่มีผู้ใช้งานที่ติดต่อเข้ามา</Text> : null}
               {filteredUsers.map((user) => (
                 <Button key={user.customer.id} variant={selected?.customer.id === user.customer.id ? "light" : "subtle"} color="blue" justify="space-between" h="auto" p="sm" onClick={() => void selectUser(user)} styles={{ inner: { justifyContent: "space-between" } }}>
-                  <Box ta="left"><Group gap="xs"><Text fw={600}>{user.customer.displayName ?? "ไม่ทราบชื่อ"}</Text>{getNewMessageCount(user) ? <Badge color="cyan" size="xs" variant="light">{getNewMessageCount(user) === 1 ? "ข้อความใหม่" : `ใหม่ ${getNewMessageCount(user)}`}</Badge> : null}</Group><Text c="dimmed" lineClamp={1} size="xs">{user.latestMessage?.text ?? "ยังไม่มีข้อความ"}</Text></Box>
+                  <Box ta="left"><Group gap="xs"><Text fw={600}>{user.customer.displayName ?? "ไม่ทราบชื่อ"}</Text>{getUnreadCustomerMessageCount(user) ? <Badge color="cyan" size="xs" variant="light">{getUnreadCustomerMessageCount(user) === 1 ? "ข้อความใหม่" : `ใหม่ ${getUnreadCustomerMessageCount(user)}`}</Badge> : null}</Group><Text c="dimmed" lineClamp={1} size="xs">{user.latestMessage?.text ?? "ยังไม่มีข้อความ"}</Text></Box>
                   <Text c="dimmed" size="xs">{formatTime(user.latestMessage?.createdAt)}</Text>
                 </Button>
               ))}
@@ -505,7 +525,10 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
               <Divider />
               <Title order={5}>รายการเคส</Title>
               {sortedCases.length === 0 ? <Text c="dimmed" size="sm">ยังไม่มีรายการเคส</Text> : <>
-                <Stack gap="xs">{visibleCases.map((item) => <Button key={item.id} variant="light" justify="space-between" onClick={() => router.push(`/cases/${encodeURIComponent(item.id)}`)}>{item.caseNumber}<Badge color="gray">{item.status}</Badge></Button>)}</Stack>
+                <Stack gap="xs">{visibleCases.map((item) => {
+                  const status = caseStatusMeta[item.status] ?? { label: "อยู่ระหว่างดำเนินการ", color: "gray" };
+                  return <Button key={item.id} variant="light" justify="space-between" onClick={() => router.push(`/cases/${encodeURIComponent(item.id)}`)}>{item.caseNumber}<Badge color={status.color}>{status.label}</Badge></Button>;
+                })}</Stack>
                 {sortedCases.length > 6 ? <Button size="xs" variant="subtle" onClick={() => setShowAllCases((current) => !current)}>{showAllCases ? "ย่อรายการเคส" : `ดูเคสทั้งหมด (${sortedCases.length})`}</Button> : null}
               </>}
             </Stack>
@@ -516,6 +539,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   );
 }
 
-function PaperMessage({ sender, text, at }: { sender: "CUSTOMER" | "TECH"; text: string; at: string }) {
-  return <Box bg={sender === "CUSTOMER" ? "blue.0" : "gray.0"} p="sm" style={{ borderRadius: 10 }}><Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{text}</Text><Text c="dimmed" size="xs" mt={4}>{sender === "CUSTOMER" ? "ผู้ใช้งาน" : "ทีม Tech"} · {formatTime(at)}</Text></Box>;
+function PaperMessage({ sender, text, at }: { sender: "CUSTOMER" | "TECH" | "BOT"; text: string; at: string }) {
+  const senderLabel = sender === "CUSTOMER" ? "ผู้ใช้งาน" : sender === "BOT" ? "LINE Bot" : "ทีม Tech";
+  return <Box bg={sender === "CUSTOMER" ? "blue.0" : sender === "BOT" ? "yellow.0" : "gray.0"} p="sm" style={{ borderRadius: 10 }}><Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{text}</Text><Text c="dimmed" size="xs" mt={4}>{senderLabel} · {formatTime(at)}</Text></Box>;
 }

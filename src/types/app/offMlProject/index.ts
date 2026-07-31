@@ -98,6 +98,7 @@ export interface OffMlProjectCustomerResponse {
   id: string;
   lineUserId: string;
   displayName?: string;
+  inboxLastReadAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,7 +107,7 @@ export interface InboxMessage {
   id: string;
   customerId: string;
   direction: "INBOUND" | "OUTBOUND";
-  senderType: "CUSTOMER" | "TECH";
+  senderType: "CUSTOMER" | "TECH" | "BOT";
   text: string;
   externalMessageId?: string;
   webhookEventId?: string;

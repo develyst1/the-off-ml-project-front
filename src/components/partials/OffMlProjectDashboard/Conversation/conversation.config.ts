@@ -123,6 +123,10 @@ export function formatConversationDateTime(value?: string) {
   };
 }
 
+export function conversationOccurredAt(message: ConversationMessage) {
+  return message.receivedAt ?? message.sentAt ?? message.deliveredAt ?? message.processedAt ?? message.createdAt;
+}
+
 export function conversationDateKey(value: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(value));
 }

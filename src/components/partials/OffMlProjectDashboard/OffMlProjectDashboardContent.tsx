@@ -81,10 +81,10 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   tech_replied: { label: "ทีม Tech Support ตอบแล้ว", color: "blue" },
   analyzing_solution: { label: "AI กำลังวิเคราะห์คำตอบ", color: "blue" },
   awaiting_confirmation: { label: "รอยืนยัน AI แนะนำ", color: "blue" },
-  awaiting_customer_info: { label: "รอลูกค้าให้ข้อมูล", color: "orange" },
+  awaiting_customer_info: { label: "รอผู้ใช้งานให้ข้อมูล", color: "orange" },
   awaiting_tech_review: { label: "รอตรวจสอบข้อความก่อนส่ง", color: "yellow" },
   resolved: { label: "แก้ไขแล้ว", color: "green" },
-  sent_to_customer: { label: "ส่งคำตอบให้ลูกค้าแล้ว", color: "green" },
+  sent_to_customer: { label: "ส่งคำตอบให้ผู้ใช้งานแล้ว", color: "green" },
   closed: { label: "ปิดเคสแล้ว", color: "green" },
   reopened: { label: "เปิดเคสกลับมาตรวจสอบ", color: "orange" },
   in_progress: { label: "กำลังดำเนินการ", color: "blue" },
@@ -100,7 +100,7 @@ function getRootTab(value: string | null) {
 
 const autoAnswerLogEventLabels: Record<string, string> = {
   CASE_ACKNOWLEDGEMENT: "รับเรื่อง",
-  CUSTOMER_REPLY: "ตอบลูกค้า",
+  CUSTOMER_REPLY: "ตอบผู้ใช้งาน",
   REQUEST_MORE_INFO: "ขอข้อมูลเพิ่ม",
   STATUS_UPDATE: "อัปเดตสถานะ",
   CASE_CLOSED: "ปิดเคส",
@@ -843,9 +843,25 @@ function CaseDetail({
     ? item.conversation.find((message) => message.senderType === "TECH" && message.originalText === item.confirmedTechSolutionText)
     : undefined;
   const hasConfirmedTechSolution = item.hasConfirmedTechSolution === true;
-  const latestTechMessage = [...item.conversation]
-    .filter((message) => message.senderType === "TECH" && message.messageType !== "CASE_CLOSED" && Boolean(message.originalText.trim()))
+  const latestTeamsTechMessage = [...item.conversation]
+    .filter((message) => (
+      message.senderType === "TECH"
+      && message.channel === "ms_teams"
+      && message.messageType !== "CASE_CLOSED"
+      && Boolean(message.originalText.trim())
+      && new Date(message.receivedAt ?? message.sentAt ?? message.createdAt).getTime() >= new Date(item.caseCreatedAt ?? item.createdAt).getTime()
+    ))
     .at(-1);
+  const latestTechConsoleLineMessage = [...item.conversation]
+    .filter((message) => (
+      message.senderType === "TECH"
+      && message.channel === "line"
+      && message.messageType !== "CASE_CLOSED"
+      && Boolean(message.originalText.trim())
+      && message.metadata?.source === "tech_console"
+    ))
+    .at(-1);
+  const latestTechMessage = latestTeamsTechMessage;
   const latestTechAttachmentUrl = latestTechMessage && typeof latestTechMessage.metadata?.attachmentUrl === "string"
     ? latestTechMessage.metadata.attachmentUrl
     : undefined;
@@ -943,7 +959,7 @@ function CaseDetail({
 
     const completed = await runAction(
       actionMode === "REQUEST_MORE_INFO" ? "requesting" : "replying",
-      actionMode === "REQUEST_MORE_INFO" ? `ส่งคำขอข้อมูลเพิ่มเติมสำหรับเคส ${item.caseNumber} แล้ว` : `ส่งข้อความให้ลูกค้าสำหรับเคส ${item.caseNumber} แล้ว`,
+      actionMode === "REQUEST_MORE_INFO" ? `ส่งคำขอข้อมูลเพิ่มเติมสำหรับเคส ${item.caseNumber} แล้ว` : `ส่งข้อความให้ผู้ใช้งานสำหรับเคส ${item.caseNumber} แล้ว`,
       () => actionMode === "REQUEST_MORE_INFO" ? onRequestInfo(text, requestInfoDraftMessageId) : onReply(text),
     );
     if (completed) {
@@ -961,7 +977,7 @@ function CaseDetail({
     const message = closeCustomerMessage.trim();
     const completed = await runAction(
       "closing",
-      "ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว",
+      "ปิดเคสและแจ้งผู้ใช้งานทาง LINE แล้ว",
       () => onCloseCase(message, closeWithoutTechConfirmation, {
         cause: closeCause.trim(),
         resolution: closeResolution.trim(),
@@ -1152,7 +1168,7 @@ function CaseDetail({
     <Stack gap="sm" mt="sm">
       <Box>
         <Text fw={800}>สรุปเพื่อปิดเคส</Text>
-        <Text c="dimmed" size="xs">กรอกข้อมูลให้ครบ แล้วตรวจสอบข้อความที่จะส่งให้ลูกค้าก่อนยืนยันปิดเคส</Text>
+        <Text c="dimmed" size="xs">กรอกข้อมูลให้ครบ แล้วตรวจสอบข้อความที่จะส่งให้ผู้ใช้งานก่อนยืนยันปิดเคส</Text>
       </Box>
       <Textarea
         autosize
@@ -1207,8 +1223,8 @@ function CaseDetail({
       </Box>
       <Textarea
         autosize
-        error={showCloseFieldError("message") && !closeCustomerMessage ? "กรุณาระบุข้อความสรุปที่จะส่งให้ลูกค้า" : undefined}
-        label="ข้อความสรุปที่จะส่งให้ลูกค้าทาง LINE"
+        error={showCloseFieldError("message") && !closeCustomerMessage ? "กรุณาระบุข้อความสรุปที่จะส่งให้ผู้ใช้งาน" : undefined}
+        label="ข้อความสรุปที่จะส่งให้ผู้ใช้งานทาง LINE"
         minRows={1}
         onBlur={() => markCloseFieldTouched("message")}
         onChange={(event) => {
@@ -1225,7 +1241,7 @@ function CaseDetail({
   const composerTabs = (
     <Group gap={6} wrap="wrap">
       <Button color="blue" onClick={() => selectComposerTab("reply")} size="xs" variant={composerTab === "reply" ? "filled" : "default"}>
-        ตอบลูกค้า
+        ตอบผู้ใช้งาน
       </Button>
       <Button color="yellow" onClick={() => selectComposerTab("request-info")} size="xs" variant={composerTab === "request-info" ? "filled" : "default"}>
         ขอข้อมูลเพิ่ม
@@ -1245,7 +1261,7 @@ function CaseDetail({
               ← กลับไปหน้า Inbox
             </Button>
             <Title order={2}>เคส {item.caseNumber}</Title>
-            <Text c="dimmed" size="sm">ลูกค้า: {item.customerName}</Text>
+            <Text c="dimmed" size="sm">ผู้ใช้งาน: {item.customerName}</Text>
             <Group className="caseDetailHeaderSummary" gap="sm" mt={6} wrap="wrap">
               <Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge>
               <Text c="dimmed" size="xs">ทีม: {item.assignee || "ยังไม่มีผู้รับผิดชอบ"}</Text>
@@ -1269,16 +1285,16 @@ function CaseDetail({
             : item.status === "tech_replied" || item.status === "analyzing_solution"
               ? "ได้รับคำตอบจากทีม Tech Support แล้ว ตอนนี้ AI กำลังวิเคราะห์วิธีแก้ปัญหา"
               : item.status === "resolved"
-                ? "AI วิเคราะห์คำตอบเสร็จแล้ว กำลังส่งคำตอบกลับลูกค้าทาง LINE"
+                ? "AI วิเคราะห์คำตอบเสร็จแล้ว กำลังส่งคำตอบกลับผู้ใช้งานทาง LINE"
                 : item.status === "sent_to_customer" || item.status === "closed"
-                  ? "ส่งคำตอบกลับลูกค้าทาง LINE แล้ว"
+                  ? "ส่งคำตอบกลับผู้ใช้งานทาง LINE แล้ว"
                   : teamsMeta.label}
       </Alert>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="sm" order={3}>
-            ข้อมูลลูกค้าและปัญหาที่แจ้ง
+            ข้อมูลผู้ใช้งานและปัญหาที่แจ้ง
           </Title>
           <Paper bg="gray.0" p="md" radius="md">
             {item.originalText ? (
@@ -1464,7 +1480,7 @@ function CaseDetail({
                     </Stack>
                   </Paper>
                   <Text className="compactText" mt="sm" size="sm">
-                    ข้อความลูกค้า: {item.originalText}
+                    ข้อความผู้ใช้งาน: {item.originalText}
                   </Text>
                   <Text className="compactText" mt="xs" size="sm">
                     ผลวิเคราะห์โดย AI: {item.summary}
@@ -1520,7 +1536,7 @@ function CaseDetail({
                 {isClosed && item.closedAt
                   ? `ปิดเคสเมื่อ ${formatEventTime(item.closedAt)}`
                   : item.resolutionSentAt
-                    ? `ส่งวิธีแก้ให้ลูกค้าแล้วเมื่อ ${formatEventTime(item.resolutionSentAt)}`
+                    ? `ส่งวิธีแก้ให้ผู้ใช้งานแล้วเมื่อ ${formatEventTime(item.resolutionSentAt)}`
                     : "ยังมีขั้นตอนที่ทีมสามารถดำเนินการต่อได้"}
               </Text>
             </Group>
@@ -1542,17 +1558,22 @@ function CaseDetail({
               </Group>
 
               <Paper bg="blue.0" p="sm" radius="md">
-                <Text fw={700} size="sm">คำตอบล่าสุดจากทีม Tech</Text>
-                {latestTechMessage ? <>
+                <Text fw={700} size="sm">คำตอบจากทีม Tech ใน Microsoft Teams</Text>
+                {latestTeamsTechMessage ? <>
                   <Text c="dimmed" mt={4} size="xs">
-                    ทีม Tech Support · {formatEventTime(latestTechMessage.sentAt ?? latestTechMessage.createdAt)}
+                    ทีม Tech Support · {formatEventTime(latestTeamsTechMessage.receivedAt ?? latestTeamsTechMessage.sentAt ?? latestTeamsTechMessage.createdAt)}
                   </Text>
-                  <Text className="compactText" mt="xs" size="sm">{latestTechMessage.originalText}</Text>
-                  {latestTechMessage.messageType === "TECH_SOLUTION" ? <Button mt="sm" onClick={useLatestTechReplyAsDraft} size="xs" variant="light">ใช้เป็นร่างตอบลูกค้า</Button> : null}
-                  {latestTechMessage.messageType === "TECH_MORE_INFO_REQUEST" ? <Button mt="sm" onClick={useLatestTechInfoRequestAsDraft} size="xs" variant="light">ใช้เป็นร่างขอข้อมูลเพิ่ม</Button> : null}
-                  {latestTechMessage.messageType === "TECH_ATTACHMENT" ? latestTechAttachmentUrl ? <Button component="a" href={latestTechAttachmentUrl} mt="sm" rel="noreferrer" size="xs" target="_blank" variant="light">ดูไฟล์แนบ</Button> : <Text c="dimmed" mt="sm" size="xs">ไฟล์แนบหรือภาพหน้าจอ ไม่ถูกนำไปใช้เป็นร่างข้อความลูกค้า</Text> : null}
-                </> : <Text c="dimmed" mt={4} size="sm">ยังไม่มีคำตอบจากทีม Tech Support</Text>}
+                  <Text className="compactText" mt="xs" size="sm">{latestTeamsTechMessage.originalText}</Text>
+                  {latestTeamsTechMessage.messageType === "TECH_SOLUTION" ? <Button mt="sm" onClick={useLatestTechReplyAsDraft} size="xs" variant="light">ใช้เป็นร่างตอบผู้ใช้งาน</Button> : null}
+                  {latestTeamsTechMessage.messageType === "TECH_MORE_INFO_REQUEST" ? <Button mt="sm" onClick={useLatestTechInfoRequestAsDraft} size="xs" variant="light">ใช้เป็นร่างขอข้อมูลเพิ่ม</Button> : null}
+                  {latestTeamsTechMessage.messageType === "TECH_ATTACHMENT" ? latestTechAttachmentUrl ? <Button component="a" href={latestTechAttachmentUrl} mt="sm" rel="noreferrer" size="xs" target="_blank" variant="light">ดูไฟล์แนบ</Button> : <Text c="dimmed" mt="sm" size="xs">ไฟล์แนบหรือภาพหน้าจอ ไม่ถูกนำไปใช้เป็นร่างข้อความถึงผู้ใช้งาน</Text> : null}
+                </> : <Text c="dimmed" mt={4} size="sm">ยังไม่มีคำตอบจากทีม Tech ใน Microsoft Teams</Text>}
               </Paper>
+              {latestTechConsoleLineMessage ? <Paper bg="gray.0" p="sm" radius="md">
+                <Text fw={700} size="sm">คำตอบล่าสุดจากทีม Tech ใน LINE</Text>
+                <Text c="dimmed" mt={4} size="xs">ทีม Tech Support · {formatEventTime(latestTechConsoleLineMessage.receivedAt ?? latestTechConsoleLineMessage.sentAt ?? latestTechConsoleLineMessage.createdAt)}</Text>
+                <Text className="compactText" mt="xs" size="sm">{latestTechConsoleLineMessage.originalText}</Text>
+              </Paper> : null}
               <Group justify="space-between" wrap="nowrap">
                 <Text size="sm">ผลการตรวจของทีม Tech</Text>
                 <Badge color={teamLearningMeta.color} variant="light">{teamLearningMeta.text}</Badge>
@@ -1623,11 +1644,11 @@ function CaseDetail({
                 <AppIcon name="check" />
               </ThemeIcon>
               <Box>
-                <Text fw={800}>ข้อความที่จะส่งให้ลูกค้า</Text>
+                <Text fw={800}>ข้อความที่จะส่งให้ผู้ใช้งาน</Text>
                 <Badge color="green" mt={4} variant="light">ปิดเคสแล้ว</Badge>
               </Box>
             </Group>
-            <Text mt="sm" size="sm">{item.hasCustomerConfirmation ? "ลูกค้ายืนยันว่าใช้งานได้แล้ว" : "ส่งข้อความสรุปและปิดเคสให้ลูกค้าแล้ว"}</Text>
+            <Text mt="sm" size="sm">{item.hasCustomerConfirmation ? "ผู้ใช้งานยืนยันว่าใช้งานได้แล้ว" : "ส่งข้อความสรุปและปิดเคสให้ผู้ใช้งานแล้ว"}</Text>
             <Text c="dimmed" mt={4} size="xs">ปิดเคสเมื่อ {formatEventTime(item.closedAt)}{item.closedBy ? ` · โดย ${item.closedBy}` : ""}</Text>
             {item.customerOutcome?.text ? <Text c="dimmed" mt={4} size="xs">รายละเอียด: {item.customerOutcome.text}</Text> : null}
             <Button
@@ -1646,7 +1667,7 @@ function CaseDetail({
           <Box mt="sm">{composerTabs}</Box>
           {composerTab === "close" ? closeCaseSummaryForm : <>
             <Box mt="sm">
-              <Text fw={800}>{composerTab === "reply" ? "ตอบกลับทาง LINE" : "ขอข้อมูลเพิ่มเติมจากลูกค้าทาง LINE"}</Text>
+              <Text fw={800}>{composerTab === "reply" ? "ตอบกลับทาง LINE" : "ขอข้อมูลเพิ่มเติมจากผู้ใช้งานทาง LINE"}</Text>
               <Text c="dimmed" size="xs">
                 {composerTab === "reply"
                   ? "ตรวจสอบข้อความก่อนส่งผ่าน LINE ทุกครั้ง"
@@ -1661,17 +1682,17 @@ function CaseDetail({
               </Paper>
             ) : null}
             {composerTab === "reply" && !hasConfirmedTechSolution ? (
-              <Text c="dimmed" mt="sm" size="xs">ยังไม่มีวิธีแก้จากทีม Tech ที่พร้อมใช้สร้างร่างตอบลูกค้า</Text>
+              <Text c="dimmed" mt="sm" size="xs">ยังไม่มีวิธีแก้จากทีม Tech ที่พร้อมใช้สร้างร่างตอบผู้ใช้งาน</Text>
             ) : null}
             <Box pos="relative" mt="sm">
               <Textarea
                 autosize
-                label={composerTab === "reply" ? "ข้อความที่จะส่งถึงลูกค้า" : "ข้อมูลที่ต้องการจากลูกค้า"}
+                label={composerTab === "reply" ? "ข้อความที่จะส่งถึงผู้ใช้งาน" : "ข้อมูลที่ต้องการจากผู้ใช้งาน"}
                 minRows={1}
                 onChange={(event) => composerTab === "request-info" ? setRequestInfoDraft(event.currentTarget.value) : setCustomerReplyDraft(event.currentTarget.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder={composerTab === "reply"
-                  ? "พิมพ์ข้อความตอบกลับลูกค้า หรือสร้างร่างจากข้อมูลเคส"
+                  ? "พิมพ์ข้อความตอบกลับผู้ใช้งาน หรือสร้างร่างจากข้อมูลเคส"
                   : "เช่น กรุณาส่งภาพหน้าจอ ข้อความ Error รุ่นอุปกรณ์ หรือเวลาที่พบปัญหาเพิ่มเติม"}
                 styles={{ input: { paddingRight: composerTab === "reply" ? 56 : undefined } }}
                 value={composerTab === "request-info" ? requestInfoDraft : customerReplyDraft}
@@ -1761,7 +1782,7 @@ function CaseDetail({
             ) : (
               <Text className="compactText" size="sm">
                 {isClosed
-                  ? "ปิดเคสจากการยืนยันของลูกค้า — ยังไม่ได้รับการดำเนินการจากทีม Tech"
+                  ? "ปิดเคสจากการยืนยันของผู้ใช้งาน — ยังไม่ได้รับการดำเนินการจากทีม Tech"
                   : "ยังไม่มีการดำเนินการจากทีม Tech ที่สกัดได้"}
               </Text>
             )}
@@ -1773,7 +1794,7 @@ function CaseDetail({
               <ThemeIcon color="green" radius="xl" variant="light">
                 <AppIcon name="check" />
               </ThemeIcon>
-              <Text c="dimmed" fw={700} size="sm">ผลการตรวจสอบจากลูกค้า</Text>
+              <Text c="dimmed" fw={700} size="sm">ผลการตรวจสอบจากผู้ใช้งาน</Text>
             </Group>
             {item.customerOutcome ? (
               <>
@@ -1781,11 +1802,11 @@ function CaseDetail({
                   <Text className="compactText" size="sm">{item.customerOutcome.text}</Text>
                 </Paper>
                 <Text c="dimmed" mt="xs" size="xs">
-                  {item.customerOutcome.type === "RESOLVED" ? "ลูกค้ายืนยันว่าใช้งานได้แล้ว" : "ลูกค้าแจ้งว่าอาการดีขึ้น"}
+                  {item.customerOutcome.type === "RESOLVED" ? "ผู้ใช้งานยืนยันว่าใช้งานได้แล้ว" : "ผู้ใช้งานแจ้งว่าอาการดีขึ้น"}
                   {item.customerOutcome.confirmedAt ? ` · ${formatEventTime(item.customerOutcome.confirmedAt)}` : ""}
                 </Text>
               </>
-            ) : <Text c="dimmed" mt="xs" size="sm">ยังไม่มีผลการตรวจสอบจากลูกค้า</Text>}
+            ) : <Text c="dimmed" mt="xs" size="sm">ยังไม่มีผลการตรวจสอบจากผู้ใช้งาน</Text>}
           </Box>
 
         <Box className="caseOperationPanelSection">
@@ -1797,7 +1818,7 @@ function CaseDetail({
           </Group>
           <Paper bg="green.0" mt="sm" p="sm" radius="sm">
             <Text className="compactText" lineClamp={latestLineReplyExpanded ? undefined : 3} size="sm">
-              {latestLineReply?.displayText || latestLineReply?.originalText || item.customerReply || "ยังไม่มีข้อความที่ส่งกลับลูกค้า"}
+              {latestLineReply?.displayText || latestLineReply?.originalText || item.customerReply || "ยังไม่มีข้อความที่ส่งกลับผู้ใช้งาน"}
             </Text>
           </Paper>
           {(latestLineReply?.displayText || latestLineReply?.originalText || item.customerReply || "").length > 180 ? (

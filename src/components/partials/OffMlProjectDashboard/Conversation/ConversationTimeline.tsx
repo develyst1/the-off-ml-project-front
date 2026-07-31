@@ -1,6 +1,6 @@
 import { Box, Button, Group, Select, SegmentedControl, Stack, Text } from "@mantine/core";
 import { ConversationEmptyState } from "./ConversationEmptyState";
-import { conversationDateKey, formatConversationDateLabel, getConversationMeta } from "./conversation.config";
+import { conversationDateKey, conversationOccurredAt, formatConversationDateLabel, getConversationMeta } from "./conversation.config";
 import { ConversationTimelineItem } from "./ConversationTimelineItem";
 import type { ConversationMessage, ConversationSort, ConversationViewMode } from "./types";
 
@@ -62,7 +62,7 @@ export function ConversationTimeline({ hasActiveFilters, isConversationOnly, lat
       {sort === "oldest" ? loadPreviousButton : null}
       {messages.map((message, index) => {
         const previous = messages[index - 1];
-        const showDateSeparator = !previous || conversationDateKey(previous.createdAt) !== conversationDateKey(message.createdAt);
+        const showDateSeparator = !previous || conversationDateKey(conversationOccurredAt(previous)) !== conversationDateKey(conversationOccurredAt(message));
         const previousMeta = previous ? getConversationMeta(previous) : undefined;
         const currentMeta = getConversationMeta(message);
         const isGroupedWithPrevious = Boolean(
@@ -76,7 +76,7 @@ export function ConversationTimeline({ hasActiveFilters, isConversationOnly, lat
         );
         return (
           <Box key={message.id}>
-            {showDateSeparator ? <Text className="caseConversationDateSeparator" c="dimmed" size="xs">{formatConversationDateLabel(message.createdAt)}</Text> : null}
+            {showDateSeparator ? <Text className="caseConversationDateSeparator" c="dimmed" size="xs">{formatConversationDateLabel(conversationOccurredAt(message))}</Text> : null}
             <ConversationTimelineItem isGroupedWithPrevious={isGroupedWithPrevious} isLast={index === messages.length - 1} isLatest={message.id === latestMessageId} message={message} />
           </Box>
         );

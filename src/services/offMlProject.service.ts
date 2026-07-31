@@ -123,6 +123,10 @@ function messageSentAt(message: OffMlProjectCaseResponse["messages"][number]) {
   return message.deliveredAt ?? message.sentAt ?? message.createdAt;
 }
 
+function messageConversationAt(message: OffMlProjectCaseResponse["messages"][number]) {
+  return message.receivedAt ?? message.sentAt ?? message.deliveredAt ?? message.processedAt ?? message.createdAt;
+}
+
 function firstText(caseItem: OffMlProjectCaseResponse, senderType: "CUSTOMER" | "TECH" | "BOT") {
   return latestByCreatedAt(caseItem.messages.filter((message) => message.senderType === senderType))[0]?.originalText;
 }
@@ -204,7 +208,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const customerMessage = initialCustomerMessage?.originalText ?? "";
   const latestCustomerText = latestCustomerMessage?.originalText ?? "";
   const techReply = latestByCreatedAt(caseItem.messages.filter((message) => (
-    message.senderType === "TECH" && message.messageType !== "CASE_CLOSED" && Boolean(message.originalText.trim())
+    message.senderType === "TECH" && message.channel === "ms_teams" && message.messageType !== "CASE_CLOSED" && Boolean(message.originalText.trim())
   )))[0]?.originalText;
   const outboundReply = firstText(caseItem, "BOT");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
@@ -314,7 +318,10 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
       "ระบบแจ้งลูกค้า + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
       techReply ? `Tech Support ตอบกลับ: ${techReply}` : "รอทีม Tech Support วิเคราะห์และตอบกลับ",
     ],
-    conversation: [...caseItem.messages].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()),
+    conversation: [...caseItem.messages].sort((left, right) => {
+      const timeDifference = new Date(messageConversationAt(left)).getTime() - new Date(messageConversationAt(right)).getTime();
+      return timeDifference || left.id.localeCompare(right.id);
+    }),
     supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary,
     hasConfirmedTechSolution: Boolean(confirmedSolution),
     confirmedTechSolutionText: confirmedSolution?.rawReplyText,
@@ -351,6 +358,10 @@ export async function getInboxUsers(): Promise<InboxUser[]> {
 
 export async function getInboxUser(customerId: string): Promise<InboxUser> {
   return request<InboxUser>(`/inbox/${encodeURIComponent(customerId)}`);
+}
+
+export async function markInboxRead(customerId: string): Promise<InboxUser> {
+  return request<InboxUser>(`/inbox/${encodeURIComponent(customerId)}/read`, { method: "POST" });
 }
 
 export async function sendInboxReply(customerId: string, text: string): Promise<InboxUser> {

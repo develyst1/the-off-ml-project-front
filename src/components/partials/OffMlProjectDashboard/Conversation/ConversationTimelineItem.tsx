@@ -1,7 +1,7 @@
 import { Badge, Box, Button, Group, Paper, Text, ThemeIcon } from "@mantine/core";
 import { useState } from "react";
 import { AppIcon } from "@/components/common";
-import { formatConversationDateTime, getConversationContent, getConversationMeta } from "./conversation.config";
+import { conversationOccurredAt, formatConversationDateTime, getConversationContent, getConversationMeta } from "./conversation.config";
 import type { ConversationMessage } from "./types";
 
 interface ConversationTimelineItemProps {
@@ -13,7 +13,7 @@ interface ConversationTimelineItemProps {
 
 export function ConversationTimelineItem({ isGroupedWithPrevious = false, isLast, isLatest = false, message }: ConversationTimelineItemProps) {
   const meta = getConversationMeta(message);
-  const timestamp = formatConversationDateTime(message.createdAt);
+  const timestamp = formatConversationDateTime(conversationOccurredAt(message));
   const content = getConversationContent(message);
   const [expanded, setExpanded] = useState(false);
   const isLongMessage = content.length > 220;
