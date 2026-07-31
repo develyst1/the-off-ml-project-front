@@ -131,6 +131,7 @@ export interface OffMlProjectMessageResponse {
   displayText?: string;
   isVisibleToCustomer?: boolean;
   deliveryStatus?: "RECEIVED" | "PROCESSING" | "PROCESSED" | "PENDING" | "SENT" | "API_ACCEPTED" | "DELIVERED" | "FAILED" | "SKIPPED" | "pending" | "sent" | "delivered" | "failed";
+  deliveryError?: string;
   receivedAt?: string;
   processedAt?: string;
   sentAt?: string;

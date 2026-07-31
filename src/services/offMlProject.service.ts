@@ -195,7 +195,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     message.messageType === "CASE_ACKNOWLEDGEMENT" && wasDeliveredToCustomer(message)
   )))[0];
   const finalResolution = latestByCreatedAt(caseItem.messages.filter((message) => (
-    ["CUSTOMER_REPLY", "RESOLUTION", "CASE_CLOSED"].includes(message.messageType ?? "")
+    ["CUSTOMER_REPLY", "RESOLUTION"].includes(message.messageType ?? "")
     && wasDeliveredToCustomer(message)
   )))[0];
   const teamActions = teamActionsFromAnalysis(techAnalysis);
@@ -340,8 +340,8 @@ export async function sendInboxReply(customerId: string, text: string): Promise<
 }
 
 export async function openInboxCase(customerId: string, input: {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   from: string;
   to: string;
   selectedMessageIds?: string[];

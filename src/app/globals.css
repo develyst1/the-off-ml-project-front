@@ -953,6 +953,14 @@ body {
   background: #d9dee7;
 }
 
+.caseTimelineConnector--skipped {
+  background: #d9dee7;
+}
+
+.caseTimelineConnector--failed {
+  background: #fa5252;
+}
+
 .caseTimelineStepMarker {
   align-items: center;
   display: flex;

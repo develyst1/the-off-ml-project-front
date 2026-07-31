@@ -47,7 +47,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [activeCaseComposeAction, setActiveCaseComposeAction] = useState<CaseComposeAction>();
   const [hasGeneratedCaseDraft, setHasGeneratedCaseDraft] = useState(false);
   const [generatedCaseDraftMessageIds, setGeneratedCaseDraftMessageIds] = useState<string[]>([]);
-  const [isCaseFormDirty, setIsCaseFormDirty] = useState(false);
+  const [isDraftDirty, setIsDraftDirty] = useState(false);
   const [caseComposeConfirmation, setCaseComposeConfirmation] = useState<CaseComposeAction | null>(null);
   const [error, setError] = useState<string>();
   const [showAllCases, setShowAllCases] = useState(false);
@@ -113,7 +113,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     setSelectedCaseMessageIds([]);
     setHasGeneratedCaseDraft(false);
     setGeneratedCaseDraftMessageIds([]);
-    setIsCaseFormDirty(false);
+    setIsDraftDirty(false);
     setCaseComposeConfirmation(null);
     setIsOpenCaseModalOpen(true);
   };
@@ -125,15 +125,16 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       return;
     }
     const hasManualCaseDetails = Boolean(caseTitle.trim() && caseDescription.trim());
-    if (!hasManualCaseDetails) {
-      setError("กรุณากรอกหัวข้อปัญหาและรายละเอียดให้ครบก่อนเปิดเคส");
+    const hasSelectedMessages = selectedMessagesInCaseRange.length > 0;
+    if (!hasManualCaseDetails && !hasSelectedMessages) {
+      setError("กรอกหัวข้อปัญหาและรายละเอียด หรือเลือกข้อความจากแชทอย่างน้อย 1 รายการเพื่อเปิดเคส");
       return;
     }
     setIsOpening(true);
     try {
       const created = await openInboxCase(selected.customer.id, {
-        title: caseTitle.trim(),
-        description: caseDescription.trim(),
+        title: hasManualCaseDetails ? caseTitle.trim() : undefined,
+        description: hasManualCaseDetails ? caseDescription.trim() : undefined,
         from: new Date(caseFrom).toISOString(),
         to: endOfSelectedMinute(caseTo).toISOString(),
         selectedMessageIds: selectedMessagesInCaseRange.length > 0 ? selectedMessagesInCaseRange.map((message) => message.id) : undefined,
@@ -166,6 +167,25 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const selectedMessageIds = selectedMessagesInCaseRange.map((message) => message.id).sort();
   const selectionChangedSinceDraft = hasGeneratedCaseDraft
     && (selectedMessageIds.length !== generatedCaseDraftMessageIds.length || selectedMessageIds.some((id, index) => id !== generatedCaseDraftMessageIds[index]));
+  const isManualCaseInputValid = Boolean(caseTitle.trim() && caseDescription.trim());
+  const hasSelectedCaseMessages = selectedMessagesInCaseRange.length > 0;
+  const canOpenCase = isManualCaseInputValid || hasSelectedCaseMessages;
+
+  const updateCaseRange = (nextFrom: string, nextTo: string) => {
+    setCaseFrom(nextFrom);
+    setCaseTo(nextTo);
+    if (!selected) return;
+    const from = new Date(nextFrom).getTime();
+    const to = endOfSelectedMinute(nextTo).getTime();
+    if (Number.isNaN(from) || Number.isNaN(to)) return;
+    const availableMessageIds = new Set(selected.messages
+      .filter((message) => {
+        const timestamp = new Date(message.createdAt).getTime();
+        return timestamp >= from && timestamp <= to;
+      })
+      .map((message) => message.id));
+    setSelectedCaseMessageIds((current) => current.filter((messageId) => availableMessageIds.has(messageId)));
+  };
 
   const toggleCaseMessage = (messageId: string, checked: boolean) => {
     setSelectedCaseMessageIds((current) => {
@@ -190,7 +210,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       setCaseDescription(result.description);
       setHasGeneratedCaseDraft(true);
       setGeneratedCaseDraftMessageIds([...selectedMessagesInCaseRange.map((message) => message.id)].sort());
-      setIsCaseFormDirty(false);
+      setIsDraftDirty(false);
       setCaseComposeConfirmation(null);
     } catch (composeError) {
       setError(composeError instanceof Error ? composeError.message : "AI ช่วยจัดทำข้อมูลเคสไม่สำเร็จ");
@@ -201,7 +221,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   };
 
   const requestCaseCompose = (action: CaseComposeAction) => {
-    if (isCaseFormDirty) {
+    if (isDraftDirty) {
       setCaseComposeConfirmation(action);
       return;
     }
@@ -273,34 +293,36 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           </Group>
         </Stack>
       </Modal>
-      <Modal opened={caseComposeConfirmation !== null} onClose={() => setCaseComposeConfirmation(null)} title="แทนที่ข้อมูลเคสปัจจุบัน?" centered>
-        <Stack>
-          <Text size="sm">AI จะสร้างข้อมูลเคสใหม่และแทนที่หัวข้อปัญหากับรายละเอียดที่กำลังกรอกอยู่</Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCaseComposeConfirmation(null)}>ยกเลิก</Button>
-            <Button onClick={() => caseComposeConfirmation && void runCaseCompose(caseComposeConfirmation)} loading={isCaseComposing}>แทนที่ด้วยข้อมูลจาก AI</Button>
-          </Group>
-        </Stack>
-      </Modal>
       <Modal opened={isOpenCaseModalOpen} onClose={() => !isOpening && setIsOpenCaseModalOpen(false)} title="เปิดเคส" centered size="xl" closeOnClickOutside={!isOpening}>
         <Stack gap="md">
           <Text c="dimmed" size="sm">กรอกข้อมูลเคส เลือกข้อความจากแชท หรือใช้ทั้งสองอย่างร่วมกันได้</Text>
+          {caseComposeConfirmation ? (
+            <Alert color="blue" title="แทนที่ข้อมูลที่กรอกไว้?" variant="light">
+              <Stack gap="xs">
+                <Text size="sm">ระบบจะสร้างข้อมูลร่างใหม่และแทนที่หัวข้อปัญหากับรายละเอียดที่กรอกอยู่</Text>
+                <Group gap="xs">
+                  <Button variant="default" size="xs" onClick={() => setCaseComposeConfirmation(null)}>ยกเลิก</Button>
+                  <Button size="xs" onClick={() => void runCaseCompose(caseComposeConfirmation)} loading={isCaseComposing}>สร้างข้อมูลใหม่</Button>
+                </Group>
+              </Stack>
+            </Alert>
+          ) : null}
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput type="datetime-local" label="ตั้งแต่วันที่" value={caseFrom} max={caseTo || undefined} onChange={(event) => setCaseFrom(event.currentTarget.value)} />
-            <TextInput type="datetime-local" label="ถึงวันที่" value={caseTo} min={caseFrom || undefined} onChange={(event) => setCaseTo(event.currentTarget.value)} />
+            <TextInput type="datetime-local" label="ตั้งแต่วันที่" value={caseFrom} max={caseTo || undefined} onChange={(event) => updateCaseRange(event.currentTarget.value, caseTo)} />
+            <TextInput type="datetime-local" label="ถึงวันที่" value={caseTo} min={caseFrom || undefined} onChange={(event) => updateCaseRange(caseFrom, event.currentTarget.value)} />
           </SimpleGrid>
           <Text c="dimmed" size="xs">เลือกข้อความสนทนาเพื่อใช้เป็นข้อมูลประกอบเคสได้ครั้งละไม่เกิน 14 วัน</Text>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
             <Stack gap="sm">
-              <TextInput label="หัวข้อปัญหา" placeholder="ระบุหัวข้อปัญหาโดยสรุป" value={caseTitle} onChange={(event) => { setCaseTitle(event.currentTarget.value); setIsCaseFormDirty(true); }} />
-              <Textarea autosize minRows={6} maxRows={10} label="รายละเอียด" placeholder="อธิบายรายละเอียดของปัญหาให้ชัดเจน เพื่อให้ทีมตรวจสอบได้รวดเร็วขึ้น" value={caseDescription} onChange={(event) => { setCaseDescription(event.currentTarget.value); setIsCaseFormDirty(true); }} />
+              <TextInput label="หัวข้อปัญหา" placeholder="ระบุหัวข้อปัญหาโดยสรุป" value={caseTitle} onChange={(event) => { setCaseTitle(event.currentTarget.value); setIsDraftDirty(true); }} />
+              <Textarea autosize minRows={6} maxRows={10} label="รายละเอียด" placeholder="อธิบายรายละเอียดของปัญหาให้ชัดเจน เพื่อให้ทีมตรวจสอบได้รวดเร็วขึ้น" value={caseDescription} onChange={(event) => { setCaseDescription(event.currentTarget.value); setIsDraftDirty(true); }} />
               <Tooltip label="ปรับข้อความฝั่งซ้ายให้อ่านง่ายและกระชับ" withArrow>
                 <Button
                   variant="light"
                   size="xs"
                   leftSection={<AppIcon name="brain" size={15} />}
                   loading={activeCaseComposeAction === "REWRITE"}
-                  disabled={isCaseComposing || (!(caseTitle.trim() || caseDescription.trim()) && selectedMessagesInCaseRange.length === 0)}
+                  disabled={isCaseComposing || !(caseTitle.trim() || caseDescription.trim())}
                   onClick={() => requestCaseCompose("REWRITE")}
                 >
                   {activeCaseComposeAction === "REWRITE" ? "กำลังเรียบเรียง..." : "ช่วยเรียบเรียงข้อมูลที่กรอก"}
@@ -347,9 +369,9 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           {caseRangeError ? <Alert color="red" variant="light">{caseRangeError}</Alert> : null}
           <Group justify="flex-end" mt="sm">
             <Button variant="default" onClick={() => setIsOpenCaseModalOpen(false)} disabled={isOpening}>ยกเลิก</Button>
-            <Button onClick={() => void handleOpenCase()} loading={isOpening} disabled={Boolean(caseRangeError) || !(caseTitle.trim() && caseDescription.trim())}>เปิดเคส</Button>
+            <Button onClick={() => void handleOpenCase()} loading={isOpening} disabled={Boolean(caseRangeError) || !canOpenCase}>เปิดเคส</Button>
           </Group>
-          {!(caseTitle.trim() && caseDescription.trim()) ? <Text c="dimmed" size="xs" ta="right">กรุณากรอกหัวข้อปัญหาและรายละเอียดให้ครบก่อนเปิดเคส</Text> : null}
+          {!canOpenCase ? <Text c="dimmed" size="xs" ta="right">กรอกหัวข้อปัญหาและรายละเอียด หรือเลือกข้อความจากแชทอย่างน้อย 1 รายการเพื่อเปิดเคส</Text> : null}
         </Stack>
       </Modal>
       <Group justify="space-between">
