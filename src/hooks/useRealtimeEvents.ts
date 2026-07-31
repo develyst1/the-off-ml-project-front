@@ -27,7 +27,19 @@ export function useRealtimeEvents({ onConversationMessageCreated, onReconnected 
   }, [onConversationMessageCreated, onReconnected]);
 
   useEffect(() => {
-    const source = new EventSource(getRealtimeEventsUrl());
+    if (typeof window === "undefined") return;
+
+    const realtimeUrl = getRealtimeEventsUrl();
+    if (!realtimeUrl) return;
+
+    let source: EventSource;
+    try {
+      source = new EventSource(realtimeUrl);
+    } catch (error) {
+      console.error("Off ML Project real-time connection could not start.", error);
+      return;
+    }
+
     let hasOpened = false;
     const handleOpen = () => {
       if (hasOpened) reconnectedRef.current();

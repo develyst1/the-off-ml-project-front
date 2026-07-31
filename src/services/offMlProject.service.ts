@@ -17,8 +17,25 @@ type ApiResponse<T> = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_OFF_ML_PROJECT_API_BASE_URL ?? "http://localhost:4000";
 
-export function getRealtimeEventsUrl() {
-  return new URL("/realtime/events", API_BASE_URL).toString();
+export function getRealtimeEventsUrl(): string | undefined {
+  const configuredBaseUrl = API_BASE_URL.trim();
+  if (!configuredBaseUrl) return "/realtime/events";
+
+  // Same-origin deployments commonly proxy the API behind a relative path such as /api.
+  if (configuredBaseUrl.startsWith("/")) {
+    return `${configuredBaseUrl.replace(/\/+$/, "")}/realtime/events`;
+  }
+
+  try {
+    const parsed = new URL(configuredBaseUrl);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("unsupported_protocol");
+    }
+    return new URL("realtime/events", `${configuredBaseUrl.replace(/\/+$/, "")}/`).toString();
+  } catch {
+    console.error("Off ML Project real-time is disabled: NEXT_PUBLIC_OFF_ML_PROJECT_API_BASE_URL must be an absolute URL or a same-origin path.");
+    return undefined;
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
