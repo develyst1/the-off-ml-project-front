@@ -123,7 +123,7 @@ export interface InboxUser {
 export interface OffMlProjectMessageResponse {
   id: string;
   caseId: string;
-  direction: "INBOUND" | "OUTBOUND" | "INTERNAL";
+  direction: "INBOUND" | "OUTBOUND" | "INTERNAL" | "inbound_customer" | "outbound_customer" | "inbound_tech" | "outbound_tech";
   channel: "line" | "ms_teams" | "system";
   originalText: string;
   senderType?: "CUSTOMER" | "BOT" | "AI" | "TECH" | "SYSTEM";

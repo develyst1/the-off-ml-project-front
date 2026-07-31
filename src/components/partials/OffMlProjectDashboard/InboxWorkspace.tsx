@@ -17,6 +17,12 @@ function toDateTimeInput(value: Date) {
   return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
 }
 
+function endOfSelectedMinute(value: string) {
+  const date = new Date(value);
+  date.setSeconds(59, 999);
+  return date;
+}
+
 export default function InboxWorkspace({ initialUserId }: { initialUserId?: string }) {
   const router = useRouter();
   const [users, setUsers] = useState<InboxUser[]>([]);
@@ -117,7 +123,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
         title: caseTitle.trim(),
         description: caseDescription.trim(),
         from: new Date(caseFrom).toISOString(),
-        to: new Date(caseTo).toISOString(),
+        to: endOfSelectedMinute(caseTo).toISOString(),
         selectedMessageIds: selectedMessagesInCaseRange.length > 0 ? selectedMessagesInCaseRange.map((message) => message.id) : undefined,
       });
       setIsOpenCaseModalOpen(false);
@@ -132,7 +138,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const messagesInCaseRange = selected?.messages.filter((message) => {
     const timestamp = new Date(message.createdAt).getTime();
     const from = caseFrom ? new Date(caseFrom).getTime() : Number.NEGATIVE_INFINITY;
-    const to = caseTo ? new Date(caseTo).getTime() : Number.POSITIVE_INFINITY;
+    const to = caseTo ? endOfSelectedMinute(caseTo).getTime() : Number.POSITIVE_INFINITY;
     return timestamp >= from && timestamp <= to;
   }) ?? [];
   const fromTimestamp = caseFrom ? new Date(caseFrom).getTime() : Number.NaN;

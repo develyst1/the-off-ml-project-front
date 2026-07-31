@@ -108,7 +108,7 @@ function firstText(caseItem: OffMlProjectCaseResponse, senderType: "CUSTOMER" | 
 
 function customerMessages(caseItem: OffMlProjectCaseResponse) {
   return caseItem.messages
-    .filter((message) => message.senderType === "CUSTOMER" && message.direction === "INBOUND")
+    .filter((message) => message.senderType === "CUSTOMER" && (message.direction === "INBOUND" || message.direction === "inbound_customer"))
     .sort((left, right) => {
       const leftTime = new Date(left.receivedAt ?? left.createdAt).getTime();
       const rightTime = new Date(right.receivedAt ?? right.createdAt).getTime();
