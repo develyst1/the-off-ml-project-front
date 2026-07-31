@@ -2720,7 +2720,6 @@ export default function OffMlProjectDashboardContent({
   const [dashboardError, setDashboardError] = useState<string>();
   const [initialAction, setInitialAction] = useState<"accept" | "request-info">();
   const [, setInboxDrillDown] = useState<{ category?: string; confidence?: string; requestId: number }>();
-  const selectedCaseId = selectedCase?.id;
 
   const loadCases = useCallback(async () => {
     setIsLoadingCases(true);
@@ -2819,45 +2818,6 @@ export default function OffMlProjectDashboardContent({
 
     return () => window.clearTimeout(timer);
   }, [loadCases]);
-
-  useEffect(() => {
-    if (!selectedCaseId) return;
-
-    const refreshSelectedCase = async () => {
-      try {
-        const latestCase = await getCase(selectedCaseId);
-        setSelectedCase(latestCase);
-        setCases((current) => current.map((item) => (item.id === latestCase.id ? latestCase : item)));
-      } catch {
-        // Keep the current view if a background refresh temporarily fails.
-      }
-    };
-
-    const timer = window.setInterval(refreshSelectedCase, 5000);
-    return () => window.clearInterval(timer);
-  }, [selectedCaseId]);
-
-  useEffect(() => {
-    const refreshInbox = async () => {
-      try {
-        const query = new URLSearchParams(window.location.search);
-        const nextCases = await getCases({
-          category: query.get("category") ?? undefined,
-          kpi: query.get("kpi") ?? undefined,
-        });
-        setCases(nextCases);
-        setSelectedCase((current) => {
-          if (!current) return nextCases[0] ?? null;
-          return nextCases.find((item) => item.id === current.id) ?? nextCases[0] ?? null;
-        });
-      } catch {
-        // Keep the current inbox when a background refresh temporarily fails.
-      }
-    };
-
-    const timer = window.setInterval(() => void refreshInbox(), 10000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   const handleOpenCase = (item: SupportCase) => {
     router.push(`/cases/${encodeURIComponent(item.id)}`);

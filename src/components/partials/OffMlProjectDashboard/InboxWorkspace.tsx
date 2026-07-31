@@ -79,6 +79,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [error, setError] = useState<string>();
   const [showAllCases, setShowAllCases] = useState(false);
   const [hasUnreadIncomingMessage, setHasUnreadIncomingMessage] = useState(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean | undefined>(undefined);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
   const handledRealtimeMessageIdsRef = useRef(new Set<string>());
   const conversationViewportRef = useRef<HTMLDivElement>(null);
@@ -160,7 +161,14 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   useRealtimeEvents({
     onConversationMessageCreated: handleRealtimeMessage,
     onReconnected: handleRealtimeReconnect,
+    onConnectionStateChange: setIsRealtimeConnected,
   });
+
+  useEffect(() => {
+    if (isRealtimeConnected !== false) return;
+    const timer = window.setInterval(() => void load(selectedCustomerIdRef.current), 60_000);
+    return () => window.clearInterval(timer);
+  }, [isRealtimeConnected, load]);
 
   const selectUser = async (user: InboxUser) => {
     selectedCustomerIdRef.current = user.customer.id;
