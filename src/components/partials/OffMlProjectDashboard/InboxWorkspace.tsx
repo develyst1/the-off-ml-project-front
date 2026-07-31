@@ -77,7 +77,6 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isDraftDirty, setIsDraftDirty] = useState(false);
   const [caseComposeConfirmation, setCaseComposeConfirmation] = useState<CaseComposeAction | null>(null);
   const [error, setError] = useState<string>();
-  const [showAllCases, setShowAllCases] = useState(false);
   const [hasUnreadIncomingMessage, setHasUnreadIncomingMessage] = useState(false);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean | undefined>(undefined);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
@@ -173,7 +172,6 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const selectUser = async (user: InboxUser) => {
     selectedCustomerIdRef.current = user.customer.id;
     setSelected(user);
-    setShowAllCases(false);
     setHasUnreadIncomingMessage(false);
     router.push(`/?tab=inbox&user=${encodeURIComponent(user.customer.id)}`);
     try {
@@ -370,7 +368,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const sortedCases = selected
     ? [...selected.cases].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
     : [];
-  const visibleCases = showAllCases ? sortedCases : sortedCases.slice(0, 6);
+  const visibleCases = sortedCases.slice(0, 6);
 
   return (
     <Stack gap="lg">
@@ -469,31 +467,35 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
         <Button variant="light" onClick={() => void load()}>รีเฟรช</Button>
       </Group>
       {error ? <Alert color="red" title="เกิดข้อผิดพลาด" withCloseButton onClose={() => setError(undefined)}>{error}</Alert> : null}
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" style={{ alignItems: "start" }}>
-        <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0, minWidth: 0 }}>
+      <SimpleGrid className="inboxWorkspaceLayout" cols={{ base: 1, md: 2 }} spacing="md" style={{ alignItems: "start" }}>
+        <Card className="inboxUserListCard" withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0, minWidth: 0 }}>
           <Group justify="space-between" mb="md"><Title order={4}>รายการผู้ใช้งาน</Title><Badge color="blue" variant="light">{filteredUsers.length} รายการ</Badge></Group>
           <TextInput label="ค้นหา" placeholder="ชื่อผู้ใช้งานหรือข้อความล่าสุด" value={search} onChange={(event) => setSearch(event.currentTarget.value)} mb="sm" />
           <ScrollArea mah={560} type="auto">
             <Stack gap="xs">
               {isLoading ? <Text c="dimmed">กำลังโหลดข้อมูล...</Text> : null}
               {!isLoading && filteredUsers.length === 0 ? <Text c="dimmed" py="xl" ta="center">ยังไม่มีผู้ใช้งานที่ติดต่อเข้ามา</Text> : null}
-              {filteredUsers.map((user) => (
-                <Button key={user.customer.id} variant={selected?.customer.id === user.customer.id ? "light" : "subtle"} color="blue" justify="space-between" h="auto" p="sm" onClick={() => void selectUser(user)} styles={{ inner: { justifyContent: "space-between" } }}>
-                  <Box ta="left"><Group gap="xs"><Text fw={600}>{user.customer.displayName ?? "ไม่ทราบชื่อ"}</Text>{getUnreadCustomerMessageCount(user) ? <Badge color="cyan" size="xs" variant="light">{getUnreadCustomerMessageCount(user) === 1 ? "ข้อความใหม่" : `ใหม่ ${getUnreadCustomerMessageCount(user)}`}</Badge> : null}</Group><Text c="dimmed" lineClamp={1} size="xs">{user.latestMessage?.text ?? "ยังไม่มีข้อความ"}</Text></Box>
+              {filteredUsers.map((user) => {
+                const isSelected = selected?.customer.id === user.customer.id;
+                const unreadCount = getUnreadCustomerMessageCount(user);
+                return (
+                <Button key={user.customer.id} className={`inboxUserRow${isSelected ? " isSelected" : ""}${unreadCount ? " hasUnread" : ""}`} variant={isSelected ? "light" : "subtle"} color={isSelected ? "blue" : "dark"} justify="space-between" h="auto" p="sm" onClick={() => void selectUser(user)} styles={{ inner: { justifyContent: "space-between" } }}>
+                  <Box ta="left"><Group gap="xs"><Box className="inboxUserUnreadDot" aria-hidden={!unreadCount} /> <Text fw={600}>{user.customer.displayName ?? "ไม่ทราบชื่อ"}</Text>{unreadCount ? <Badge color="cyan" size="xs" variant="light">{unreadCount === 1 ? "ข้อความใหม่" : `ใหม่ ${unreadCount}`}</Badge> : null}</Group><Text c="dimmed" lineClamp={1} size="xs">{user.latestMessage?.text ?? "ยังไม่มีข้อความ"}</Text></Box>
                   <Text c="dimmed" size="xs">{formatTime(user.latestMessage?.createdAt)}</Text>
                 </Button>
-              ))}
+                );
+              })}
             </Stack>
           </ScrollArea>
         </Card>
-        <Card withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0 }}>
+        <Card className="inboxConversationPanel" withBorder radius="md" padding="md" style={{ alignSelf: "start", minHeight: 0 }}>
           {!selected ? <Text c="dimmed" ta="center" py="xl">เลือกผู้ใช้งานเพื่อดูบทสนทนา</Text> : (
-            <Stack style={{ minWidth: 0 }}>
-              <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Button onClick={openCaseModal}>เปิดเคส</Button></Group>
+            <Stack className="inboxConversationStack" style={{ minWidth: 0 }}>
+              <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Tooltip label="เปิดเคสจากบทสนทนานี้" withArrow><Button onClick={openCaseModal}>เปิดเคส</Button></Tooltip></Group>
               <Divider />
               {hasUnreadIncomingMessage ? <Button size="xs" variant="light" onClick={scrollToLatestConversation}>มีข้อความใหม่</Button> : null}
               <ScrollArea
-                h={420}
+                className="inboxConversationScroll"
                 type="auto"
                 viewportRef={conversationViewportRef}
                 onScrollPositionChange={({ y }) => {
@@ -508,7 +510,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
                   {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}
                 </Stack>
               </ScrollArea>
-              <Group gap="xs" align="end" wrap="wrap">
+              <Group className="inboxComposer" gap="xs" align="end" wrap="wrap">
                 <Textarea
                   autosize
                   flex={1}
@@ -531,13 +533,13 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
                 <Button onClick={() => void handleSend()} loading={isSending} disabled={!draft.trim()}>ส่ง</Button>
               </Group>
               <Divider />
-              <Title order={5}>รายการเคส</Title>
+              <Group justify="space-between" gap="xs"><Title order={5}>รายการเคสที่เกี่ยวข้อง</Title>{sortedCases.length > 0 ? <Text c="dimmed" size="xs">ล่าสุด {visibleCases.length} จาก {sortedCases.length}</Text> : null}</Group>
               {sortedCases.length === 0 ? <Text c="dimmed" size="sm">ยังไม่มีรายการเคส</Text> : <>
                 <Stack gap="xs">{visibleCases.map((item) => {
                   const status = caseStatusMeta[item.status] ?? { label: "อยู่ระหว่างดำเนินการ", color: "gray" };
-                  return <Button key={item.id} variant="light" justify="space-between" onClick={() => router.push(`/cases/${encodeURIComponent(item.id)}`)}>{item.caseNumber}<Badge color={status.color}>{status.label}</Badge></Button>;
+                  return <Button key={item.id} className="inboxRelatedCase" variant="default" justify="space-between" h="auto" p="sm" onClick={() => router.push(`/cases/${encodeURIComponent(item.id)}`)}><Box ta="left"><Text fw={600} size="sm">{item.caseNumber}</Text><Text c="dimmed" size="xs">อัปเดต {formatTime(item.updatedAt)}</Text></Box><Badge color={status.color} variant="light">{status.label}</Badge></Button>;
                 })}</Stack>
-                {sortedCases.length > 6 ? <Button size="xs" variant="subtle" onClick={() => setShowAllCases((current) => !current)}>{showAllCases ? "ย่อรายการเคส" : `ดูเคสทั้งหมด (${sortedCases.length})`}</Button> : null}
+                {sortedCases.length > 6 ? <Button size="xs" variant="subtle" onClick={() => router.push("/?tab=cases")}>{`ดูเคสทั้งหมด (${sortedCases.length})`}</Button> : null}
               </>}
             </Stack>
           )}
@@ -549,5 +551,5 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
 
 function PaperMessage({ sender, text, at }: { sender: "CUSTOMER" | "TECH" | "BOT"; text: string; at: string }) {
   const senderLabel = sender === "CUSTOMER" ? "ผู้ใช้งาน" : sender === "BOT" ? "LINE Bot" : "ทีม Tech";
-  return <Box bg={sender === "CUSTOMER" ? "blue.0" : sender === "BOT" ? "yellow.0" : "gray.0"} p="sm" style={{ borderRadius: 10 }}><Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{text}</Text><Text c="dimmed" size="xs" mt={4}>{senderLabel} · {formatTime(at)}</Text></Box>;
+  return <Box bg={sender === "CUSTOMER" ? "blue.0" : sender === "BOT" ? "yellow.0" : "gray.0"} p="sm" style={{ borderRadius: 10, maxWidth: "100%", overflowWrap: "anywhere", wordBreak: "break-word" }}><Text size="sm" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</Text><Text c="dimmed" size="xs" mt={4}>{senderLabel} · {formatTime(at)}</Text></Box>;
 }

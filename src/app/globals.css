@@ -156,6 +156,74 @@ body {
   color: #ffffff;
 }
 
+.inboxWorkspaceLayout {
+  grid-template-columns: minmax(300px, 0.72fr) minmax(0, 1.28fr);
+}
+
+.inboxUserListCard {
+  background: #ffffff;
+}
+
+.inboxUserRow {
+  position: relative;
+  width: 100%;
+  color: var(--ink);
+  text-align: left;
+}
+
+.inboxUserRow:hover {
+  background: #f8fafc;
+}
+
+.inboxUserRow.isSelected {
+  background: #eaf4ff;
+}
+
+.inboxUserUnreadDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.inboxUserRow.hasUnread .inboxUserUnreadDot {
+  background: #228be6;
+}
+
+.inboxConversationPanel {
+  overflow: hidden;
+}
+
+.inboxConversationStack {
+  height: min(720px, calc(100dvh - 180px));
+  min-height: 460px;
+}
+
+.inboxConversationScroll {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.inboxConversationScroll .mantine-ScrollArea-viewport > div {
+  display: flex !important;
+  min-height: 100%;
+}
+
+.inboxComposer {
+  flex: 0 0 auto;
+}
+
+.inboxRelatedCase {
+  border-color: #e2e8f0;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.inboxRelatedCase:hover {
+  background: #f8fafc;
+}
+
 .compactText {
   line-height: 1.45;
 }
@@ -168,6 +236,14 @@ body {
 @media (max-width: 1050px) {
   .caseInboxFilterToolbar {
     flex-wrap: wrap;
+  }
+
+  .inboxWorkspaceLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .inboxConversationStack {
+    height: min(680px, calc(100dvh - 160px));
   }
 }
 

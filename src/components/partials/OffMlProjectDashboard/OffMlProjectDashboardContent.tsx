@@ -95,7 +95,7 @@ const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
 const fallbackStatusMeta = { label: "ไม่ทราบสถานะ", color: "gray" };
 
 function getRootTab(value: string | null) {
-  return OFF_ML_PROJECT_TABS.some((tab) => tab.value === value) ? value : "inbox";
+  return value === "cases" || OFF_ML_PROJECT_TABS.some((tab) => tab.value === value) ? value : "inbox";
 }
 
 const autoAnswerLogEventLabels: Record<string, string> = {
@@ -1999,11 +1999,14 @@ function ConfidenceReview({
         เพื่อเพิ่ม/ลดความมั่นใจในการเข้าใจเคสและการแยกแยะเคส
       </Alert>
       {!isLoading && suggestions.length === 0 ? (
-        <Card padding="lg" radius="md" withBorder>
-          <Title order={3}>ยังไม่มีรายการให้ยืนยันจาก backend</Title>
-          <Text c="dimmed" mt="xs">
-            เมื่อ backend พบเคสที่ต้องยืนยัน solution รายการจะแสดงที่นี่
-          </Text>
+        <Card padding="xl" radius="md" withBorder>
+          <Stack align="center" gap="xs" py="lg" ta="center">
+            <ThemeIcon color="blue" radius="xl" size={42} variant="light"><AppIcon name="check" /></ThemeIcon>
+            <Title order={3}>ยังไม่มีเคสที่รอตรวจสอบ</Title>
+            <Text c="dimmed" maw={520}>
+              เมื่อ AI แนะนำวิธีแก้ ระบบจะแสดงเคสที่ต้องให้ทีมตรวจสอบความถูกต้องที่นี่
+            </Text>
+          </Stack>
         </Card>
       ) : null}
       {suggestions.map((item) => (
@@ -2106,7 +2109,7 @@ function AnalyticsDashboard({
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>หมวดหมู่เคสที่พบบ่อย</Title>
-          {summary.categories.map(({ key, label, value }, index) => (
+          {summary.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="blue" radius="xl" size={40} variant="light"><AppIcon name="chart" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลหมวดหมู่</Text><Text c="dimmed" size="sm">เมื่อมีเคสในช่วงเวลานี้ ระบบจะแสดงหมวดหมู่ที่พบบ่อยที่นี่</Text></Stack> : summary.categories.map(({ key, label, value }, index) => (
             <Box
               aria-label={`ดูเคสหมวดหมู่ ${displayCategory(label)}`}
               component="button"
@@ -2123,11 +2126,10 @@ function AnalyticsDashboard({
               <Progress value={value} />
             </Box>
           ))}
-          {summary.categories.length === 0 ? <Text c="dimmed">ยังไม่มีข้อมูลหมวดหมู่จากระบบ</Text> : null}
         </Card>
         <Card padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>การกระจายระดับความมั่นใจ</Title>
-          {summary.confidenceDistribution.map(({ label, value }) => (
+          {summary.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="violet" radius="xl" size={40} variant="light"><AppIcon name="brain" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลความมั่นใจ</Text><Text c="dimmed" size="sm">เมื่อ AI วิเคราะห์เคส ระบบจะแสดงการกระจายระดับความมั่นใจที่นี่</Text></Stack> : summary.confidenceDistribution.map(({ label, value }) => (
             <Box
               aria-label={`ดูเคส Confidence ${label}`}
               component="button"
@@ -2935,7 +2937,7 @@ export default function OffMlProjectDashboardContent({
             </ThemeIcon>
             <Box>
               <Title order={3}>Off ML Project</Title>
-              <Text c="dimmed" size="xs">LINE intake · AI analysis · MS Teams support</Text>
+              <Text c="dimmed" size="xs">LINE intake · AI analysis · Tech Support Console</Text>
             </Box>
           </Group>
           <Badge color="blue" variant="light">Tech Support Console</Badge>
@@ -2985,6 +2987,16 @@ export default function OffMlProjectDashboardContent({
           <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
             <Tabs.Panel value="inbox">
               <InboxWorkspace initialUserId={initialInboxUserId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="cases">
+              <CaseInbox
+                cases={cases}
+                error={undefined}
+                isLoading={isLoadingCases}
+                onOpenCase={handleOpenCase}
+                onRefresh={() => void loadCases()}
+                selectedCaseId={selectedCase?.id}
+              />
             </Tabs.Panel>
             <Tabs.Panel value="detail">
               <CaseDetail
