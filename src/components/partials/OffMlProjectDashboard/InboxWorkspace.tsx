@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { composeInboxCaseDraft, composeInboxReply, getInboxUser, getInboxUsers, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
 import type { InboxUser } from "@/types/app/offMlProject";
 import { AppIcon } from "@/components/common";
+import { useRealtimeEvents, type ConversationMessageCreatedEvent } from "@/hooks/useRealtimeEvents";
 
 function formatTime(value?: string) {
   if (!value) return "ยังไม่มีข้อความ";
@@ -51,7 +52,11 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [caseComposeConfirmation, setCaseComposeConfirmation] = useState<CaseComposeAction | null>(null);
   const [error, setError] = useState<string>();
   const [showAllCases, setShowAllCases] = useState(false);
+  const [hasUnreadIncomingMessage, setHasUnreadIncomingMessage] = useState(false);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
+  const handledRealtimeMessageIdsRef = useRef(new Set<string>());
+  const conversationViewportRef = useRef<HTMLDivElement>(null);
+  const isConversationNearBottomRef = useRef(true);
 
   const load = useCallback(async (customerId?: string) => {
     setIsLoading(true);
@@ -75,10 +80,67 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     return () => window.clearTimeout(timer);
   }, [initialUserId, load]);
 
+  const moveUserToTop = useCallback((updated: InboxUser) => {
+    setUsers((current) => [updated, ...current.filter((item) => item.customer.id !== updated.customer.id)]);
+  }, []);
+
+  const scrollToLatestConversation = useCallback(() => {
+    const viewport = conversationViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+    setHasUnreadIncomingMessage(false);
+  }, []);
+
+  const handleRealtimeMessage = useCallback((event: ConversationMessageCreatedEvent) => {
+    const handledMessageIds = handledRealtimeMessageIdsRef.current;
+    if (handledMessageIds.has(event.messageId)) return;
+    handledMessageIds.add(event.messageId);
+    if (handledMessageIds.size > 500) {
+      const firstMessageId = handledMessageIds.values().next().value;
+      if (firstMessageId) handledMessageIds.delete(firstMessageId);
+    }
+
+    void getInboxUser(event.userId)
+      .then((updated) => {
+        moveUserToTop(updated);
+        if (selectedCustomerIdRef.current !== event.userId) return;
+        setSelected(updated);
+        if (event.direction !== "INBOUND") return;
+        if (isConversationNearBottomRef.current) {
+          window.requestAnimationFrame(scrollToLatestConversation);
+        } else {
+          setHasUnreadIncomingMessage(true);
+        }
+      })
+      .catch((realtimeError) => {
+        setError(realtimeError instanceof Error ? realtimeError.message : "อัปเดตข้อความใหม่ไม่สำเร็จ");
+      });
+  }, [moveUserToTop, scrollToLatestConversation]);
+
+  const handleRealtimeReconnect = useCallback(() => {
+    const customerId = selectedCustomerIdRef.current;
+    void load(customerId).then(async () => {
+      if (!customerId) return;
+      try {
+        const updated = await getInboxUser(customerId);
+        moveUserToTop(updated);
+        if (selectedCustomerIdRef.current === customerId) setSelected(updated);
+      } catch {
+        // The Inbox list remains available if only this conversation cannot refresh.
+      }
+    });
+  }, [load, moveUserToTop]);
+
+  useRealtimeEvents({
+    onConversationMessageCreated: handleRealtimeMessage,
+    onReconnected: handleRealtimeReconnect,
+  });
+
   const selectUser = async (user: InboxUser) => {
     selectedCustomerIdRef.current = user.customer.id;
     setSelected(user);
     setShowAllCases(false);
+    setHasUnreadIncomingMessage(false);
     router.push(`/?tab=inbox&user=${encodeURIComponent(user.customer.id)}`);
     try {
       setSelected(await getInboxUser(user.customer.id));
@@ -401,7 +463,18 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
             <Stack style={{ minWidth: 0 }}>
               <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Button onClick={openCaseModal}>เปิดเคส</Button></Group>
               <Divider />
-              <ScrollArea h={420} type="auto" style={{ minHeight: 0, minWidth: 0 }}>
+              {hasUnreadIncomingMessage ? <Button size="xs" variant="light" onClick={scrollToLatestConversation}>มีข้อความใหม่</Button> : null}
+              <ScrollArea
+                h={420}
+                type="auto"
+                viewportRef={conversationViewportRef}
+                onScrollPositionChange={({ y }) => {
+                  const viewport = conversationViewportRef.current;
+                  if (!viewport) return;
+                  isConversationNearBottomRef.current = viewport.scrollHeight - viewport.clientHeight - y < 24;
+                }}
+                style={{ minHeight: 0, minWidth: 0 }}
+              >
                 <Stack gap="sm" style={{ minWidth: 0 }}>
                   {selected.messages.length === 0 ? <Text c="dimmed" py="xl" ta="center">ไม่พบประวัติการสนทนาในช่วง 14 วันที่ผ่านมา</Text> : null}
                   {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}

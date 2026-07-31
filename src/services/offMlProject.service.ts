@@ -17,6 +17,10 @@ type ApiResponse<T> = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_OFF_ML_PROJECT_API_BASE_URL ?? "http://localhost:4000";
 
+export function getRealtimeEventsUrl() {
+  return new URL("/realtime/events", API_BASE_URL).toString();
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
