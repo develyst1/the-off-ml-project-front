@@ -1029,6 +1029,20 @@ body {
   align-self: start;
 }
 
+.caseCloseCaseCard {
+  border-top: 3px solid #f08c85;
+  min-width: 0;
+}
+
+.caseCloseCaseCard .mantine-Textarea-input {
+  overflow-wrap: anywhere;
+}
+
+.caseCloseCaseActions {
+  border-top: 1px solid #eef1f5;
+  padding-top: 12px;
+}
+
 .caseOperationPanel {
   border-color: #e5e7eb;
 }
@@ -1180,11 +1194,15 @@ body {
   }
 
   .caseDetailInsightStack {
-    order: 1;
+    order: 2;
   }
 
   .caseTeamsThreadCard {
-    order: -1;
+    order: 1;
+  }
+
+  .caseConversationColumn {
+    order: 0;
   }
 
   .caseConversationSummaryLayout {
