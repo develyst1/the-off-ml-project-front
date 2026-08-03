@@ -198,6 +198,27 @@ function calculateSlaBreached(status: SupportCase["status"], activityAt: string 
 }
 
 export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase {
+  const caseCreationEvent = latestByCreatedAt(caseItem.messages.filter((message) => (
+    message.senderType === "SYSTEM" && message.metadata?.eventType === "CASE_CREATED_FROM_INBOX"
+  )))[0];
+  const caseCreationMetadata = caseCreationEvent?.metadata ?? {};
+  const caseSubject = typeof caseCreationMetadata.caseSubject === "string" ? caseCreationMetadata.caseSubject : undefined;
+  const caseDetail = typeof caseCreationMetadata.caseDetail === "string" ? caseCreationMetadata.caseDetail : undefined;
+  const referenceMessages = caseItem.messages
+    .filter((message) => message.metadata?.isCaseReference === true)
+    .map((message) => ({
+      id: message.id,
+      sourceMessageId: message.sourceMessageId,
+      senderType: message.senderType,
+      text: message.originalText,
+      createdAt: typeof message.metadata?.sourceCreatedAt === "string"
+        ? message.metadata.sourceCreatedAt
+        : message.receivedAt ?? message.createdAt,
+    }))
+    .sort((left, right) => {
+      const timeDifference = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+      return timeDifference || (left.sourceMessageId ?? left.id).localeCompare(right.sourceMessageId ?? right.id);
+    });
   const customerMessageList = customerMessages(caseItem);
   const initialCustomerMessage = caseItem.initialCustomerMessageId
     ? customerMessageList.find((message) => message.id === caseItem.initialCustomerMessageId)
@@ -288,6 +309,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     customerName: caseItem.customer.displayName ?? caseItem.customer.lineUserId,
     lineUserId: caseItem.customer.lineUserId,
     originalText: customerMessage,
+    caseSubject,
+    caseDetail,
+    referenceMessages: caseCreationEvent ? referenceMessages : undefined,
     initialCustomerMessage: customerMessage,
     latestCustomerMessage: latestCustomerText,
     latestCustomerMessageAt: latestCustomerMessage?.receivedAt ?? latestCustomerMessage?.createdAt,
@@ -500,7 +524,7 @@ export async function reopenCase(caseId: string, reopenReason: string): Promise<
   return mapCaseResponse(caseItem);
 }
 
-export async function saveCaseAiFeedback(caseId: string, field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT"): Promise<SupportCase> {
+export async function saveCaseAiFeedback(caseId: string, field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT" | null): Promise<SupportCase> {
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/ai-feedback`, {
     method: "PATCH",
     body: JSON.stringify({ field, value }),

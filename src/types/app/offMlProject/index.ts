@@ -42,6 +42,15 @@ export interface SupportCase {
   customerName: string;
   lineUserId: string;
   originalText: string;
+  caseSubject?: string;
+  caseDetail?: string;
+  referenceMessages?: Array<{
+    id: string;
+    sourceMessageId?: string;
+    senderType?: "CUSTOMER" | "BOT" | "AI" | "TECH" | "SYSTEM";
+    text: string;
+    createdAt: string;
+  }>;
   initialCustomerMessage: string;
   latestCustomerMessage: string;
   latestCustomerMessageAt?: string;
@@ -141,6 +150,7 @@ export interface OffMlProjectMessageResponse {
   deliveredAt?: string;
   failedAt?: string;
   metadata?: Record<string, unknown>;
+  sourceMessageId?: string;
   externalMessageId?: string;
   createdAt: string;
 }
