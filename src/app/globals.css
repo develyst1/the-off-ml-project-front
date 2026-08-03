@@ -196,13 +196,12 @@ body {
 }
 
 .inboxConversationStack {
-  height: clamp(600px, calc(100dvh - 150px), 920px);
   min-height: 0;
 }
 
 .inboxConversationScroll {
-  min-height: 220px;
-  flex: 1 1 0;
+  height: clamp(360px, calc(100dvh - 520px), 480px);
+  flex: 0 0 auto;
 }
 
 .inboxComposer {
@@ -238,7 +237,11 @@ body {
   }
 
   .inboxConversationStack {
-    height: clamp(520px, calc(100dvh - 140px), 760px);
+    min-height: 0;
+  }
+
+  .inboxConversationScroll {
+    height: clamp(320px, calc(100dvh - 420px), 420px);
   }
 }
 

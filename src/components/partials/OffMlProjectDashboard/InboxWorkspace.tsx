@@ -522,7 +522,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
                   onChange={(event) => setDraft(event.currentTarget.value)}
                   onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void handleSend(); } }}
                   rightSection={(
-                    <Tooltip label={draft.trim() ? "ช่วยเรียบเรียงข้อความ" : "พิมพ์ข้อความก่อนใช้ AI ช่วยเรียบเรียง"} withArrow>
+                    <Tooltip label="ช่วยเรียบเรียงข้อความ" withArrow>
                       <ActionIcon aria-label="ช่วยเรียบเรียงข้อความ" color="blue" variant="light" disabled={!draft.trim() || isAiRewriting} loading={isAiRewriting} onClick={() => void handleRewrite()}>
                         <AppIcon name="brain" size={16} />
                       </ActionIcon>
