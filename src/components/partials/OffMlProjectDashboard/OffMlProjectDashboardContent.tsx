@@ -2315,6 +2315,8 @@ function AnalyticsDashboard({
 }
 
 function AutomationSettings({
+  automationError: settingsError,
+  isLoadingSettings,
   logs,
   logsPage,
   isLoadingLogs,
@@ -2322,9 +2324,12 @@ function AutomationSettings({
   onUpdateSettings,
   onOpenCase,
   onOpenCaseByNumber,
+  onRetrySettings,
   settings,
   solutions,
 }: {
+  automationError?: string;
+  isLoadingSettings: boolean;
   logs: AutoAnswerLog[];
   logsPage: AutoAnswerLogsPage;
   isLoadingLogs: boolean;
@@ -2334,10 +2339,13 @@ function AutomationSettings({
   solutions: AutoAnswerSolution[];
   onOpenCase: (caseId: string) => Promise<void>;
   onOpenCaseByNumber: (caseNumber: string) => Promise<void>;
+  onRetrySettings: () => void;
 }) {
   const enabled = settings?.enabled ?? false;
   const [automationError, setAutomationError] = useState<string>();
+  const [automationSuccess, setAutomationSuccess] = useState<string>();
   const [isUpdatingAutomation, setIsUpdatingAutomation] = useState(false);
+  const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
   const [selectedLogSolution, setSelectedLogSolution] = useState<AutoAnswerLog | null>(null);
   const [selectedLogMessage, setSelectedLogMessage] = useState<AutoAnswerLog | null>(null);
   const [logSearch, setLogSearch] = useState("");
@@ -2407,10 +2415,8 @@ function AutomationSettings({
 
   const hasRecordedSolution = (log: AutoAnswerLog) => Boolean(log.solutionText?.trim());
   const automationBanner = enabled
-    ? "Auto-answer เปิดใช้งานแล้ว ระบบจะตอบเฉพาะเคสที่ผ่าน guardrail และแจ้งทีมผ่าน MS Teams"
-    : solutions.length > 0
-      ? "มี Solution ที่พร้อมใช้ Auto-answer กรุณาเปิดใช้งานระบบเพื่อเริ่มตอบอัตโนมัติ"
-      : "Guardrail พร้อมใช้งาน แต่ยังไม่มี Solution ที่ผ่านเกณฑ์สำหรับ Auto-answer";
+    ? "Auto-answer เปิดใช้งานแล้ว ระบบจะตอบเฉพาะเคสที่ผ่าน guardrail"
+    : "Auto-answer ปิดใช้งานอยู่ เคสใหม่จะถูกส่งให้ทีม Tech Support";
 
   const openLogMessageDrawer = (log: AutoAnswerLog) => {
     setSelectedLogMessage(log);
@@ -2419,14 +2425,18 @@ function AutomationSettings({
   const toggleAutomation = async () => {
     if (isUpdatingAutomation || !settings) return;
 
-    setIsUpdatingAutomation(true);
     setAutomationError(undefined);
+    setAutomationSuccess(undefined);
+
+    if (enabled) {
+      setConfirmDisableOpen(true);
+      return;
+    }
+
+    setIsUpdatingAutomation(true);
     try {
-      if (enabled) {
-        await onUpdateSettings({ emergencyDisable: true });
-      } else {
-        await onUpdateSettings({ enabled: true });
-      }
+      await onUpdateSettings({ enabled: true });
+      setAutomationSuccess("เปิดใช้งาน Auto-answer แล้ว");
     } catch (error) {
       setAutomationError(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนสถานะ auto-answer ได้ กรุณาลองใหม่");
     } finally {
@@ -2434,16 +2444,45 @@ function AutomationSettings({
     }
   };
 
-  return (
-    <Stack gap="lg">
-      <Alert color="yellow" icon={<AppIcon name="settings" />} radius="md" variant="light">
-        Auto-answer ทำงานได้เฉพาะเมื่อผ่านความมั่นใจ 2 ชั้น และทุกคำตอบต้องแจ้งทีมใน MS Teams เสมอ
-      </Alert>
-      <Alert color={enabled ? "blue" : solutions.length > 0 ? "yellow" : "gray"} radius="md" variant="light">
-        {automationBanner}
-      </Alert>
+  const confirmDisableAutomation = async () => {
+    if (isUpdatingAutomation || !settings) return;
 
-      <Card padding="lg" radius="md" withBorder>
+    setIsUpdatingAutomation(true);
+    setAutomationError(undefined);
+    setAutomationSuccess(undefined);
+    try {
+      await onUpdateSettings({ emergencyDisable: true });
+      setConfirmDisableOpen(false);
+      setAutomationSuccess("ปิดใช้งาน Auto-answer แล้ว");
+    } catch (error) {
+      setAutomationError(error instanceof Error ? error.message : "ไม่สามารถปิดใช้งาน Auto-answer ได้ กรุณาลองใหม่");
+    } finally {
+      setIsUpdatingAutomation(false);
+    }
+  };
+
+  const hasActiveLogFilter = Boolean(logSearch || logEventType || logStatus || logDateFrom || logDateTo);
+  const hasLogData = logsPage.totalItems > 0;
+  const showLogFilters = isLoadingLogs || hasLogData || hasActiveLogFilter;
+
+  return (
+    <Stack className="automationPage" gap="md">
+      {isLoadingSettings ? (
+        <Skeleton className="automationStatusSkeleton" height={50} radius="md" />
+      ) : settingsError ? (
+        <Alert color="red" icon={<AppIcon name="alert" />} radius="md" variant="light">
+          <Group justify="space-between">
+            <Text size="sm">{settingsError}</Text>
+            <Button onClick={onRetrySettings} size="compact-sm" variant="light">โหลดอีกครั้ง</Button>
+          </Group>
+        </Alert>
+      ) : (
+        <Alert className="automationStatusAlert" color={enabled ? "green" : "yellow"} icon={<AppIcon name="settings" />} radius="md" variant="light">
+          {automationBanner}
+        </Alert>
+      )}
+
+      <Card className="automationSettingsCard" padding="lg" radius="md" withBorder>
         <Box>
           <Title order={3}>การตอบอัตโนมัติแบบมีเงื่อนไข</Title>
           <Text c="dimmed" size="sm">
@@ -2460,10 +2499,17 @@ function AutomationSettings({
             <Title order={2}>{settings?.caseDiscriminationThreshold ?? 98}%</Title>
           </Paper>
         </SimpleGrid>
-        <Text c="dimmed" mt="sm" size="sm">
-          Auto-answer จะทำงานเฉพาะเมื่อความมั่นใจทั้ง 2 ด้านผ่านเกณฑ์ เพื่อป้องกันการตอบลูกค้าผิดกรณี
-        </Text>
-        <Paper className={enabled ? "emergencyPanel" : "automationEnablePanel"} mt="lg" p="md" radius="md">
+        <SimpleGrid className="automationSettingsMeta" cols={{ base: 1, sm: 2 }} mt="md">
+          <Box>
+            <Text c="dimmed" size="xs">อัปเดตล่าสุดเมื่อ</Text>
+            <Text fw={600} size="sm">{settings?.updatedAt ? formatEventTime(settings.updatedAt) : "ไม่พบข้อมูลอัปเดตล่าสุด"}</Text>
+          </Box>
+          <Box>
+            <Text c="dimmed" size="xs">เปิด/ปิดใช้งานล่าสุดโดย</Text>
+            <Text fw={600} size="sm">ไม่พบข้อมูลผู้ดำเนินการ</Text>
+          </Box>
+        </SimpleGrid>
+        <Paper className={enabled ? "emergencyPanel" : "automationEnablePanel"} mt="md" p="md" radius="md">
           <Flex align={{ base: "stretch", sm: "center" }} direction={{ base: "column", sm: "row" }} gap="md" justify="space-between">
             <Box>
               <Text c={enabled ? "red.8" : "green.8"} fw={800}>{enabled ? "หยุดการตอบอัตโนมัติ" : "เปิดการตอบอัตโนมัติ"}</Text>
@@ -2483,42 +2529,48 @@ function AutomationSettings({
           </Flex>
         </Paper>
         {automationError ? <Box className="automationErrorToast" role="alert">{automationError}</Box> : null}
+        {automationSuccess ? <Box className="automationSuccessToast" role="status">{automationSuccess}</Box> : null}
       </Card>
 
-      <Card padding="lg" radius="md" withBorder>
+      <Card className="automationSectionCard" padding="lg" radius="md" withBorder>
         <Title mb="md" order={3}>Solution ที่ผ่าน guardrail</Title>
-        <Table highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>หมวดหมู่</Table.Th>
-              <Table.Th>เข้าใจเคส</Table.Th>
-              <Table.Th>แยกเคส</Table.Th>
-              <Table.Th>วิธีแก้</Table.Th>
-              <Table.Th>สถานะ</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {solutions.map((item) => (
-              <Table.Tr key={item.id}>
-                <Table.Td>{item.category}</Table.Td>
-                <Table.Td>{item.caseUnderstandingConfidence}%</Table.Td>
-                <Table.Td>{item.caseDiscriminationConfidence}%</Table.Td>
-                <Table.Td>{item.solutionText}</Table.Td>
-                <Table.Td><Badge color="green" variant="light">auto-answer ได้</Badge></Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-        {solutions.length === 0 ? (
-          <Text c="dimmed" mt="md">
-            ยังไม่มี solution ที่ผ่าน guardrail จาก backend
-          </Text>
-        ) : null}
+        {solutions.length > 0 ? (
+          <ScrollArea type="auto">
+            <Table highlightOnHover miw={720}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>หมวดหมู่</Table.Th>
+                  <Table.Th>เข้าใจเคส</Table.Th>
+                  <Table.Th>แยกเคส</Table.Th>
+                  <Table.Th>วิธีแก้</Table.Th>
+                  <Table.Th>สถานะ</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {solutions.map((item) => (
+                  <Table.Tr key={item.id}>
+                    <Table.Td>{item.category}</Table.Td>
+                    <Table.Td>{item.caseUnderstandingConfidence}%</Table.Td>
+                    <Table.Td>{item.caseDiscriminationConfidence}%</Table.Td>
+                    <Table.Td>{item.solutionText}</Table.Td>
+                    <Table.Td><Badge color="green" variant="light">auto-answer ได้</Badge></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        ) : (
+          <Stack align="center" className="automationEmptyState" gap="xs" ta="center">
+            <ThemeIcon color="green" radius="xl" size={42} variant="light"><AppIcon name="check" /></ThemeIcon>
+            <Text fw={700}>ยังไม่มี Solution ที่ผ่าน Guardrail</Text>
+            <Text c="dimmed" size="sm">Solution จะแสดงที่นี่เมื่อผ่านเกณฑ์ความมั่นใจทั้งสองด้าน</Text>
+          </Stack>
+        )}
       </Card>
 
       <Card className="autoAnswerLogsCard" padding="md" radius="md" withBorder>
         <Title mb="sm" order={3}>ประวัติการแจ้งเตือน Auto-answer</Title>
-        <Box className="autoAnswerLogsFilters" mb="sm">
+        {showLogFilters ? <Box className="autoAnswerLogsFilters" mb="sm">
           <TextInput
             className="autoAnswerLogsSearch"
             label="ค้นหา"
@@ -2557,8 +2609,8 @@ function AutomationSettings({
           <TextInput className="autoAnswerLogsDateFrom" label="ตั้งแต่วันที่" type="date" value={logDateFrom} onChange={(event) => updateLogFilter("dateFrom", event.currentTarget.value)} />
           <TextInput className="autoAnswerLogsDateTo" label="ถึงวันที่" type="date" value={logDateTo} onChange={(event) => updateLogFilter("dateTo", event.currentTarget.value)} />
           <Button className="autoAnswerLogsClear" disabled={!logSearch && !logEventType && !logStatus && !logDateFrom && !logDateTo} variant="subtle" onClick={clearLogFilters}>ล้างตัวกรอง</Button>
-        </Box>
-        <ScrollArea className="autoAnswerLogsTableScroll" type="auto">
+        </Box> : null}
+        {hasLogData ? <ScrollArea className="autoAnswerLogsTableScroll" type="auto">
           <Table
             className="autoAnswerLogsTable"
             horizontalSpacing={0}
@@ -2676,13 +2728,18 @@ function AutomationSettings({
               ))}
             </Table.Tbody>
           </Table>
-        </ScrollArea>
-        {logs.length === 0 ? (
-          <Text c="dimmed" mt="md">
-            {isLoadingLogs ? "กำลังโหลด auto-answer notification log..." : "ยังไม่มีข้อมูลที่ตรงกับตัวกรอง"}
-          </Text>
-        ) : null}
-        <Flex className="autoAnswerLogsPagination" align="center" justify="space-between" mt="xs" wrap="wrap" gap="sm">
+        </ScrollArea> : isLoadingLogs ? (
+          <Stack className="automationLogSkeleton" gap="xs">
+            {[0, 1, 2].map((item) => <Skeleton height={42} key={item} radius="sm" />)}
+          </Stack>
+        ) : (
+          <Stack align="center" className="automationEmptyState" gap="xs" ta="center">
+            <ThemeIcon color="gray" radius="xl" size={42} variant="light"><AppIcon name="inbox" /></ThemeIcon>
+            <Text fw={700}>{hasActiveLogFilter ? "ไม่พบข้อมูลที่ตรงกับตัวกรอง" : "ยังไม่มีประวัติ Auto-answer"}</Text>
+            <Text c="dimmed" size="sm">{hasActiveLogFilter ? "ลองปรับตัวกรองหรือกดล้างตัวกรองเพื่อดูข้อมูลทั้งหมด" : "ประวัติการตอบอัตโนมัติและการแจ้งเตือนจะแสดงที่นี่"}</Text>
+          </Stack>
+        )}
+        {hasLogData ? <Flex className="autoAnswerLogsPagination" align="center" justify="space-between" mt="xs" wrap="wrap" gap="sm">
           <Text c="dimmed" size="sm">
             แสดง {logsPage.totalItems === 0 ? 0 : ((logsPage.page - 1) * logsPage.pageSize) + 1}–{logsPage.totalItems === 0 ? 0 : Math.min(logsPage.page * logsPage.pageSize, logsPage.totalItems)} จาก {logsPage.totalItems} รายการ
           </Text>
@@ -2765,9 +2822,27 @@ function AutomationSettings({
               />
             </Group>
           ) : null}
-        </Flex>
+        </Flex> : null}
 
       </Card>
+      <Modal
+        onClose={() => {
+          if (!isUpdatingAutomation) setConfirmDisableOpen(false);
+        }}
+        opened={confirmDisableOpen}
+        title="ยืนยันการปิด Auto-answer"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            ระบบจะหยุดตอบอัตโนมัติทันที และส่งเคสใหม่ทั้งหมดกลับเข้าคิวทีม Tech Support
+          </Text>
+          {automationError ? <Alert color="red" title="ปิดใช้งานไม่สำเร็จ" variant="light">{automationError}</Alert> : null}
+          <Group justify="flex-end">
+            <Button disabled={isUpdatingAutomation} onClick={() => setConfirmDisableOpen(false)} variant="default">ยกเลิก</Button>
+            <Button color="red" loading={isUpdatingAutomation} onClick={() => void confirmDisableAutomation()}>ยืนยันปิดใช้งาน</Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Drawer
         onClose={() => setSelectedLogMessage(null)}
         opened={Boolean(selectedLogMessage)}
@@ -2879,6 +2954,8 @@ export default function OffMlProjectDashboardContent({
   const [isLoadingAutoAnswerLogs, setIsLoadingAutoAnswerLogs] = useState(true);
   const autoAnswerLogsRequestId = useRef(0);
   const [autoAnswerSolutionsState, setAutoAnswerSolutionsState] = useState<AutoAnswerSolution[]>([]);
+  const [isLoadingAutomationSettings, setIsLoadingAutomationSettings] = useState(true);
+  const [automationSettingsError, setAutomationSettingsError] = useState<string>();
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
   const [confidenceError, setConfidenceError] = useState<string>();
   const [isLoadingConfidenceSuggestions, setIsLoadingConfidenceSuggestions] = useState(true);
@@ -2940,15 +3017,20 @@ export default function OffMlProjectDashboardContent({
   const loadDashboardData = async () => {
     setIsLoadingConfidenceSuggestions(true);
     setConfidenceError(undefined);
+    setIsLoadingAutomationSettings(true);
+    setAutomationSettingsError(undefined);
     const logRequestId = ++autoAnswerLogsRequestId.current;
 
     const confidenceSuggestionsRequest = getConfidenceSuggestions().finally(() => {
       setIsLoadingConfidenceSuggestions(false);
     });
+    const automationSettingsRequest = getAutomationSettings().finally(() => {
+      setIsLoadingAutomationSettings(false);
+    });
     const results = await Promise.allSettled([
       confidenceSuggestionsRequest,
       getAnalyticsSummary(),
-      getAutomationSettings(),
+      automationSettingsRequest,
       getAutoAnswerSolutions(),
       getAutoAnswerLogs({ page: 1, pageSize: 10 }),
     ]);
@@ -2965,8 +3047,14 @@ export default function OffMlProjectDashboardContent({
     }
     if (summary.status === "fulfilled") setAnalyticsSummary(summary.value);
     else failures.push("Analytics");
-    if (settings.status === "fulfilled") setAutomationSettings(settings.value);
-    else failures.push("Automation settings");
+    if (settings.status === "fulfilled") {
+      setAutomationSettings(settings.value);
+      setAutomationSettingsError(undefined);
+    } else {
+      const message = settings.reason instanceof Error ? settings.reason.message : "โหลดการตั้งค่า Auto-answer จาก backend ไม่สำเร็จ";
+      setAutomationSettingsError(message);
+      failures.push("Automation settings");
+    }
     if (solutions.status === "fulfilled") setAutoAnswerSolutionsState(solutions.value);
     else failures.push("Automation solutions");
     if (logs.status === "fulfilled" && logRequestId === autoAnswerLogsRequestId.current) {
@@ -3200,12 +3288,15 @@ export default function OffMlProjectDashboardContent({
             </Tabs.Panel>
             <Tabs.Panel value="automation">
               <AutomationSettings
+                automationError={automationSettingsError}
+                isLoadingSettings={isLoadingAutomationSettings}
                 isLoadingLogs={isLoadingAutoAnswerLogs}
                 logs={autoAnswerLogsState.items}
                 logsPage={autoAnswerLogsState}
                 onLoadLogs={loadAutoAnswerLogs}
                 onOpenCase={handleOpenCaseById}
                 onOpenCaseByNumber={handleOpenCaseByNumber}
+                onRetrySettings={() => void loadDashboardData()}
                 onUpdateSettings={handleUpdateAutomationSettings}
                 settings={automationSettings}
                 solutions={autoAnswerSolutionsState}

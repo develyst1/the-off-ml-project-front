@@ -283,6 +283,47 @@ body {
   background: #f2fbf5;
 }
 
+.automationPage {
+  min-width: 0;
+}
+
+.automationStatusAlert {
+  padding-block: 10px;
+}
+
+.automationStatusSkeleton {
+  width: 100%;
+}
+
+.automationSettingsMeta {
+  border-top: 1px solid #eef1f5;
+  padding-top: 12px;
+}
+
+.automationSectionCard {
+  min-width: 0;
+}
+
+.automationEmptyState {
+  min-height: 150px;
+  justify-content: center;
+  padding: 20px;
+}
+
+.automationLogSkeleton {
+  padding-block: 12px;
+}
+
+.automationSuccessToast {
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .automationErrorToast {
   position: fixed;
   right: 20px;
@@ -794,6 +835,21 @@ body {
 }
 
 @media (max-width: 48em) {
+  .automationStatusAlert {
+    padding-block: 8px;
+  }
+
+  .automationSettingsCard,
+  .automationSectionCard,
+  .autoAnswerLogsCard {
+    padding: 14px;
+  }
+
+  .emergencyPanel,
+  .automationEnablePanel {
+    padding: 12px;
+  }
+
   .autoAnswerLogsFilters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
