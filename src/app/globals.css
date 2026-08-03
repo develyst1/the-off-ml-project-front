@@ -912,6 +912,16 @@ body {
   min-width: 0;
 }
 
+.metricCardMuted {
+  opacity: 0.78;
+  background: #fbfcfe;
+}
+
+.analyticsCategoriesCard,
+.analyticsConfidenceCard {
+  height: 100%;
+}
+
 .caseTeamsThreadCard {
   grid-column: 2;
   grid-row: 1;

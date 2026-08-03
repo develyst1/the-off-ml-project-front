@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -224,6 +224,7 @@ function MetricCard({
   icon,
   isLoading = false,
   label,
+  muted = false,
   onClick,
   value,
   color,
@@ -232,6 +233,7 @@ function MetricCard({
   icon: IconName;
   isLoading?: boolean;
   label: string;
+  muted?: boolean;
   onClick?: () => void;
   value: string;
   color: string;
@@ -239,7 +241,7 @@ function MetricCard({
   return (
     <Card
       aria-pressed={onClick ? active : undefined}
-      className={`metricCard ${active ? "metricCardActive" : ""}`}
+      className={`metricCard ${active ? "metricCardActive" : ""} ${muted ? "metricCardMuted" : ""}`}
       onClick={onClick}
       onKeyDown={(event) => {
         if (!onClick) return;
@@ -2092,44 +2094,157 @@ function ConfidenceReview({
 }
 
 function AnalyticsDashboard({
+  cases,
+  isLoadingCases,
   onDrillDown,
   summary,
 }: {
+  cases: SupportCase[];
+  isLoadingCases: boolean;
   onDrillDown: (filter: { category?: string; confidence?: string }) => void;
   summary: AnalyticsSummary;
 }) {
+  type AnalyticsRange = "today" | "7d" | "30d";
+  type CategoryRow = {
+    key: string;
+    label: string;
+    count: number;
+    value: number;
+    understanding?: number;
+    discrimination?: number;
+  };
+  const [range, setRange] = useState<AnalyticsRange>("30d");
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [analyticsNow] = useState(() => Date.now());
+  const rangeLabels: Record<AnalyticsRange, string> = { today: "วันนี้", "7d": "7 วัน", "30d": "30 วัน" };
+  const periodCases = useMemo(() => {
+    if (isLoadingCases) return null;
+    const days = range === "today" ? 1 : range === "7d" ? 7 : 30;
+    const start = analyticsNow - days * 24 * 60 * 60 * 1000;
+    return cases.filter((item) => new Date(item.caseCreatedAt ?? item.lastActivityAt).getTime() >= start);
+  }, [analyticsNow, cases, isLoadingCases, range]);
+  const metrics = useMemo(() => {
+    if (periodCases === null) {
+      return {
+        total: summary.total,
+        solvedPct: summary.solvedFromExistingSolutionPct,
+        overSla: summary.overSla,
+        ready: summary.readyForAutoAnswer,
+      };
+    }
+    const total = periodCases.length;
+    const solved = periodCases.filter((item) => item.status === "resolved" || item.status === "sent_to_customer" || item.status === "closed").length;
+    const hasEligibilityData = periodCases.some((item) => item.learningStatus?.autoAnswerEligible !== undefined);
+    return {
+      total,
+      solvedPct: total ? Math.round((solved / total) * 100) : 0,
+      overSla: periodCases.filter((item) => item.isSlaBreached).length,
+      ready: hasEligibilityData ? periodCases.filter((item) => item.learningStatus?.autoAnswerEligible === true).length : summary.readyForAutoAnswer,
+    };
+  }, [periodCases, summary]);
+  const confidenceDistribution = useMemo(() => {
+    if (periodCases === null) return summary.confidenceDistribution;
+    const labels = ["0-59%", "60-89%", "90-97%", "98-100%"];
+    const counts = new Map(labels.map((label) => [label, 0]));
+    periodCases.forEach((item) => {
+      const value = item.aiConfidence;
+      const label = value < 60 ? "0-59%" : value < 90 ? "60-89%" : value < 98 ? "90-97%" : "98-100%";
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    });
+    return labels.map((label) => ({ label, value: metrics.total ? Math.round(((counts.get(label) ?? 0) / metrics.total) * 100) : 0 }));
+  }, [metrics.total, periodCases, summary.confidenceDistribution]);
+  const categoryRows = useMemo(() => {
+    const grouped = new Map<string, { key: string; label: string; count: number; understanding: number[]; discrimination: number[] }>();
+    const add = (keyValue: string | undefined, labelValue: string | undefined, count: number, understanding?: number, discrimination?: number) => {
+      const key = (keyValue?.trim() || "OTHER").toUpperCase();
+      const label = key === "OTHER" ? "อื่นๆ" : displayCategory(labelValue ?? key);
+      const current = grouped.get(key) ?? { key, label, count: 0, understanding: [], discrimination: [] };
+      current.count += count;
+      if (Number.isFinite(understanding)) current.understanding.push(understanding as number);
+      if (Number.isFinite(discrimination)) current.discrimination.push(discrimination as number);
+      grouped.set(key, current);
+    };
+
+    if (periodCases !== null) {
+      periodCases.forEach((item) => add(item.categoryKey || item.category, item.category, 1, item.learningStatus?.caseUnderstandingConfidence, item.learningStatus?.caseDiscriminationConfidence));
+    } else {
+      summary.categories.forEach((item) => add(item.key, item.label, item.count));
+    }
+
+    const total = metrics.total;
+    return [...grouped.values()]
+      .map((item) => ({
+        key: item.key,
+        label: item.label,
+        count: item.count,
+        value: total ? Math.round((item.count / total) * 100) : 0,
+        understanding: item.understanding.length ? Math.round(item.understanding.reduce((sum, value) => sum + value, 0) / item.understanding.length) : undefined,
+        discrimination: item.discrimination.length ? Math.round(item.discrimination.reduce((sum, value) => sum + value, 0) / item.discrimination.length) : undefined,
+      }))
+      .sort((left, right) => right.count - left.count);
+  }, [metrics.total, periodCases, summary.categories]);
+  const topCategories = categoryRows.filter((item) => item.key !== "OTHER").slice(0, 5);
+  const remainderCategories = categoryRows.filter((item) => item.key === "OTHER" || !topCategories.some((top) => top.key === item.key));
+  const otherCategory: CategoryRow | undefined = remainderCategories.length ? {
+    key: "OTHER",
+    label: "อื่นๆ",
+    count: remainderCategories.reduce((sum, item) => sum + item.count, 0),
+    value: metrics.total ? Math.round((remainderCategories.reduce((sum, item) => sum + item.count, 0) / metrics.total) * 100) : 0,
+    understanding: remainderCategories.some((item) => item.understanding !== undefined)
+      ? Math.round(remainderCategories.filter((item) => item.understanding !== undefined).reduce((sum, item) => sum + (item.understanding ?? 0), 0) / remainderCategories.filter((item) => item.understanding !== undefined).length)
+      : undefined,
+    discrimination: remainderCategories.some((item) => item.discrimination !== undefined)
+      ? Math.round(remainderCategories.filter((item) => item.discrimination !== undefined).reduce((sum, item) => sum + (item.discrimination ?? 0), 0) / remainderCategories.filter((item) => item.discrimination !== undefined).length)
+      : undefined,
+  } : undefined;
+  const displayCategories = showAllCategories ? categoryRows : [...topCategories, ...(otherCategory ? [otherCategory] : [])];
+  const qualityColor = (value?: number) => value === undefined ? "gray" : value >= 90 ? "green" : value >= 60 ? "yellow" : "red";
+
   return (
     <Stack gap="lg">
-      <SimpleGrid cols={{ base: 1, md: 4 }}>
-        <MetricCard color="blue" icon="inbox" label="เคสทั้งหมดเดือนนี้" value={String(summary.total)} />
-        <MetricCard color="green" icon="brain" label="แก้ได้จาก solution เดิม" value={`${summary.solvedFromExistingSolutionPct}%`} />
-        <MetricCard color="red" icon="alert" label="เกิน SLA" value={String(summary.overSla)} />
-        <MetricCard color="violet" icon="chart" label="พร้อม auto-answer" value={String(summary.readyForAutoAnswer)} />
+      <Group justify="space-between" align="flex-end" wrap="wrap">
+        <Text c="dimmed" size="sm">ข้อมูลช่วง: {rangeLabels[range]}</Text>
+        <Select aria-label="ช่วงเวลา Analytics" data={Object.entries(rangeLabels).map(([value, label]) => ({ value, label }))} onChange={(value) => setRange((value as AnalyticsRange | null) ?? "30d")} size="sm" value={range} w={140} />
+      </Group>
+      <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+        <MetricCard color="blue" icon="inbox" label={`เคสทั้งหมด${range === "30d" ? " 30 วัน" : rangeLabels[range]}`} value={String(metrics.total)} />
+        <MetricCard color="green" icon="brain" label="แก้ได้จาก solution เดิม" value={`${metrics.solvedPct}%`} />
+        <MetricCard color="red" icon="alert" label="เกิน SLA" value={String(metrics.overSla)} />
+        <MetricCard color="violet" icon="chart" label="พร้อม auto-answer" muted={metrics.ready === 0} value={String(metrics.ready)} />
       </SimpleGrid>
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
-        <Card padding="lg" radius="md" withBorder>
+        <Card className="analyticsCategoriesCard" padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>หมวดหมู่เคสที่พบบ่อย</Title>
-          {summary.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="blue" radius="xl" size={40} variant="light"><AppIcon name="chart" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลหมวดหมู่</Text><Text c="dimmed" size="sm">เมื่อมีเคสในช่วงเวลานี้ ระบบจะแสดงหมวดหมู่ที่พบบ่อยที่นี่</Text></Stack> : summary.categories.map(({ key, label, value }, index) => (
+          {metrics.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="blue" radius="xl" size={40} variant="light"><AppIcon name="chart" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลหมวดหมู่</Text><Text c="dimmed" size="sm">เมื่อมีเคสในช่วงเวลานี้ ระบบจะแสดงหมวดหมู่ที่พบบ่อยที่นี่</Text></Stack> : displayCategories.map((category) => (
             <Box
-              aria-label={`ดูเคสหมวดหมู่ ${displayCategory(label)}`}
+              aria-label={`ดูเคสหมวดหมู่ ${category.label}`}
               component="button"
-              key={`${label}-${index}`}
+              key={category.key}
               mb="md"
-              onClick={() => onDrillDown({ category: key })}
+              onClick={() => onDrillDown({ category: category.key })}
               style={{ background: "transparent", border: 0, cursor: "pointer", padding: 0, textAlign: "left", width: "100%" }}
               type="button"
             >
               <Group justify="space-between">
-                <Text>{displayCategory(label)}</Text>
-                <Text fw={700}>{value}%</Text>
+                <Text fw={600}>{category.label}</Text>
+                <Text fw={700}>{category.value}%</Text>
               </Group>
-              <Progress value={value} />
+              <Progress value={category.value} />
+              <Tooltip label="เข้าใจเคสถูกต้อง = ความแม่นยำในการจัดหมวดหมู่และสรุปปัญหา" withArrow>
+                <Group justify="space-between" mt="xs"><Text c="dimmed" size="xs">เข้าใจเคสถูกต้อง</Text><Text c={qualityColor(category.understanding)} fw={600} size="xs">{category.understanding === undefined ? "ยังไม่มีข้อมูลเพียงพอ" : `${category.understanding}%`}</Text></Group>
+              </Tooltip>
+              <Progress color={qualityColor(category.understanding)} size="xs" value={category.understanding ?? 0} />
+              <Tooltip label="เลือกวิธีแก้ถูกต้อง = ความแม่นยำในการเลือก Solution หรือแยกเคส" withArrow>
+                <Group justify="space-between" mt={4}><Text c="dimmed" size="xs">เลือกวิธีแก้ถูกต้อง</Text><Text c={qualityColor(category.discrimination)} fw={600} size="xs">{category.discrimination === undefined ? "ยังไม่มีข้อมูลเพียงพอ" : `${category.discrimination}%`}</Text></Group>
+              </Tooltip>
+              <Progress color={qualityColor(category.discrimination)} size="xs" value={category.discrimination ?? 0} />
             </Box>
           ))}
+          {categoryRows.length > 5 ? <Button onClick={() => setShowAllCategories((current) => !current)} size="xs" variant="subtle">{showAllCategories ? "แสดงเฉพาะ Top 5" : "ดูหมวดหมู่ทั้งหมด"}</Button> : null}
         </Card>
-        <Card padding="lg" radius="md" withBorder>
+        <Card className="analyticsConfidenceCard" padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>การกระจายระดับความมั่นใจ</Title>
-          {summary.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="violet" radius="xl" size={40} variant="light"><AppIcon name="brain" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลความมั่นใจ</Text><Text c="dimmed" size="sm">เมื่อ AI วิเคราะห์เคส ระบบจะแสดงการกระจายระดับความมั่นใจที่นี่</Text></Stack> : summary.confidenceDistribution.map(({ label, value }) => (
+          {metrics.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="violet" radius="xl" size={40} variant="light"><AppIcon name="brain" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลความมั่นใจ</Text><Text c="dimmed" size="sm">เมื่อ AI วิเคราะห์เคส ระบบจะแสดงการกระจายระดับความมั่นใจที่นี่</Text></Stack> : confidenceDistribution.map(({ label, value }) => (
             <Box
               aria-label={`ดูเคส Confidence ${label}`}
               component="button"
@@ -3022,7 +3137,7 @@ export default function OffMlProjectDashboardContent({
               />
             </Tabs.Panel>
             <Tabs.Panel value="analytics">
-              <AnalyticsDashboard onDrillDown={handleAnalyticsDrillDown} summary={analyticsSummary} />
+              <AnalyticsDashboard cases={cases} isLoadingCases={isLoadingCases} onDrillDown={handleAnalyticsDrillDown} summary={analyticsSummary} />
             </Tabs.Panel>
             <Tabs.Panel value="automation">
               <AutomationSettings
