@@ -963,8 +963,14 @@ body {
 }
 
 .caseConversationColumn {
-  grid-column: 1;
-  grid-row: 1 / span 2;
+  min-width: 0;
+}
+
+.caseDetailActionColumn {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -1017,14 +1023,10 @@ body {
 }
 
 .caseTeamsThreadCard {
-  grid-column: 2;
-  grid-row: 1;
   min-width: 0;
 }
 
 .caseDetailInsightStack {
-  grid-column: 2;
-  grid-row: 2;
   min-width: 0;
   align-self: start;
 }
@@ -1032,6 +1034,10 @@ body {
 .caseCloseCaseCard {
   border-top: 3px solid #f08c85;
   min-width: 0;
+}
+
+.caseCloseCaseCard--closed {
+  border-top-color: #51cf66;
 }
 
 .caseCloseCaseCard .mantine-Textarea-input {
@@ -1186,23 +1192,13 @@ body {
     flex-direction: column;
   }
 
-  .caseConversationColumn,
-  .caseTeamsThreadCard,
-  .caseDetailInsightStack {
-    grid-column: auto;
-    grid-row: auto;
-  }
-
-  .caseDetailInsightStack {
-    order: 2;
-  }
-
-  .caseTeamsThreadCard {
-    order: 1;
-  }
-
   .caseConversationColumn {
     order: 0;
+  }
+
+  .caseDetailActionColumn {
+    order: 1;
+    width: 100%;
   }
 
   .caseConversationSummaryLayout {

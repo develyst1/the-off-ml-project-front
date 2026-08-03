@@ -1335,6 +1335,7 @@ function CaseDetail({
         <Box className="caseConversationColumn">
           <CaseConversation item={item} />
         </Box>
+        <Box className="caseDetailActionColumn">
         <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
           <Group align="flex-start" justify="space-between" mb="md">
             <Box>
@@ -1460,29 +1461,23 @@ function CaseDetail({
           </Collapse>
       </Card>
 
-      <Card className="caseCloseCaseCard caseDetailInsightStack" padding="md" radius="md" withBorder>
+      <Card className={`caseCloseCaseCard${isClosed ? " caseCloseCaseCard--closed" : ""}`} padding="md" radius="md" withBorder>
         <Stack gap="md">
           <Group gap="sm">
-            <ThemeIcon color="red" radius="xl" variant="light">
+            <ThemeIcon color={isClosed ? "green" : "red"} radius="xl" variant="light">
               <AppIcon name="check" />
             </ThemeIcon>
             <Box>
-              <Text fw={800}>ปิดเคส</Text>
-              <Text c="dimmed" size="xs">กรอกข้อมูลให้ครบก่อนยืนยันปิดเคส</Text>
+              <Text fw={800}>{isClosed ? "ปิดเคสแล้ว" : "ปิดเคส"}</Text>
+              <Text c="dimmed" size="xs">
+                {isClosed ? "ส่งข้อความสรุปและปิดเคสเรียบร้อยแล้ว" : "กรอกข้อมูลให้ครบก่อนยืนยันปิดเคส"}
+              </Text>
             </Box>
           </Group>
 
           {isClosed ? (
             <Box className="caseClosedComposer">
-              <Group gap="sm">
-                <ThemeIcon color="green" radius="xl" variant="light">
-                  <AppIcon name="check" />
-                </ThemeIcon>
-                <Box>
-                  <Text fw={800}>ปิดเคสแล้ว</Text>
-                  <Badge color="green" mt={4} variant="light">ปิดเคสแล้ว</Badge>
-                </Box>
-              </Group>
+              <Badge color="green" variant="light">ปิดเคสแล้ว</Badge>
               <Text mt="sm" size="sm">
                 {item.hasCustomerConfirmation ? "ผู้ใช้งานยืนยันว่าใช้งานได้แล้ว" : "ส่งข้อความสรุปและปิดเคสให้ผู้ใช้งานแล้ว"}
               </Text>
@@ -1525,6 +1520,7 @@ function CaseDetail({
         </Stack>
       </Card>
 
+      </Box>
       </Box>
       </Box>
       <Modal
