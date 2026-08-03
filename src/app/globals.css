@@ -196,18 +196,13 @@ body {
 }
 
 .inboxConversationStack {
-  height: min(720px, calc(100dvh - 180px));
-  min-height: 460px;
+  height: clamp(600px, calc(100dvh - 150px), 920px);
+  min-height: 0;
 }
 
 .inboxConversationScroll {
-  min-height: 0;
-  flex: 1 1 auto;
-}
-
-.inboxConversationScroll .mantine-ScrollArea-viewport > div {
-  display: flex !important;
-  min-height: 100%;
+  min-height: 220px;
+  flex: 1 1 0;
 }
 
 .inboxComposer {
@@ -243,7 +238,7 @@ body {
   }
 
   .inboxConversationStack {
-    height: min(680px, calc(100dvh - 160px));
+    height: clamp(520px, calc(100dvh - 140px), 760px);
   }
 }
 
