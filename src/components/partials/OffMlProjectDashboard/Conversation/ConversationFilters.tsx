@@ -3,7 +3,7 @@
 import { Badge, Button, Group, Paper, Popover, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useState } from "react";
 import { AppIcon } from "@/components/common";
-import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessageType, ConversationRange } from "./types";
+import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessageType, ConversationRange, ConversationSort, ConversationViewMode } from "./types";
 
 interface ConversationFiltersProps {
   deliveryStatus: ConversationDeliveryStatus;
@@ -15,8 +15,12 @@ interface ConversationFiltersProps {
   onMessageTypeChange: (value: ConversationMessageType) => void;
   onRangeChange: (value: ConversationRange) => void;
   onSearchChange: (value: string) => void;
+  onSortChange: (value: ConversationSort) => void;
+  onViewModeChange: (value: ConversationViewMode) => void;
   range: ConversationRange;
   search: string;
+  sort: ConversationSort;
+  viewMode: ConversationViewMode;
 }
 
 const messageTypeLabels: Record<ConversationMessageType, string> = {
@@ -36,9 +40,9 @@ const deliveryStatusLabels: Record<ConversationDeliveryStatus, string> = {
   failed: "ส่งไม่สำเร็จ",
 };
 
-export function ConversationFilters({ deliveryStatus, filter, messageType, onClear, onDeliveryStatusChange, onFilterChange, onMessageTypeChange, onRangeChange, onSearchChange, range, search }: ConversationFiltersProps) {
+export function ConversationFilters({ deliveryStatus, filter, messageType, onClear, onDeliveryStatusChange, onFilterChange, onMessageTypeChange, onRangeChange, onSearchChange, onSortChange, onViewModeChange, range, search, sort, viewMode }: ConversationFiltersProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const activeCount = [filter !== "all", messageType !== "all", deliveryStatus !== "all", range !== "all"].filter(Boolean).length;
+  const activeCount = [filter !== "all", messageType !== "all", deliveryStatus !== "all", range !== "all", sort !== "oldest", viewMode !== "CONVERSATION_ONLY"].filter(Boolean).length;
   const hasAnyFilter = Boolean(search.trim()) || activeCount > 0;
 
   const activeChips = [
@@ -66,13 +70,6 @@ export function ConversationFilters({ deliveryStatus, filter, messageType, onCle
           size="sm"
           value={messageType}
         />
-        <Select
-          aria-label="ช่วงเวลาประวัติการสนทนา"
-          data={[{ value: "all", label: "ช่วงเวลา: ทั้งหมด" }, { value: "today", label: "วันนี้" }, { value: "7d", label: "7 วันที่ผ่านมา" }, { value: "30d", label: "30 วันที่ผ่านมา" }]}
-          onChange={(value) => onRangeChange((value as ConversationRange | null) ?? "all")}
-          size="sm"
-          value={range}
-        />
         <Popover onChange={setAdvancedOpen} opened={advancedOpen} position="bottom-end" shadow="sm" width={380} withArrow>
           <Popover.Target>
             <Button className="caseConversationAdvancedButton" leftSection={<AppIcon name="settings" size={15} />} onClick={() => setAdvancedOpen((opened) => !opened)} size="sm" variant="light">
@@ -82,6 +79,45 @@ export function ConversationFilters({ deliveryStatus, filter, messageType, onCle
           <Popover.Dropdown>
             <Stack gap="sm">
               <Text fw={700} size="sm">ตัวกรองเพิ่มเติม</Text>
+              <Select
+                aria-label="ผู้ส่งข้อความ"
+                data={[
+                  { value: "all", label: "ผู้ส่ง: ทั้งหมด" },
+                  { value: "customer", label: "ผู้ส่ง: ผู้ใช้งาน" },
+                  { value: "bot", label: "ผู้ส่ง: LINE Bot" },
+                  { value: "tech", label: "ผู้ส่ง: ทีม Tech" },
+                  { value: "ai", label: "ผู้ส่ง: AI เรียบเรียง" },
+                  { value: "system", label: "ผู้ส่ง: ระบบ" },
+                ]}
+                label="ผู้ส่งข้อความ"
+                onChange={(value) => onFilterChange((value as ConversationFilter | null) ?? "all")}
+                size="sm"
+                value={filter}
+              />
+              <Select
+                aria-label="ช่วงเวลาประวัติการสนทนา"
+                data={[{ value: "all", label: "ทั้งหมด" }, { value: "today", label: "วันนี้" }, { value: "7d", label: "7 วันที่ผ่านมา" }, { value: "30d", label: "30 วันที่ผ่านมา" }]}
+                label="ช่วงเวลา"
+                onChange={(value) => onRangeChange((value as ConversationRange | null) ?? "all")}
+                size="sm"
+                value={range}
+              />
+              <Select
+                aria-label="การเรียงลำดับข้อความ"
+                data={[{ value: "oldest", label: "เก่าสุดก่อน" }, { value: "newest", label: "ใหม่สุดก่อน" }]}
+                label="เรียงลำดับ"
+                onChange={(value) => onSortChange((value as ConversationSort | null) ?? "oldest")}
+                size="sm"
+                value={sort}
+              />
+              <Select
+                aria-label="มุมมองประวัติการสนทนา"
+                data={[{ value: "CONVERSATION_ONLY", label: "เฉพาะบทสนทนา" }, { value: "ALL_EVENTS", label: "เหตุการณ์ทั้งหมด" }]}
+                label="แสดงข้อมูล"
+                onChange={(value) => onViewModeChange((value as ConversationViewMode | null) ?? "CONVERSATION_ONLY")}
+                size="sm"
+                value={viewMode}
+              />
               <Select
                 aria-label="สถานะข้อความ"
                 data={Object.entries(deliveryStatusLabels).map(([value, label]) => ({ value, label }))}

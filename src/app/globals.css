@@ -389,7 +389,7 @@ body {
 
 .caseConversationFilters {
   display: grid;
-  grid-template-columns: minmax(240px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  grid-template-columns: minmax(240px, 2fr) minmax(180px, 1fr) auto;
   align-items: center;
   gap: 12px;
   background: #ffffff;
@@ -908,12 +908,12 @@ body {
 
 .caseConversationColumn {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1 / span 2;
   min-width: 0;
 }
 
 .caseTeamsThreadCard {
-  grid-column: 1 / -1;
+  grid-column: 2;
   grid-row: 1;
   min-width: 0;
 }
@@ -1099,7 +1099,7 @@ body {
   }
 
   .caseConversationFilters {
-    grid-template-columns: minmax(200px, 2fr) repeat(2, minmax(145px, 1fr));
+    grid-template-columns: minmax(200px, 2fr) minmax(160px, 1fr) auto;
   }
 
   .caseConversationSearch {

@@ -124,23 +124,24 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
           onMessageTypeChange={setMessageType}
           onRangeChange={setRange}
           onSearchChange={setSearchInput}
+          onSortChange={setSort}
+          onViewModeChange={setViewMode}
           range={range}
           search={searchInput}
+          sort={sort}
+          viewMode={viewMode}
         />
         {rawMessageRetentionExpired ? <ConversationEmptyState kind="retention" /> : <ConversationTimeline
           hasActiveFilters={hasActiveFilters}
           isConversationOnly={viewMode === "CONVERSATION_ONLY"}
           latestMessageId={latestMatchingMessageId}
           messages={visibleMessages}
-          onViewModeChange={setViewMode}
           onGoToLatest={() => {
             window.setTimeout(() => document.getElementById(`case-conversation-message-${latestMatchingMessageId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
           }}
           onLoadMore={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filteredMessages.length))}
-          onSortChange={setSort}
           sort={sort}
           totalMatching={filteredMessages.length}
-          viewMode={viewMode}
         />}
       </Stack>
     </Card>

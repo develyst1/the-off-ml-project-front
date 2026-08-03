@@ -830,13 +830,20 @@ function CaseDetail({
         : autoAnswerEligible === false
           ? { color: "yellow", text: "ยังไม่ผ่านเกณฑ์ Auto-answer ตามผลประเมินล่าสุด" }
           : { color: "blue", text: "ยังไม่มีข้อมูลความมั่นใจเพียงพอสำหรับประเมิน Auto-answer" };
+  const hasTeamsTechReply = item.conversation.some((message) => (
+    message.senderType === "TECH"
+    && message.channel === "ms_teams"
+    && message.messageType !== "CASE_CLOSED"
+    && Boolean(message.originalText.trim())
+    && new Date(message.receivedAt ?? message.sentAt ?? message.createdAt).getTime() >= new Date(item.caseCreatedAt ?? item.createdAt).getTime()
+  ));
   const teamLearningMeta = isClosed && item.closedWithoutTechConfirmation
     ? { color: "yellow", text: "ปิดเคสโดยไม่รอการยืนยันคำแนะนำจากทีม Tech" }
     : item.confidenceReviewStatus === "APPROVED"
     ? { color: "green", text: "ทีม Tech ยืนยันว่าคำแนะนำถูกต้อง" }
     : item.confidenceReviewStatus === "REJECTED"
       ? { color: "red", text: "ทีม Tech ระบุว่าคำแนะนำไม่ถูกต้อง" }
-      : item.techRepliedAt
+      : hasTeamsTechReply
         ? { color: "blue", text: "ทีม Tech ตอบกลับแล้ว รอการยืนยันคำแนะนำ" }
         : { color: "yellow", text: "รอทีม Tech ตรวจสอบคำแนะนำ" };
   const confirmedTechSolution = item.confirmedTechSolutionText
@@ -866,14 +873,15 @@ function CaseDetail({
     ? latestTechMessage.metadata.attachmentUrl
     : undefined;
   const caseClosedEvent = [...item.conversation].filter((message) => message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED").at(-1);
-  type CaseProgressState = "completed" | "active" | "pending" | "failed" | "skipped";
+  type CaseProgressState = "completed" | "active" | "pending";
   type CaseProgressStep = {
-    key: "received" | "ai_analyzed" | "teams_sent" | "line_acknowledged" | "waiting_tech" | "solution_sent" | "line_close_sent" | "closed";
+    key: "received" | "ai_analyzed" | "teams_sent" | "waiting_tech" | "solution_sent" | "closed";
     title: string;
     description: string;
     occurredAt?: string;
     state: CaseProgressState;
   };
+  type CaseLineEventState = CaseProgressState | "failed" | "skipped";
   const closedAt = item.closedAt ?? caseClosedEvent?.processedAt ?? caseClosedEvent?.createdAt;
   const lineAcknowledgement = [...item.conversation]
     .filter((message) => message.messageType === "CASE_ACKNOWLEDGEMENT" && message.channel === "line")
@@ -882,7 +890,7 @@ function CaseDetail({
     .filter((message) => message.messageType === "CASE_CLOSED" && message.channel === "line" && message.isVisibleToCustomer)
     .at(-1);
   const sentToLine = (message?: typeof lineAcknowledgement) => ["SENT", "DELIVERED", "API_ACCEPTED", "sent", "delivered"].includes(message?.deliveryStatus ?? "");
-  const lineEventState = (message: typeof lineAcknowledgement | undefined, skippedWhenMissing = false): CaseProgressState => {
+  const lineEventState = (message: typeof lineAcknowledgement | undefined, skippedWhenMissing = false): CaseLineEventState => {
     if (!message) return skippedWhenMissing ? "skipped" : "pending";
     if (message.deliveryStatus === "FAILED" || message.deliveryStatus === "failed") return "failed";
     return sentToLine(message) ? "completed" : "pending";
@@ -908,25 +916,17 @@ function CaseDetail({
         ? "ai_analyzed"
         : !completedProgress.teams_sent
           ? "teams_sent"
-          : acknowledgementState === "pending"
-            ? "line_acknowledged"
-            : acknowledgementState === "failed"
-              ? undefined
-            : !completedProgress.waiting_tech
-              ? "waiting_tech"
-              : !completedProgress.solution_sent
-                ? "solution_sent"
-                : closingLineState === "pending"
-                  ? "line_close_sent"
-                  : "closed";
+          : !completedProgress.waiting_tech
+            ? "waiting_tech"
+            : !completedProgress.solution_sent
+              ? "solution_sent"
+              : "closed";
   const caseProgressSteps: CaseProgressStep[] = [
     { key: "received", title: "รับเรื่อง", description: "รับเรื่องจาก LINE แล้ว", occurredAt: item.caseCreatedAt, state: completedProgress.received ? "completed" : activeProgressKey === "received" ? "active" : "pending" },
     { key: "ai_analyzed", title: "AI วิเคราะห์", description: "กำลังวิเคราะห์ข้อมูลเคส", occurredAt: item.aiAnalyzedAt, state: completedProgress.ai_analyzed ? "completed" : activeProgressKey === "ai_analyzed" ? "active" : "pending" },
     { key: "teams_sent", title: "ส่ง Teams", description: "กำลังส่งข้อมูลให้ทีม Tech", occurredAt: item.teamsSentAt, state: completedProgress.teams_sent ? "completed" : activeProgressKey === "teams_sent" ? "active" : "pending" },
-    { key: "line_acknowledged", title: "ส่งข้อความรับเรื่องผ่าน LINE", description: acknowledgementState === "skipped" ? "ข้ามขั้นตอน" : acknowledgementState === "failed" ? `ส่งไม่สำเร็จ${lineAcknowledgement?.deliveryError ? `: ${lineAcknowledgement.deliveryError}` : ""}` : "กำลังแจ้งรับเรื่องให้ผู้แจ้ง", occurredAt: lineAcknowledgement?.sentAt ?? lineAcknowledgement?.deliveredAt, state: acknowledgementState === "completed" ? "completed" : acknowledgementState === "skipped" || acknowledgementState === "failed" ? acknowledgementState : activeProgressKey === "line_acknowledged" ? "active" : "pending" },
-    { key: "waiting_tech", title: "รอคำตอบจากทีม Tech", description: "กำลังรอทีม Tech Support ตอบกลับ", occurredAt: item.techRepliedAt, state: completedProgress.waiting_tech ? "completed" : activeProgressKey === "waiting_tech" ? "active" : "pending" },
-    { key: "solution_sent", title: "ส่งวิธีแก้ให้ผู้แจ้ง", description: completedProgress.waiting_tech ? "พร้อมส่งวิธีแก้ให้ผู้แจ้ง" : "รอวิธีแก้จากทีม Tech", occurredAt: solutionSentAt, state: completedProgress.solution_sent ? "completed" : activeProgressKey === "solution_sent" ? "active" : "pending" },
-    { key: "line_close_sent", title: "ส่งข้อความปิดเคสผ่าน LINE", description: closingLineState === "skipped" ? "ไม่พบข้อมูลการส่ง" : closingLineState === "failed" ? `ส่งไม่สำเร็จ${closingLineMessage?.deliveryError ? `: ${closingLineMessage.deliveryError}` : ""}` : "รอส่งข้อความปิดเคส", occurredAt: closingLineMessage?.sentAt ?? closingLineMessage?.deliveredAt, state: closingLineState === "completed" ? "completed" : closingLineState === "skipped" || closingLineState === "failed" ? closingLineState : activeProgressKey === "line_close_sent" ? "active" : "pending" },
+    { key: "waiting_tech", title: "รอทีม Tech", description: "กำลังรอทีม Tech Support ตอบกลับ", occurredAt: item.techRepliedAt, state: completedProgress.waiting_tech ? "completed" : activeProgressKey === "waiting_tech" ? "active" : "pending" },
+    { key: "solution_sent", title: "ส่งคำตอบ LINE", description: completedProgress.waiting_tech ? "รอส่งวิธีแก้ให้ผู้แจ้ง" : "รอวิธีแก้จากทีม Tech", occurredAt: solutionSentAt, state: completedProgress.solution_sent ? "completed" : activeProgressKey === "solution_sent" ? "active" : "pending" },
     { key: "closed", title: "ปิดเคส", description: "รอส่งวิธีแก้และสรุปผล", occurredAt: closedAt, state: completedProgress.closed ? "completed" : activeProgressKey === "closed" ? "active" : "pending" },
   ];
   const timelineStyle = {
@@ -1280,15 +1280,17 @@ function CaseDetail({
       <Alert className="caseDetailStatusAlert" color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
         {item.teamsDeliveryStatus === "failed"
           ? `ส่งเคสเข้า Microsoft Teams ไม่สำเร็จ: ${item.teamsDeliveryError ?? "ไม่ทราบสาเหตุ"}`
-          : item.status === "awaiting_tech"
-            ? "ส่งเคสเข้า Microsoft Teams แล้ว ตอนนี้กำลังรอทีม Tech Support ตอบกลับ"
-            : item.status === "tech_replied" || item.status === "analyzing_solution"
-              ? "ได้รับคำตอบจากทีม Tech Support แล้ว ตอนนี้ AI กำลังวิเคราะห์วิธีแก้ปัญหา"
-              : item.status === "resolved"
-                ? "AI วิเคราะห์คำตอบเสร็จแล้ว กำลังส่งคำตอบกลับผู้ใช้งานทาง LINE"
-                : item.status === "sent_to_customer" || item.status === "closed"
-                  ? "ส่งคำตอบกลับผู้ใช้งานทาง LINE แล้ว"
-                  : teamsMeta.label}
+          : item.status === "new" || item.status === "analyzing"
+            ? teamsMeta.label
+            : isClosed && !hasTeamsTechReply
+              ? "ปิดเคสแล้ว โดยไม่มีคำตอบจากทีม Tech ใน Microsoft Teams"
+              : hasTeamsTechReply
+                ? item.status === "resolved"
+                  ? "ได้รับคำตอบจากทีม Tech แล้ว AI วิเคราะห์เสร็จ และกำลังส่งคำตอบกลับผู้ใช้งานทาง LINE"
+                  : item.status === "sent_to_customer" || item.status === "closed"
+                    ? "ได้รับคำตอบจากทีม Tech แล้ว และส่งคำตอบกลับผู้ใช้งานทาง LINE แล้ว"
+                    : "ได้รับคำตอบจากทีม Tech แล้ว ตอนนี้กำลังวิเคราะห์วิธีแก้ปัญหา"
+                : "รอคำตอบจากทีม Tech Support"}
       </Alert>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
@@ -1362,18 +1364,16 @@ function CaseDetail({
             {caseProgressSteps.map((step, index, steps) => {
               const isDone = step.state === "completed";
               const isActive = step.state === "active";
-              const isFailed = step.state === "failed";
-              const isSkipped = step.state === "skipped";
               return (
                 <Box className={`caseTimelineStep caseTimelineStep--${step.state}`} key={step.key}>
                   {index < steps.length - 1 ? <Box className={`caseTimelineConnector caseTimelineConnector--${steps[index + 1].state}`} /> : null}
                   <Box className="caseTimelineStepMarker">
-                    <ThemeIcon color={isDone ? "green" : isActive ? "blue" : isFailed ? "red" : "gray"} radius="xl" size={30} variant={isDone || isActive || isFailed ? "filled" : "outline"}>
+                    <ThemeIcon color={isDone ? "green" : isActive ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isActive ? "filled" : "outline"}>
                       {isDone ? <AppIcon name="check" size={15} /> : isActive ? <AppIcon name="message" size={14} /> : null}
                     </ThemeIcon>
                   </Box>
-                  <Text c={isActive ? "blue.7" : isFailed ? "red.7" : step.state === "pending" || isSkipped ? "gray.6" : undefined} fw={isActive ? 800 : 600} size="sm">{step.title}</Text>
-                  <Text c={isActive ? "blue.7" : isFailed ? "red.6" : step.state === "pending" || isSkipped ? "gray.5" : "dimmed"} fw={isActive ? 700 : undefined} size="xs">
+                  <Text c={isActive ? "blue.7" : step.state === "pending" ? "gray.6" : undefined} fw={isActive ? 800 : 600} size="sm">{step.title}</Text>
+                  <Text c={isActive ? "blue.7" : step.state === "pending" ? "gray.5" : "dimmed"} fw={isActive ? 700 : undefined} size="xs">
                     {isDone && step.occurredAt ? formatEventTime(step.occurredAt) : step.description}
                   </Text>
                 </Box>
@@ -1493,7 +1493,7 @@ function CaseDetail({
                 </Avatar>
                 <Paper className="teamsReplyPending" radius="md">
                   <Text fw={700} size="sm">
-                    {item.status === "awaiting_customer_info" ? "รอลูกค้าส่งข้อมูลเพิ่มเติม" : WAITING_TECH_STATUS}
+                    {latestTeamsTechMessage ? "ทีม Tech ตอบกลับแล้ว" : item.status === "awaiting_customer_info" ? "รอผู้ใช้งานส่งข้อมูลเพิ่มเติม" : WAITING_TECH_STATUS}
                   </Text>
                   <Text c="dimmed" size="sm">
                   คำตอบจากทีมส่งได้ทั้งใน Microsoft Teams หรือจากหน้าเว็บ ระบบจะส่งต่อให้ AI วิเคราะห์วิธีแก้เหมือนกัน

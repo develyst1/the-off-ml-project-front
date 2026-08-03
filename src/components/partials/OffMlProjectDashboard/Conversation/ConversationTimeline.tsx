@@ -1,8 +1,8 @@
-import { Box, Button, Group, Select, SegmentedControl, Stack, Text } from "@mantine/core";
+import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import { ConversationEmptyState } from "./ConversationEmptyState";
 import { conversationDateKey, conversationOccurredAt, formatConversationDateLabel, getConversationMeta } from "./conversation.config";
 import { ConversationTimelineItem } from "./ConversationTimelineItem";
-import type { ConversationMessage, ConversationSort, ConversationViewMode } from "./types";
+import type { ConversationMessage, ConversationSort } from "./types";
 
 interface ConversationTimelineProps {
   hasActiveFilters: boolean;
@@ -11,32 +11,14 @@ interface ConversationTimelineProps {
   messages: ConversationMessage[];
   onGoToLatest: () => void;
   onLoadMore: () => void;
-  onSortChange: (value: ConversationSort) => void;
-  onViewModeChange: (value: ConversationViewMode) => void;
   sort: ConversationSort;
   totalMatching: number;
-  viewMode: ConversationViewMode;
 }
 
-export function ConversationTimeline({ hasActiveFilters, isConversationOnly, latestMessageId, messages, onGoToLatest, onLoadMore, onSortChange, onViewModeChange, sort, totalMatching, viewMode }: ConversationTimelineProps) {
+export function ConversationTimeline({ hasActiveFilters, isConversationOnly, latestMessageId, messages, onGoToLatest, onLoadMore, sort, totalMatching }: ConversationTimelineProps) {
   const toolbar = (
     <Group className="caseConversationTimelineToolbar" justify="space-between" gap="sm" wrap="wrap">
       <Group gap="xs" wrap="wrap">
-        <SegmentedControl
-          aria-label="มุมมองประวัติการสนทนา"
-          data={[{ label: "เฉพาะบทสนทนา", value: "CONVERSATION_ONLY" }, { label: "เหตุการณ์ทั้งหมด", value: "ALL_EVENTS" }]}
-          onChange={(value) => onViewModeChange(value as ConversationViewMode)}
-          size="xs"
-          value={viewMode}
-        />
-        <Select
-          aria-label="เรียงลำดับข้อความ"
-          className="caseConversationSort"
-          data={[{ value: "oldest", label: "เก่าสุดก่อน" }, { value: "newest", label: "ใหม่สุดก่อน" }]}
-          onChange={(value) => onSortChange((value as ConversationSort | null) ?? "oldest")}
-          size="xs"
-          value={sort}
-        />
         {latestMessageId ? (
           <Button leftSection={<Text component="span">↓</Text>} onClick={onGoToLatest} size="xs" variant="light">
             ไปยังข้อความล่าสุด
