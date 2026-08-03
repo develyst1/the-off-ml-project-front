@@ -358,7 +358,7 @@ function CaseInbox({
   const [filtersOpen, setFiltersOpen] = useState(Boolean(drillDown));
   const updateInboxQuery = (input: { category?: string | null; kpi?: CaseInboxKpi | null }) => {
     const url = new URL(window.location.href);
-    url.searchParams.set("tab", "inbox");
+    url.searchParams.set("tab", "cases");
     const nextCategory = input.category === undefined ? categoryFilter : input.category;
     const nextKpi = input.kpi === undefined ? activeKpi : input.kpi;
     if (nextCategory) url.searchParams.set("category", nextCategory);
@@ -2607,7 +2607,7 @@ export default function OffMlProjectDashboardContent({
   const [isLoadingConfidenceSuggestions, setIsLoadingConfidenceSuggestions] = useState(true);
   const [dashboardError, setDashboardError] = useState<string>();
   const [initialAction, setInitialAction] = useState<"accept" | "request-info">();
-  const [, setInboxDrillDown] = useState<{ category?: string; confidence?: string; requestId: number }>();
+  const [inboxDrillDown, setInboxDrillDown] = useState<{ category?: string; confidence?: string; requestId: number }>();
 
   const loadCases = useCallback(async () => {
     setIsLoadingCases(true);
@@ -2754,8 +2754,8 @@ export default function OffMlProjectDashboardContent({
 
   const handleAnalyticsDrillDown = (filter: { category?: string; confidence?: string }) => {
     setInboxDrillDown({ ...filter, requestId: Date.now() });
-    setActiveTab("inbox");
-    const params = new URLSearchParams({ tab: "inbox" });
+    setActiveTab("cases");
+    const params = new URLSearchParams({ tab: "cases" });
     if (filter.category) params.set("category", filter.category);
     router.push(`/?${params.toString()}`);
   };
@@ -2904,6 +2904,7 @@ export default function OffMlProjectDashboardContent({
             <Tabs.Panel value="cases">
               <CaseInbox
                 cases={cases}
+                drillDown={inboxDrillDown}
                 error={undefined}
                 isLoading={isLoadingCases}
                 onOpenCase={handleOpenCase}
