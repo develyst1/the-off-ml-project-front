@@ -12,6 +12,8 @@ export type IconName =
   | "brain"
   | "sparkles"
   | "info"
+  | "thumb-up"
+  | "thumb-down"
   | "menu";
 
 interface AppIconProps {
@@ -86,6 +88,12 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M12 10v6" />
       <path d="M12 7h.01" />
     </>
+  ),
+  "thumb-up": (
+    <path d="M7 10v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 10h9.2a2 2 0 0 0 1.9-1.4l2.1-6.5A1.6 1.6 0 0 0 18.7 10H14l.7-4.2A2.4 2.4 0 0 0 12.3 3L7 10v10Z" />
+  ),
+  "thumb-down": (
+    <path d="M17 14V4h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-3ZM17 4H7.8a2 2 0 0 0-1.9 1.4l-2.1 6.5A1.6 1.6 0 0 0 5.3 14H10l-.7 4.2A2.4 2.4 0 0 0 11.7 21L17 14V4Z" />
   ),
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
 };

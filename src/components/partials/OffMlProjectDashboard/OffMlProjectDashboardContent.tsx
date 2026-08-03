@@ -5,6 +5,7 @@ import type { CSSProperties, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
+  ActionIcon,
   AppShell,
   Avatar,
   Badge,
@@ -13,6 +14,7 @@ import {
   Card,
   Collapse,
   Drawer,
+  Divider,
   Flex,
   Group,
   Modal,
@@ -55,6 +57,7 @@ import {
   rewriteCustomerReply,
   closeCaseWithReply,
   reopenCase,
+  saveCaseAiFeedback,
 } from "@/services/offMlProject.service";
 import type { AiComposeMode, AiComposeResult, AiRewriteMode } from "@/services/offMlProject.service";
 import type {
@@ -739,6 +742,7 @@ function CaseDetail({
   onRewriteAi,
   onReopenCase,
   onRequestInfo,
+  onSaveAiFeedback,
   onBackToInbox,
 }: {
   item: SupportCase | null;
@@ -752,12 +756,15 @@ function CaseDetail({
   onRewriteAi: (mode: AiRewriteMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
   onReopenCase: (reason: string) => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
+  onSaveAiFeedback: (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT") => Promise<void>;
   onBackToInbox: () => void;
 }) {
   const teamsAction = "ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams";
   const [actionState, setActionState] = useState<"idle" | "accepting" | "requesting" | "replying" | "closing" | "reopening" | "rewriting">("idle");
   const [actionError, setActionError] = useState<string>();
   const [actionNotice, setActionNotice] = useState<string>();
+  const [feedbackSaving, setFeedbackSaving] = useState<"caseUnderstandingFeedback" | "solutionSelectionFeedback">();
+  const [feedbackError, setFeedbackError] = useState<string>();
   const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
   const [customerReplyDraft, setCustomerReplyDraft] = useState("");
   const [requestInfoDraft, setRequestInfoDraft] = useState("");
@@ -830,6 +837,7 @@ function CaseDetail({
   const extractedSolution = item.supportSolution && item.supportSolution !== "NO_ACTIONABLE_SOLUTION"
     ? item.supportSolution
     : "—";
+  const hasSuggestedSolution = Boolean(item.supportSolution && item.supportSolution !== "NO_ACTIONABLE_SOLUTION");
   const hasTeamsTechReply = item.conversation.some((message) => (
     message.senderType === "TECH"
     && message.channel === "ms_teams"
@@ -837,6 +845,18 @@ function CaseDetail({
     && Boolean(message.originalText.trim())
     && new Date(message.receivedAt ?? message.sentAt ?? message.createdAt).getTime() >= new Date(item.caseCreatedAt ?? item.createdAt).getTime()
   ));
+  const saveAiFeedback = async (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT") => {
+    if (feedbackSaving) return;
+    setFeedbackSaving(field);
+    setFeedbackError(undefined);
+    try {
+      await onSaveAiFeedback(field, value);
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : "บันทึกผลการตรวจของทีม Tech ไม่สำเร็จ");
+    } finally {
+      setFeedbackSaving(undefined);
+    }
+  };
   const latestTeamsTechMessage = [...item.conversation]
     .filter((message) => (
       message.senderType === "TECH"
@@ -1197,6 +1217,78 @@ function CaseDetail({
               )}
             </Box>
           </SimpleGrid>
+          <Divider />
+          <Box className="caseAiFeedbackSection">
+            <Text fw={700} size="sm">ผลการตรวจของทีม Tech</Text>
+            <Stack gap="xs" mt="sm">
+              <Group justify="space-between" wrap="wrap">
+                <Text size="sm">AI เข้าใจเคสถูกต้องหรือไม่</Text>
+                <Group gap={4}>
+                  <Tooltip label="เข้าใจเคสถูกต้อง" withArrow>
+                    <ActionIcon
+                      aria-label="เข้าใจเคสถูกต้อง"
+                      color={item.caseUnderstandingFeedback === "CORRECT" ? "green" : "gray"}
+                      disabled={Boolean(feedbackSaving)}
+                      loading={feedbackSaving === "caseUnderstandingFeedback"}
+                      onClick={() => void saveAiFeedback("caseUnderstandingFeedback", "CORRECT")}
+                      size="sm"
+                      variant={item.caseUnderstandingFeedback === "CORRECT" ? "filled" : "subtle"}
+                    >
+                      <AppIcon name="thumb-up" size={15} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="เข้าใจเคสไม่ถูกต้อง" withArrow>
+                    <ActionIcon
+                      aria-label="เข้าใจเคสไม่ถูกต้อง"
+                      color={item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "gray"}
+                      disabled={Boolean(feedbackSaving)}
+                      loading={feedbackSaving === "caseUnderstandingFeedback"}
+                      onClick={() => void saveAiFeedback("caseUnderstandingFeedback", "INCORRECT")}
+                      size="sm"
+                      variant={item.caseUnderstandingFeedback === "INCORRECT" ? "filled" : "subtle"}
+                    >
+                      <AppIcon name="thumb-down" size={15} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              </Group>
+              <Group justify="space-between" wrap="wrap">
+                <Box>
+                  <Text size="sm">AI เลือกวิธีแก้ถูกต้องหรือไม่</Text>
+                  {!hasSuggestedSolution ? <Text c="dimmed" size="xs">ยังไม่มีวิธีแก้จาก AI ให้ตรวจสอบ</Text> : null}
+                </Box>
+                <Group gap={4}>
+                  <Tooltip label="เลือกวิธีแก้ถูกต้อง" withArrow>
+                    <ActionIcon
+                      aria-label="เลือกวิธีแก้ถูกต้อง"
+                      color={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "green" : "gray"}
+                      disabled={!hasSuggestedSolution || Boolean(feedbackSaving)}
+                      loading={feedbackSaving === "solutionSelectionFeedback"}
+                      onClick={() => void saveAiFeedback("solutionSelectionFeedback", "CORRECT")}
+                      size="sm"
+                      variant={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "filled" : "subtle"}
+                    >
+                      <AppIcon name="thumb-up" size={15} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="เลือกวิธีแก้ไม่ถูกต้อง" withArrow>
+                    <ActionIcon
+                      aria-label="เลือกวิธีแก้ไม่ถูกต้อง"
+                      color={item.solutionSelectionFeedback === "INCORRECT" ? "red" : "gray"}
+                      disabled={Boolean(feedbackSaving)}
+                      loading={feedbackSaving === "solutionSelectionFeedback"}
+                      onClick={() => void saveAiFeedback("solutionSelectionFeedback", "INCORRECT")}
+                      size="sm"
+                      variant={item.solutionSelectionFeedback === "INCORRECT" ? "filled" : "subtle"}
+                    >
+                      <AppIcon name="thumb-down" size={15} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              </Group>
+            </Stack>
+            {feedbackError ? <Alert color="red" mt="sm" title="บันทึกผลการตรวจไม่สำเร็จ">{feedbackError}</Alert> : null}
+          </Box>
           <Text c="dimmed" fw={700} size="sm">
             สรุปผลวิเคราะห์
           </Text>
@@ -2716,6 +2808,13 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
+  const handleSaveAiFeedback = async (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT") => {
+    if (!selectedCase) return;
+    const updatedCase = await saveCaseAiFeedback(selectedCase.id, field, value);
+    setSelectedCase(updatedCase);
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+  };
+
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { reason: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION"; explanation: string; correctedSolution: string }) => {
     await reviewConfidenceSuggestion({
       caseId: item.caseId,
@@ -2825,6 +2924,7 @@ export default function OffMlProjectDashboardContent({
                 onRewriteAi={handleRewriteAi}
                 onReopenCase={handleReopenCase}
                 onRequestInfo={handleRequestInfo}
+                onSaveAiFeedback={handleSaveAiFeedback}
                 onBackToInbox={handleBackToInbox}
               />
             </Tabs.Panel>

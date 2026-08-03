@@ -303,6 +303,8 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     confidenceReviewStatus: caseItem.confidenceReviewStatus,
     confidenceReviewedAt: caseItem.confidenceReviewedAt,
     confidenceReviewedBy: caseItem.confidenceReviewedBy,
+    caseUnderstandingFeedback: caseItem.caseUnderstandingFeedback,
+    solutionSelectionFeedback: caseItem.solutionSelectionFeedback,
     assignee: caseItem.assigneeName ?? null,
     lastActivityAt: caseItem.updatedAt,
     hasUnreadCustomerMessage,
@@ -494,6 +496,14 @@ export async function reopenCase(caseId: string, reopenReason: string): Promise<
   const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/reopen`, {
     method: "POST",
     body: JSON.stringify({ reopenedBy: "Tech Support Console", reopenReason }),
+  });
+  return mapCaseResponse(caseItem);
+}
+
+export async function saveCaseAiFeedback(caseId: string, field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT"): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/ai-feedback`, {
+    method: "PATCH",
+    body: JSON.stringify({ field, value }),
   });
   return mapCaseResponse(caseItem);
 }

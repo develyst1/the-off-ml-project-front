@@ -53,6 +53,8 @@ export interface SupportCase {
   confidenceReviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
   confidenceReviewedAt?: string;
   confidenceReviewedBy?: string;
+  caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
+  solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
   assignee?: string | null;
   lastActivityAt: string;
   hasUnreadCustomerMessage: boolean;
@@ -198,6 +200,8 @@ export interface OffMlProjectCaseResponse {
   confidenceReviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
   confidenceReviewedAt?: string;
   confidenceReviewedBy?: string;
+  caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
+  solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
   assigneeName?: string;
   hasUnreadCustomerMessage?: boolean;
   rawMessageTimelineExpired?: boolean;
