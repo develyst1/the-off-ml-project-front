@@ -922,6 +922,44 @@ body {
   height: 100%;
 }
 
+.confidenceReviewPage {
+  min-width: 0;
+}
+
+.confidenceReviewNotice {
+  padding-block: 10px;
+}
+
+.confidenceReviewEmpty {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 290px;
+}
+
+.confidenceReviewEmpty .mantine-Stack-root {
+  width: min(100%, 560px);
+}
+
+.confidenceReviewCard {
+  min-width: 0;
+}
+
+.confidenceReviewCard .mantine-Text-root {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48em) {
+  .confidenceReviewNotice {
+    padding-block: 8px;
+  }
+
+  .confidenceReviewEmpty {
+    min-height: 0;
+    padding-block: 40px;
+  }
+}
+
 .caseTeamsThreadCard {
   grid-column: 2;
   grid-row: 1;

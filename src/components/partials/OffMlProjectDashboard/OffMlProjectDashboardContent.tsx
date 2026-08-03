@@ -1965,19 +1965,29 @@ function CaseDetail({
 }
 
 function ConfidenceReview({
+  error,
   isLoading,
+  onRetry,
   onReview,
   suggestions,
 }: {
+  error?: string;
   isLoading: boolean;
+  onRetry: () => void;
   onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { reason: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION"; explanation: string; correctedSolution: string }) => Promise<void>;
   suggestions: ConfidenceSuggestion[];
 }) {
+  const REVIEW_PAGE_SIZE = 10;
   const [reviewedSuggestions, setReviewedSuggestions] = useState<Record<string, "approved" | "rejected">>({});
   const [rejectedSuggestion, setRejectedSuggestion] = useState<ConfidenceSuggestion | null>(null);
   const [rejectionReason, setRejectionReason] = useState<"CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION" | null>(null);
   const [rejectionExplanation, setRejectionExplanation] = useState("");
   const [correctedSolution, setCorrectedSolution] = useState("");
+  const [reviewPage, setReviewPage] = useState(1);
+
+  const reviewPageCount = Math.max(1, Math.ceil(suggestions.length / REVIEW_PAGE_SIZE));
+  const safeReviewPage = Math.min(reviewPage, reviewPageCount);
+  const visibleSuggestions = suggestions.slice((safeReviewPage - 1) * REVIEW_PAGE_SIZE, safeReviewPage * REVIEW_PAGE_SIZE);
 
   const reviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
     await onReview(item, result);
@@ -1995,14 +2005,42 @@ function ConfidenceReview({
   };
 
   return (
-    <Stack gap="lg">
-      <Alert color="blue" icon={<AppIcon name="brain" />} radius="md" variant="light">
-        ทีม Tech Support ใช้หน้านี้ตอบว่าเคสที่ AI แนะนำตรงกับ solution เดิมหรือไม่
-        เพื่อเพิ่ม/ลดความมั่นใจในการเข้าใจเคสและการแยกแยะเคส
+    <Stack className="confidenceReviewPage" gap="md">
+      <Alert className="confidenceReviewNotice" color="blue" icon={<AppIcon name="brain" />} radius="md" variant="light">
+        ตรวจความถูกต้องของคำแนะนำ AI เพื่อปรับ Confidence
       </Alert>
-      {!isLoading && suggestions.length === 0 ? (
-        <Card padding="xl" radius="md" withBorder>
-          <Stack align="center" gap="xs" py="lg" ta="center">
+      {isLoading ? (
+        <Stack gap="sm">
+          {[0, 1].map((item) => (
+            <Card className="confidenceReviewCard" key={item} padding="md" radius="md" withBorder>
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <Skeleton height={20} width="38%" />
+                  <Skeleton height={22} width="24%" />
+                </Group>
+                <Skeleton height={14} width="72%" />
+                <SimpleGrid cols={{ base: 1, md: 2 }}>
+                  <Skeleton height={92} />
+                  <Stack gap="sm">
+                    <Skeleton height={24} />
+                    <Skeleton height={24} />
+                  </Stack>
+                </SimpleGrid>
+                <Group justify="flex-end"><Skeleton height={32} width={110} /><Skeleton height={32} width={140} /></Group>
+              </Stack>
+            </Card>
+          ))}
+        </Stack>
+      ) : error ? (
+        <Alert color="red" title="โหลดรายการตรวจสอบไม่สำเร็จ" variant="light">
+          <Group justify="space-between" mt="xs">
+            <Text size="sm">{error}</Text>
+            <Button onClick={onRetry} size="compact-sm" variant="light">โหลดอีกครั้ง</Button>
+          </Group>
+        </Alert>
+      ) : suggestions.length === 0 ? (
+        <Card className="confidenceReviewEmpty" padding="lg" radius="md" withBorder>
+          <Stack align="center" gap="xs" ta="center">
             <ThemeIcon color="blue" radius="xl" size={42} variant="light"><AppIcon name="check" /></ThemeIcon>
             <Title order={3}>ยังไม่มีเคสที่รอตรวจสอบ</Title>
             <Text c="dimmed" maw={520}>
@@ -2010,12 +2048,13 @@ function ConfidenceReview({
             </Text>
           </Stack>
         </Card>
-      ) : null}
-      {suggestions.map((item) => (
-        <Card key={item.id} padding="lg" radius="md" withBorder>
+      ) : (
+        <Stack gap="sm">
+          {visibleSuggestions.map((item) => (
+        <Card className="confidenceReviewCard" key={item.id} padding="md" radius="md" withBorder>
           <Group align="flex-start" justify="space-between">
             <Box>
-              <Title order={3}>{item.caseNumber} · {item.customerName}</Title>
+              <Title order={4}>{item.caseNumber} · {item.customerName}</Title>
               <Text c="dimmed" mt={4}>{item.originalText}</Text>
             </Box>
             <Group gap="xs">
@@ -2030,7 +2069,7 @@ function ConfidenceReview({
               <Badge color="blue" variant="light">{item.category}</Badge>
             </Group>
           </Group>
-          <SimpleGrid cols={{ base: 1, md: 2 }} mt="md">
+          <SimpleGrid cols={{ base: 1, md: 2 }} mt="sm">
             <Paper bg="gray.0" p="md" radius="md">
               <Text c="dimmed" fw={700} size="sm">Solution ที่ AI แนะนำ</Text>
               <Text>{item.solutionText}</Text>
@@ -2053,22 +2092,30 @@ function ConfidenceReview({
               </Box>
             </Stack>
           </SimpleGrid>
-          <Text c={item.reviewStage === "AUTO_ANSWER" ? "green.7" : "dimmed"} mt="md" size="sm">
+          <Text c={item.reviewStage === "AUTO_ANSWER" ? "green.7" : "dimmed"} mt="sm" size="sm">
             {item.reviewHint}
           </Text>
           <Text c="dimmed" mt="xs" size="xs">
             การยืนยันของทีมจะช่วยปรับความมั่นใจของ AI สำหรับการเข้าใจเคสและการเลือกวิธีแก้ในอนาคต
           </Text>
-          <Group justify="flex-end" mt="md">
-            <Button color="red" onClick={() => setRejectedSuggestion(item)} variant="light">
+          <Group justify="flex-end" mt="sm">
+            <Button color="red" onClick={() => setRejectedSuggestion(item)} size="sm" variant="light">
               {item.reviewStage === "AUTO_ANSWER" ? "ไม่อนุมัติ" : "ไม่ถูกต้อง"}
             </Button>
-            <Button onClick={() => void reviewSuggestion(item, "approved")}>
+            <Button onClick={() => void reviewSuggestion(item, "approved")} size="sm">
               {item.reviewStage === "AUTO_ANSWER" ? "อนุมัติให้ตอบอัตโนมัติ" : "ยืนยันความถูกต้อง"}
             </Button>
           </Group>
         </Card>
-      ))}
+          ))}
+          {reviewPageCount > 1 ? (
+            <Group justify="space-between" mt="xs">
+              <Text c="dimmed" size="sm">แสดง {(safeReviewPage - 1) * REVIEW_PAGE_SIZE + 1}–{Math.min(safeReviewPage * REVIEW_PAGE_SIZE, suggestions.length)} จาก {suggestions.length} เคส</Text>
+              <Pagination onChange={setReviewPage} siblings={1} total={reviewPageCount} value={safeReviewPage} />
+            </Group>
+          ) : null}
+        </Stack>
+      )}
       <Modal opened={Boolean(rejectedSuggestion)} onClose={() => setRejectedSuggestion(null)} title="ระบุสาเหตุที่ AI ไม่ถูกต้อง">
         <Select
           data={[
@@ -2833,7 +2880,8 @@ export default function OffMlProjectDashboardContent({
   const autoAnswerLogsRequestId = useRef(0);
   const [autoAnswerSolutionsState, setAutoAnswerSolutionsState] = useState<AutoAnswerSolution[]>([]);
   const [confidenceSuggestionsState, setConfidenceSuggestionsState] = useState<ConfidenceSuggestion[]>([]);
-  const [isLoadingDashboardData, setIsLoadingDashboardData] = useState(true);
+  const [confidenceError, setConfidenceError] = useState<string>();
+  const [isLoadingConfidenceSuggestions, setIsLoadingConfidenceSuggestions] = useState(true);
   const [dashboardError, setDashboardError] = useState<string>();
   const [initialAction, setInitialAction] = useState<"accept" | "request-info">();
   const [, setInboxDrillDown] = useState<{ category?: string; confidence?: string; requestId: number }>();
@@ -2890,11 +2938,15 @@ export default function OffMlProjectDashboardContent({
   };
 
   const loadDashboardData = async () => {
-    setIsLoadingDashboardData(true);
+    setIsLoadingConfidenceSuggestions(true);
+    setConfidenceError(undefined);
     const logRequestId = ++autoAnswerLogsRequestId.current;
 
+    const confidenceSuggestionsRequest = getConfidenceSuggestions().finally(() => {
+      setIsLoadingConfidenceSuggestions(false);
+    });
     const results = await Promise.allSettled([
-      getConfidenceSuggestions(),
+      confidenceSuggestionsRequest,
       getAnalyticsSummary(),
       getAutomationSettings(),
       getAutoAnswerSolutions(),
@@ -2903,8 +2955,14 @@ export default function OffMlProjectDashboardContent({
     const failures: string[] = [];
     const [suggestions, summary, settings, solutions, logs] = results;
 
-    if (suggestions.status === "fulfilled") setConfidenceSuggestionsState(suggestions.value);
-    else failures.push("Confidence Review");
+    if (suggestions.status === "fulfilled") {
+      setConfidenceSuggestionsState(suggestions.value);
+      setConfidenceError(undefined);
+    } else {
+      const message = suggestions.reason instanceof Error ? suggestions.reason.message : "โหลดรายการ Confidence Review จาก backend ไม่สำเร็จ";
+      setConfidenceError(message);
+      failures.push("Confidence Review");
+    }
     if (summary.status === "fulfilled") setAnalyticsSummary(summary.value);
     else failures.push("Analytics");
     if (settings.status === "fulfilled") setAutomationSettings(settings.value);
@@ -2924,7 +2982,6 @@ export default function OffMlProjectDashboardContent({
         ? `โหลดข้อมูลบางส่วนไม่สำเร็จ: ${failures.join(", ")} กดโหลดใหม่เพื่อทดลองอีกครั้ง`
         : undefined,
     );
-    setIsLoadingDashboardData(false);
   };
 
   useEffect(() => {
@@ -3131,8 +3188,10 @@ export default function OffMlProjectDashboardContent({
             </Tabs.Panel>
             <Tabs.Panel value="confidence">
               <ConfidenceReview
-                isLoading={isLoadingDashboardData}
+                error={confidenceError}
+                isLoading={isLoadingConfidenceSuggestions}
                 onReview={handleReviewSuggestion}
+                onRetry={() => void loadDashboardData()}
                 suggestions={confidenceSuggestionsState}
               />
             </Tabs.Panel>
