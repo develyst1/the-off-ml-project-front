@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActionIcon, Alert, Badge, Box, Button, Card, Checkbox, Divider, Group, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Box, Button, Card, Checkbox, Divider, Group, Indicator, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { useRouter } from "next/navigation";
 import { composeInboxCaseDraft, composeInboxReply, getInboxUser, getInboxUsers, markInboxRead, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
 import type { InboxUser } from "@/types/app/offMlProject";
@@ -10,7 +10,21 @@ import { useRealtimeEvents, type ConversationMessageCreatedEvent } from "@/hooks
 
 function formatTime(value?: string) {
   if (!value) return "ยังไม่มีข้อความ";
-  return new Intl.DateTimeFormat("th-TH", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("th-TH", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(new Date(value));
+}
+
+function inboxDayKey(value: string) {
+  return new Intl.DateTimeFormat("en-CA", { day: "2-digit", month: "2-digit", timeZone: "Asia/Bangkok", year: "numeric" }).format(new Date(value));
+}
+
+function formatInboxDayLabel(value: string) {
+  const dayKey = inboxDayKey(value);
+  const todayKey = inboxDayKey(new Date().toISOString());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (dayKey === todayKey) return "วันนี้";
+  if (dayKey === inboxDayKey(yesterday.toISOString())) return "เมื่อวาน";
+  return new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", timeZone: "Asia/Bangkok", year: "numeric" }).format(new Date(value));
 }
 
 function toDateTimeInput(value: Date) {
@@ -78,11 +92,21 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [caseComposeConfirmation, setCaseComposeConfirmation] = useState<CaseComposeAction | null>(null);
   const [error, setError] = useState<string>();
   const [hasUnreadIncomingMessage, setHasUnreadIncomingMessage] = useState(false);
+  const [isConversationNearBottom, setIsConversationNearBottom] = useState(true);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean | undefined>(undefined);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
   const handledRealtimeMessageIdsRef = useRef(new Set<string>());
   const conversationViewportRef = useRef<HTMLDivElement>(null);
   const isConversationNearBottomRef = useRef(true);
+
+  const updateConversationScrollPosition = useCallback((scrollTop?: number) => {
+    const viewport = conversationViewportRef.current;
+    if (!viewport) return;
+    const nextIsNearBottom = viewport.scrollHeight - viewport.clientHeight - (scrollTop ?? viewport.scrollTop) <= 100;
+    isConversationNearBottomRef.current = nextIsNearBottom;
+    setIsConversationNearBottom(nextIsNearBottom);
+    if (nextIsNearBottom) setHasUnreadIncomingMessage(false);
+  }, []);
 
   const load = useCallback(async (customerId?: string) => {
     setIsLoading(true);
@@ -113,9 +137,17 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const scrollToLatestConversation = useCallback(() => {
     const viewport = conversationViewportRef.current;
     if (!viewport) return;
-    viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+    const shouldReduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: shouldReduceMotion ? "auto" : "smooth" });
+    isConversationNearBottomRef.current = true;
+    setIsConversationNearBottom(true);
     setHasUnreadIncomingMessage(false);
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => updateConversationScrollPosition(), 0);
+    return () => window.clearTimeout(timer);
+  }, [selected?.customer.id, selected?.messages.length, updateConversationScrollPosition]);
 
   const handleRealtimeMessage = useCallback((event: ConversationMessageCreatedEvent) => {
     const handledMessageIds = handledRealtimeMessageIdsRef.current;
@@ -493,23 +525,40 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
             <Stack className="inboxConversationStack" style={{ minWidth: 0 }}>
               <Group justify="space-between"><Box><Title order={4}>{selected.customer.displayName ?? "ไม่ทราบชื่อ"}</Title><Text c="dimmed" size="xs">สถานะ: ข้อความเข้า / รอพิจารณา</Text></Box><Tooltip label="เปิดเคสจากบทสนทนานี้" withArrow><Button onClick={openCaseModal}>เปิดเคส</Button></Tooltip></Group>
               <Divider />
-              {hasUnreadIncomingMessage ? <Button size="xs" variant="light" onClick={scrollToLatestConversation}>มีข้อความใหม่</Button> : null}
-              <ScrollArea
-                className="inboxConversationScroll"
-                type="auto"
-                viewportRef={conversationViewportRef}
-                onScrollPositionChange={({ y }) => {
-                  const viewport = conversationViewportRef.current;
-                  if (!viewport) return;
-                  isConversationNearBottomRef.current = viewport.scrollHeight - viewport.clientHeight - y < 24;
-                }}
-                style={{ minHeight: 0, minWidth: 0 }}
-              >
-                <Stack gap="sm" style={{ minWidth: 0 }}>
-                  {selected.messages.length === 0 ? <Text c="dimmed" py="xl" ta="center">ไม่พบประวัติการสนทนาในช่วง 14 วันที่ผ่านมา</Text> : null}
-                  {selected.messages.map((message) => <Box key={message.id} style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}><PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} /></Box>)}
-                </Stack>
-              </ScrollArea>
+              <Box className="inboxConversationTimelineViewport">
+                <ScrollArea
+                  className="inboxConversationScroll"
+                  type="auto"
+                  viewportRef={conversationViewportRef}
+                  onScrollPositionChange={({ y }) => updateConversationScrollPosition(y)}
+                  style={{ minHeight: 0, minWidth: 0 }}
+                >
+                  <Stack gap="sm" style={{ minWidth: 0 }}>
+                    {selected.messages.length === 0 ? <Text c="dimmed" py="xl" ta="center">ไม่พบประวัติการสนทนาในช่วง 14 วันที่ผ่านมา</Text> : null}
+                    {selected.messages.map((message, index) => {
+                      const previous = selected.messages[index - 1];
+                      const showDateSeparator = !previous || inboxDayKey(previous.createdAt) !== inboxDayKey(message.createdAt);
+                      return (
+                        <Box className="inboxConversationMessageRow" key={message.id}>
+                          {showDateSeparator ? <Text className="inboxConversationDateSeparator" size="xs">{formatInboxDayLabel(message.createdAt)}</Text> : null}
+                          <Box style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                            <PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} />
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </ScrollArea>
+                {!isConversationNearBottom ? (
+                  <Tooltip label="ไปยังข้อความล่าสุด" withArrow>
+                    <Indicator color="red" disabled={!hasUnreadIncomingMessage} offset={3} position="top-end" processing size={10}>
+                      <ActionIcon aria-label="ไปยังข้อความล่าสุด" className="inboxConversationGoLatest" onClick={scrollToLatestConversation} radius="xl" size={38} variant="default">
+                        <AppIcon name="arrow-down" size={18} />
+                      </ActionIcon>
+                    </Indicator>
+                  </Tooltip>
+                ) : null}
+              </Box>
               <Group className="inboxComposer" gap="xs" align="end" wrap="wrap">
                 <Textarea
                   autosize

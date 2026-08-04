@@ -136,9 +136,6 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
           isConversationOnly={viewMode === "CONVERSATION_ONLY"}
           latestMessageId={latestMatchingMessageId}
           messages={visibleMessages}
-          onGoToLatest={() => {
-            window.setTimeout(() => document.getElementById(`case-conversation-message-${latestMatchingMessageId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
-          }}
           onLoadMore={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filteredMessages.length))}
           sort={sort}
           totalMatching={filteredMessages.length}

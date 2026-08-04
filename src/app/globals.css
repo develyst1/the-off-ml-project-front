@@ -204,6 +204,43 @@ body {
   flex: 0 0 auto;
 }
 
+.inboxConversationTimelineViewport {
+  min-width: 0;
+  position: relative;
+}
+
+.inboxConversationMessageRow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inboxConversationDateSeparator {
+  align-self: center;
+  background: #f1f3f5;
+  border-radius: 999px;
+  color: #495057;
+  margin: 12px 0 8px;
+  padding: 3px 10px;
+}
+
+.inboxConversationGoLatest {
+  background: #ffffff;
+  border: 1px solid #dfe5ec;
+  bottom: 12px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+  color: #4b5563;
+  position: absolute;
+  right: 12px;
+  z-index: 3;
+}
+
+.inboxConversationGoLatest:hover {
+  background: #e7f5ff;
+  border-color: #74c0fc;
+  color: #1971c2;
+}
+
 .inboxComposer {
   flex: 0 0 auto;
 }
@@ -459,11 +496,33 @@ body {
   position: relative;
 }
 
+.caseConversationTimelineViewport {
+  min-width: 0;
+  position: relative;
+}
+
 .caseConversationTimelineScroll {
   max-height: 620px;
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-gutter: stable;
+}
+
+.caseConversationGoLatestFloating {
+  background: #ffffff;
+  border: 1px solid #dfe5ec;
+  bottom: 12px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+  color: #4b5563;
+  position: absolute;
+  right: 12px;
+  z-index: 2;
+}
+
+.caseConversationGoLatestFloating:hover {
+  background: #e7f5ff;
+  border-color: #74c0fc;
+  color: #1971c2;
 }
 
 .caseConversationTimelineToolbar {
