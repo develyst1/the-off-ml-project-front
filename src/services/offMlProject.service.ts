@@ -234,6 +234,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const outboundReply = firstText(caseItem, "BOT");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
   const techAnalysis = latestAnalysis(caseItem, "tech_solution");
+  const customerExtractedSolution = typeof (customerAnalysis?.rawJson as { extractedSolution?: unknown } | undefined)?.extractedSolution === "string"
+    ? (customerAnalysis?.rawJson as { extractedSolution: string }).extractedSolution.trim()
+    : undefined;
   const customerOutcomeAnalysis = latestAnalysis(caseItem, "customer_outcome");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
   const confirmedSolution = latestByCreatedAt(caseItem.solutions.filter((solution) => solution.validatedByTeam))[0];
@@ -348,7 +351,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
       const timeDifference = new Date(messageConversationAt(left)).getTime() - new Date(messageConversationAt(right)).getTime();
       return timeDifference || left.id.localeCompare(right.id);
     }),
-    supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary,
+    supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary || customerExtractedSolution,
     hasConfirmedTechSolution: Boolean(confirmedSolution),
     confirmedTechSolutionText: confirmedSolution?.rawReplyText,
     teamActions,
