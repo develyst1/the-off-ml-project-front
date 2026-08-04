@@ -925,12 +925,6 @@ body {
   }
 }
 
-.caseTimelineStatusGrid {
-  align-items: start;
-  align-content: start;
-  min-width: 0;
-}
-
 .caseDetailSections {
   align-items: stretch;
   display: flex;
@@ -941,17 +935,13 @@ body {
   width: 100%;
 }
 
-.caseTimelineSection,
-.teamsThreadSection {
-  flex: none;
+.caseStatusStrip {
+  background: #fbfdff;
   min-width: 0;
-  width: 100%;
 }
 
-.caseTimelineCard {
-  height: auto;
-  min-height: 0;
-  width: 100%;
+.caseStatusStrip.isClosed {
+  border-top: 3px solid #40c463;
 }
 
 .caseDetailBottomGrid {
@@ -1078,6 +1068,22 @@ body {
   padding-block: 9px;
 }
 
+.caseDetailSummaryGrid {
+  align-items: start;
+}
+
+.caseReferenceCard,
+.caseAiAnalysisCard {
+  align-self: start;
+  min-width: 0;
+}
+
+.caseReferenceMessages {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .caseActionComposerCard {
   background: #f8fbff;
   border-radius: 8px;
@@ -1088,7 +1094,6 @@ body {
   align-items: center;
 }
 
-.caseTimelineCard,
 .caseOperationStatusCard {
   height: auto;
   min-height: 0;
@@ -1096,94 +1101,8 @@ body {
   width: 100%;
 }
 
-.caseTimelineCard {
-  padding-bottom: 16px;
-}
-
 .caseOperationStatusCard {
   min-width: 0;
-}
-
-.caseTimelineScroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 8px;
-}
-
-.caseTimelineContent {
-  min-width: 760px;
-}
-
-.caseTimelineSteps {
-  --timeline-icon-size: 30px;
-  align-items: flex-start;
-  display: grid;
-  grid-template-columns: repeat(var(--timeline-step-count), minmax(145px, 1fr));
-  padding: 4px 2px 2px;
-  position: relative;
-}
-
-.caseTimelineStep {
-  align-items: center;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  position: relative;
-  text-align: center;
-  z-index: 1;
-}
-
-.caseTimelineConnector {
-  height: 2px;
-  left: calc(50% + (var(--timeline-icon-size) / 2));
-  position: absolute;
-  top: calc((var(--timeline-icon-size) / 2) + 3px);
-  width: calc(100% - var(--timeline-icon-size));
-  z-index: -1;
-}
-
-.caseTimelineConnector--completed,
-.caseTimelineConnector--active {
-  background: #40c463;
-}
-
-.caseTimelineConnector--pending {
-  background: #d9dee7;
-}
-
-.caseTimelineConnector--skipped {
-  background: #d9dee7;
-}
-
-.caseTimelineConnector--failed {
-  background: #fa5252;
-}
-
-.caseTimelineStepMarker {
-  align-items: center;
-  display: flex;
-  height: var(--timeline-icon-size);
-  justify-content: center;
-  margin-bottom: 10px;
-}
-
-.caseTimelineStepMarker > .mantine-ThemeIcon-root {
-  flex: none;
-}
-
-.caseTimelineStep--active .caseTimelineStepMarker > .mantine-ThemeIcon-root {
-  animation: caseTimelinePulse 1.8s ease-in-out infinite;
-  box-shadow: 0 0 0 5px rgba(34, 139, 230, 0.12);
-}
-
-@keyframes caseTimelinePulse {
-  50% {
-    box-shadow: 0 0 0 9px rgba(34, 139, 230, 0.04);
-  }
-}
-
-.caseCurrentStatus {
-  border: 1px solid #e2e8f0;
 }
 
 @media (max-width: 1180px) {
@@ -1228,13 +1147,6 @@ body {
 @media (max-width: 768px) {
   .caseConversationTimelineScroll {
     max-height: 540px;
-  }
-  .caseTimelineContent {
-    min-width: 800px;
-  }
-
-  .caseTimelineStep {
-    min-width: 160px;
   }
 }
 

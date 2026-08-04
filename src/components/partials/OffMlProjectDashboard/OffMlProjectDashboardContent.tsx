@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, KeyboardEvent } from "react";
+import type { KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
@@ -867,65 +867,9 @@ function CaseDetail({
     ))
     .at(-1);
   const caseClosedEvent = [...item.conversation].filter((message) => message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED").at(-1);
-  type CaseProgressState = "completed" | "active" | "pending";
-  type CaseProgressStep = {
-    key: "received" | "ai_analyzed" | "teams_sent" | "waiting_tech" | "solution_sent" | "closed";
-    title: string;
-    description: string;
-    occurredAt?: string;
-    state: CaseProgressState;
-  };
-  type CaseLineEventState = CaseProgressState | "failed" | "skipped";
-  const closedAt = item.closedAt ?? caseClosedEvent?.processedAt ?? caseClosedEvent?.createdAt;
-  const lineAcknowledgement = [...item.conversation]
-    .filter((message) => message.messageType === "CASE_ACKNOWLEDGEMENT" && message.channel === "line")
-    .at(-1);
-  const closingLineMessage = [...item.conversation]
-    .filter((message) => message.messageType === "CASE_CLOSED" && message.channel === "line" && message.isVisibleToCustomer)
-    .at(-1);
-  const sentToLine = (message?: typeof lineAcknowledgement) => ["SENT", "DELIVERED", "API_ACCEPTED", "sent", "delivered"].includes(message?.deliveryStatus ?? "");
-  const lineEventState = (message: typeof lineAcknowledgement | undefined, skippedWhenMissing = false): CaseLineEventState => {
-    if (!message) return skippedWhenMissing ? "skipped" : "pending";
-    if (message.deliveryStatus === "FAILED" || message.deliveryStatus === "failed") return "failed";
-    return sentToLine(message) ? "completed" : "pending";
-  };
-  const acknowledgementState = lineEventState(lineAcknowledgement, true);
-  const closingLineState = lineEventState(closingLineMessage, isClosed);
-  const solutionSentAt = item.resolutionSentAt;
-  const completedProgress = {
-    received: Boolean(item.caseCreatedAt),
-    ai_analyzed: Boolean(item.aiAnalyzedAt),
-    teams_sent: Boolean(item.teamsSentAt),
-    line_acknowledged: acknowledgementState === "completed" || acknowledgementState === "skipped",
-    waiting_tech: Boolean(item.techRepliedAt),
-    solution_sent: Boolean(solutionSentAt),
-    line_close_sent: closingLineState === "completed" || closingLineState === "skipped",
-    closed: Boolean(isClosed && closedAt),
-  };
-  const activeProgressKey: CaseProgressStep["key"] | undefined = isClosed
-    ? undefined
-    : !completedProgress.received
-      ? "received"
-      : !completedProgress.ai_analyzed
-        ? "ai_analyzed"
-        : !completedProgress.teams_sent
-          ? "teams_sent"
-          : !completedProgress.waiting_tech
-            ? "waiting_tech"
-            : !completedProgress.solution_sent
-              ? "solution_sent"
-              : "closed";
-  const caseProgressSteps: CaseProgressStep[] = [
-    { key: "received", title: "รับเรื่อง", description: "รับเรื่องจาก LINE แล้ว", occurredAt: item.caseCreatedAt, state: completedProgress.received ? "completed" : activeProgressKey === "received" ? "active" : "pending" },
-    { key: "ai_analyzed", title: "AI วิเคราะห์", description: "กำลังวิเคราะห์ข้อมูลเคส", occurredAt: item.aiAnalyzedAt, state: completedProgress.ai_analyzed ? "completed" : activeProgressKey === "ai_analyzed" ? "active" : "pending" },
-    { key: "teams_sent", title: "ส่ง Teams", description: "กำลังส่งข้อมูลให้ทีม Tech", occurredAt: item.teamsSentAt, state: completedProgress.teams_sent ? "completed" : activeProgressKey === "teams_sent" ? "active" : "pending" },
-    { key: "waiting_tech", title: "รอทีม Tech", description: "กำลังรอทีม Tech Support ตอบกลับ", occurredAt: item.techRepliedAt, state: completedProgress.waiting_tech ? "completed" : activeProgressKey === "waiting_tech" ? "active" : "pending" },
-    { key: "solution_sent", title: "ส่งคำตอบ LINE", description: completedProgress.waiting_tech ? "รอส่งวิธีแก้ให้ผู้แจ้ง" : "รอวิธีแก้จากทีม Tech", occurredAt: solutionSentAt, state: completedProgress.solution_sent ? "completed" : activeProgressKey === "solution_sent" ? "active" : "pending" },
-    { key: "closed", title: "ปิดเคส", description: "รอส่งวิธีแก้และสรุปผล", occurredAt: closedAt, state: completedProgress.closed ? "completed" : activeProgressKey === "closed" ? "active" : "pending" },
-  ];
-  const timelineStyle = {
-    "--timeline-step-count": caseProgressSteps.length,
-  } as CSSProperties;
+  const caseStatusUpdatedAt = isClosed
+    ? item.closedAt ?? caseClosedEvent?.processedAt ?? caseClosedEvent?.createdAt
+    : item.lastActivityAt;
 
   const runAction = async (action: "accepting" | "requesting" | "replying" | "closing" | "reopening", successMessage: string, handler: () => Promise<void>) => {
     setActionState(action);
@@ -1171,8 +1115,8 @@ function CaseDetail({
                 : "รอคำตอบจากทีม Tech Support"}
       </Alert>
 
-      <SimpleGrid cols={{ base: 1, lg: 2 }}>
-        <Card padding="lg" radius="md" withBorder>
+      <SimpleGrid className="caseDetailSummaryGrid" cols={{ base: 1, lg: 2 }}>
+        <Card className="caseReferenceCard" padding="lg" radius="md" withBorder>
           <Title mb="sm" order={3}>
             ข้อมูลผู้ใช้งานและปัญหาที่แจ้ง
           </Title>
@@ -1191,7 +1135,7 @@ function CaseDetail({
               <Box>
                 <Text c="dimmed" fw={700} size="sm">ข้อความที่นำมาอ้างอิง</Text>
                 {item.referenceMessages?.length ? (
-                  <Stack gap="xs" mt={6}>
+                  <Stack className="caseReferenceMessages" gap="xs" mt={6}>
                     {item.referenceMessages.map((message, index) => (
                       <Paper key={message.id} bg="gray.0" p="sm" radius="md">
                         <Group justify="space-between" wrap="nowrap">
@@ -1226,7 +1170,7 @@ function CaseDetail({
           </Stack>
         </Card>
 
-        <Card padding="lg" radius="md" withBorder>
+        <Card className="caseAiAnalysisCard" padding="lg" radius="md" withBorder>
           <Title mb="sm" order={3}>
             ผลวิเคราะห์โดย AI
           </Title>
@@ -1301,36 +1245,19 @@ function CaseDetail({
       </SimpleGrid>
 
       <Box className="caseDetailSections">
-        <Box className="caseTimelineSection">
-        <Card className="caseTimelineCard" padding="lg" radius="md" withBorder>
-          <Title order={3} mb="md">ลำดับของเคส</Title>
-          <Box className="caseTimelineScroll">
-          <Box className="caseTimelineContent">
-          <Box className="caseTimelineSteps" style={timelineStyle}>
-            {caseProgressSteps.map((step, index, steps) => {
-              const isDone = step.state === "completed";
-              const isActive = step.state === "active";
-              return (
-                <Box className={`caseTimelineStep caseTimelineStep--${step.state}`} key={step.key}>
-                  {index < steps.length - 1 ? <Box className={`caseTimelineConnector caseTimelineConnector--${steps[index + 1].state}`} /> : null}
-                  <Box className="caseTimelineStepMarker">
-                    <ThemeIcon color={isDone ? "green" : isActive ? "blue" : "gray"} radius="xl" size={30} variant={isDone || isActive ? "filled" : "outline"}>
-                      {isDone ? <AppIcon name="check" size={15} /> : isActive ? <AppIcon name="message" size={14} /> : null}
-                    </ThemeIcon>
-                  </Box>
-                  <Text c={isActive ? "blue.7" : step.state === "pending" ? "gray.6" : undefined} fw={isActive ? 800 : 600} size="sm">{step.title}</Text>
-                  <Text c={isActive ? "blue.7" : step.state === "pending" ? "gray.5" : "dimmed"} fw={isActive ? 700 : undefined} size="xs">
-                    {isDone && step.occurredAt ? formatEventTime(step.occurredAt) : step.description}
-                  </Text>
-                </Box>
-              );
-            })}
-          </Box>
-          </Box>
-          </Box>
+        <Card className={`caseStatusStrip ${isClosed ? "isClosed" : ""}`} padding="sm" radius="md" withBorder>
+          <Group gap="sm" justify="space-between" wrap="wrap">
+            <Group gap="xs">
+              <ThemeIcon color={isClosed ? "green" : currentStatusMeta.color} radius="xl" size="sm" variant="light">
+                <AppIcon name={isClosed ? "check" : "message"} size={14} />
+              </ThemeIcon>
+              <Text fw={700} size="sm">สถานะเคส: {statusLabel}</Text>
+            </Group>
+            <Text c="dimmed" size="xs">
+              {isClosed ? "ปิดเคสเมื่อ" : "อัปเดตล่าสุดเมื่อ"} {formatEventTime(caseStatusUpdatedAt)}
+            </Text>
+          </Group>
         </Card>
-        </Box>
-
         <Box className="caseDetailBottomGrid">
         <Box className="caseConversationColumn">
           <CaseConversation item={item} />
