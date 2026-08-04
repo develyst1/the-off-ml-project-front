@@ -1851,9 +1851,15 @@ function AnalyticsDashboard({
     };
 
     if (periodCases !== null) {
-      periodCases.forEach((item) => add(item.categoryKey || item.category, item.category, 1, item.learningStatus?.caseUnderstandingConfidence, item.learningStatus?.caseDiscriminationConfidence));
+      periodCases.forEach((item) => add(
+        item.categoryKey || item.category,
+        item.category,
+        1,
+        item.caseUnderstandingFeedback === "CORRECT" ? 100 : item.caseUnderstandingFeedback === "INCORRECT" ? 0 : undefined,
+        item.solutionSelectionFeedback === "CORRECT" ? 100 : item.solutionSelectionFeedback === "INCORRECT" ? 0 : undefined,
+      ));
     } else {
-      summary.categories.forEach((item) => add(item.key, item.label, item.count));
+      summary.categories.forEach((item) => add(item.key, item.label, item.count, item.caseUnderstandingAccuracy, item.solutionSelectionAccuracy));
     }
 
     const total = metrics.total;

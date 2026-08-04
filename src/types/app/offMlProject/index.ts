@@ -289,7 +289,14 @@ export interface AnalyticsSummary {
   solvedFromExistingSolutionPct: number;
   overSla: number;
   readyForAutoAnswer: number;
-  categories: Array<{ key: string; label: string; count: number; value: number }>;
+  categories: Array<{
+    key: string;
+    label: string;
+    count: number;
+    value: number;
+    caseUnderstandingAccuracy?: number;
+    solutionSelectionAccuracy?: number;
+  }>;
   confidenceDistribution: Array<{ label: string; value: number }>;
 }
 
