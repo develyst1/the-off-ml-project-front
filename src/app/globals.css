@@ -935,15 +935,6 @@ body {
   width: 100%;
 }
 
-.caseStatusStrip {
-  background: #fbfdff;
-  min-width: 0;
-}
-
-.caseStatusStrip.isClosed {
-  border-top: 3px solid #40c463;
-}
-
 .caseDetailBottomGrid {
   align-items: start;
   display: grid;

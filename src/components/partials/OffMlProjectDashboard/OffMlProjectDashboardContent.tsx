@@ -786,6 +786,7 @@ function CaseDetail({
   const [closeSummaryOverwriteOpen, setCloseSummaryOverwriteOpen] = useState(false);
   const [closeToastVisible, setCloseToastVisible] = useState(false);
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
+  const [expandedReferenceCaseId, setExpandedReferenceCaseId] = useState<string>();
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
   const [reopenReason, setReopenReason] = useState("ลูกค้ายังพบปัญหา");
   const handledInitialAction = useRef(false);
@@ -845,6 +846,32 @@ function CaseDetail({
     && Boolean(message.originalText.trim())
     && new Date(message.receivedAt ?? message.sentAt ?? message.createdAt).getTime() >= new Date(item.caseCreatedAt ?? item.createdAt).getTime()
   ));
+  const hasLineTechReply = item.conversation.some((message) => (
+    message.senderType === "TECH"
+    && message.channel === "line"
+    && message.messageType !== "CASE_CLOSED"
+    && Boolean(message.originalText.trim())
+  ));
+  const referenceMessages = item.referenceMessages ?? [];
+  const referenceMessagesExpanded = expandedReferenceCaseId === item.id;
+  const visibleReferenceMessages = referenceMessagesExpanded ? referenceMessages : referenceMessages.slice(0, 3);
+  const caseStatusMessage = item.teamsDeliveryStatus === "failed"
+    ? `ส่งเคสเข้า Microsoft Teams ไม่สำเร็จ: ${item.teamsDeliveryError ?? "ไม่ทราบสาเหตุ"}`
+    : isClosed
+      ? hasTeamsTechReply
+        ? "ปิดเคสแล้ว โดยมีคำตอบจากทีม Tech ใน Microsoft Teams"
+        : hasLineTechReply
+          ? "ปิดเคสแล้ว จากข้อมูลที่ทีม Tech ตอบผ่าน LINE"
+          : "ปิดเคสแล้ว"
+      : item.status === "new" || item.status === "analyzing"
+        ? teamsMeta.label
+        : hasTeamsTechReply
+          ? item.status === "resolved"
+            ? "ได้รับคำตอบจากทีม Tech แล้ว AI วิเคราะห์เสร็จ และกำลังส่งคำตอบกลับผู้ใช้งานทาง LINE"
+            : item.status === "sent_to_customer"
+              ? "ได้รับคำตอบจากทีม Tech แล้ว และส่งคำตอบกลับผู้ใช้งานทาง LINE แล้ว"
+              : "ได้รับคำตอบจากทีม Tech แล้ว ตอนนี้กำลังวิเคราะห์วิธีแก้ปัญหา"
+          : "รอคำตอบจากทีม Tech Support";
   const saveAiFeedback = async (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT" | null) => {
     if (feedbackSaving[field]) return;
     setFeedbackSaving((current) => ({ ...current, [field]: true }));
@@ -866,10 +893,6 @@ function CaseDetail({
       && new Date(message.receivedAt ?? message.sentAt ?? message.createdAt).getTime() >= new Date(item.caseCreatedAt ?? item.createdAt).getTime()
     ))
     .at(-1);
-  const caseClosedEvent = [...item.conversation].filter((message) => message.senderType === "SYSTEM" && message.messageType === "CASE_CLOSED").at(-1);
-  const caseStatusUpdatedAt = isClosed
-    ? item.closedAt ?? caseClosedEvent?.processedAt ?? caseClosedEvent?.createdAt
-    : item.lastActivityAt;
 
   const runAction = async (action: "accepting" | "requesting" | "replying" | "closing" | "reopening", successMessage: string, handler: () => Promise<void>) => {
     setActionState(action);
@@ -1099,20 +1122,8 @@ function CaseDetail({
         {isClosed && item.closedAt && item.closedBy ? <Text c="dimmed" mt={4} size="xs">ปิดโดย {item.closedBy}</Text> : null}
       </Box>
 
-      <Alert className="caseDetailStatusAlert" color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">
-        {item.teamsDeliveryStatus === "failed"
-          ? `ส่งเคสเข้า Microsoft Teams ไม่สำเร็จ: ${item.teamsDeliveryError ?? "ไม่ทราบสาเหตุ"}`
-          : item.status === "new" || item.status === "analyzing"
-            ? teamsMeta.label
-            : isClosed && !hasTeamsTechReply
-              ? "ปิดเคสแล้ว โดยไม่มีคำตอบจากทีม Tech ใน Microsoft Teams"
-              : hasTeamsTechReply
-                ? item.status === "resolved"
-                  ? "ได้รับคำตอบจากทีม Tech แล้ว AI วิเคราะห์เสร็จ และกำลังส่งคำตอบกลับผู้ใช้งานทาง LINE"
-                  : item.status === "sent_to_customer" || item.status === "closed"
-                    ? "ได้รับคำตอบจากทีม Tech แล้ว และส่งคำตอบกลับผู้ใช้งานทาง LINE แล้ว"
-                    : "ได้รับคำตอบจากทีม Tech แล้ว ตอนนี้กำลังวิเคราะห์วิธีแก้ปัญหา"
-                : "รอคำตอบจากทีม Tech Support"}
+      <Alert className="caseDetailStatusAlert" color={isClosed ? "gray" : "blue"} icon={<AppIcon name="message" />} radius="md" variant="light">
+        {caseStatusMessage}
       </Alert>
 
       <SimpleGrid className="caseDetailSummaryGrid" cols={{ base: 1, lg: 2 }}>
@@ -1134,9 +1145,9 @@ function CaseDetail({
               </Box>
               <Box>
                 <Text c="dimmed" fw={700} size="sm">ข้อความที่นำมาอ้างอิง</Text>
-                {item.referenceMessages?.length ? (
+                {referenceMessages.length ? (
                   <Stack className="caseReferenceMessages" gap="xs" mt={6}>
-                    {item.referenceMessages.map((message, index) => (
+                    {visibleReferenceMessages.map((message, index) => (
                       <Paper key={message.id} bg="gray.0" p="sm" radius="md">
                         <Group justify="space-between" wrap="nowrap">
                           <Group gap="xs" wrap="nowrap">
@@ -1151,6 +1162,11 @@ function CaseDetail({
                     ))}
                   </Stack>
                 ) : <Text c="dimmed" mt={4} size="sm">ไม่ระบุมา</Text>}
+                {referenceMessages.length > 3 ? (
+                  <Button mt="xs" onClick={() => setExpandedReferenceCaseId((current) => current === item.id ? undefined : item.id)} size="xs" variant="subtle">
+                    {referenceMessagesExpanded ? "ย่อข้อความอ้างอิง" : `ดูข้อความอ้างอิงทั้งหมด (${referenceMessages.length})`}
+                  </Button>
+                ) : null}
               </Box>
             </Stack>
           ) : (
@@ -1245,19 +1261,6 @@ function CaseDetail({
       </SimpleGrid>
 
       <Box className="caseDetailSections">
-        <Card className={`caseStatusStrip ${isClosed ? "isClosed" : ""}`} padding="sm" radius="md" withBorder>
-          <Group gap="sm" justify="space-between" wrap="wrap">
-            <Group gap="xs">
-              <ThemeIcon color={isClosed ? "green" : currentStatusMeta.color} radius="xl" size="sm" variant="light">
-                <AppIcon name={isClosed ? "check" : "message"} size={14} />
-              </ThemeIcon>
-              <Text fw={700} size="sm">สถานะเคส: {statusLabel}</Text>
-            </Group>
-            <Text c="dimmed" size="xs">
-              {isClosed ? "ปิดเคสเมื่อ" : "อัปเดตล่าสุดเมื่อ"} {formatEventTime(caseStatusUpdatedAt)}
-            </Text>
-          </Group>
-        </Card>
         <Box className="caseDetailBottomGrid">
         <Box className="caseConversationColumn">
           <CaseConversation item={item} />
