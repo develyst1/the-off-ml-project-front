@@ -27,7 +27,7 @@ const messageTypeLabels: Record<ConversationMessageType, string> = {
   all: "ประเภทข้อความ: ทั้งหมด",
   conversation: "ข้อความสนทนา",
   request_info: "ขอข้อมูลเพิ่ม",
-  customer_reply: "คำตอบลูกค้า",
+  customer_reply: "คำตอบผู้ใช้งาน",
   internal: "ข้อความภายใน",
   system_event: "เหตุการณ์ระบบ",
 };
@@ -47,7 +47,7 @@ export function ConversationFilters({ deliveryStatus, filter, messageType, onCle
 
   const activeChips = [
     search.trim() ? { key: "search", label: `ค้นหา: ${search.trim()}`, onRemove: () => onSearchChange("") } : null,
-    filter !== "all" ? { key: "filter", label: `ผู้ส่ง: ${filter === "customer" ? "ลูกค้า" : filter === "bot" ? "LINE Bot" : filter === "tech" ? "ทีม Tech" : filter === "ai" ? "AI เรียบเรียง" : "ระบบ"}`, onRemove: () => onFilterChange("all") } : null,
+    filter !== "all" ? { key: "filter", label: `ผู้ส่ง: ${filter === "customer" ? "ผู้ใช้งาน" : filter === "bot" ? "LINE Bot" : filter === "tech" ? "ทีม Tech" : filter === "ai" ? "AI เรียบเรียง" : "ระบบ"}`, onRemove: () => onFilterChange("all") } : null,
     messageType !== "all" ? { key: "messageType", label: messageTypeLabels[messageType], onRemove: () => onMessageTypeChange("all") } : null,
     deliveryStatus !== "all" ? { key: "deliveryStatus", label: deliveryStatusLabels[deliveryStatus], onRemove: () => onDeliveryStatusChange("all") } : null,
     range !== "all" ? { key: "range", label: `ช่วงเวลา: ${range === "today" ? "วันนี้" : range === "7d" ? "7 วันที่ผ่านมา" : "30 วันที่ผ่านมา"}`, onRemove: () => onRangeChange("all") } : null,

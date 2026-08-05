@@ -58,6 +58,7 @@ import {
   closeCaseWithReply,
   reopenCase,
   saveCaseAiFeedback,
+  refreshCaseExtractedSolution,
 } from "@/services/offMlProject.service";
 import type { AiComposeMode, AiComposeResult, AiRewriteMode } from "@/services/offMlProject.service";
 import type {
@@ -519,7 +520,7 @@ function CaseInbox({
       <Card padding="lg" radius="md" withBorder>
         <Group justify="space-between" mb="md">
           <Title order={3}>รายการเคส</Title>
-          <Tooltip label="Confidence คือระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความลูกค้า" multiline w={260}>
+          <Tooltip label="Confidence คือระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความผู้ใช้งาน" multiline w={260}>
             <Text c="dimmed" size="xs" style={{ alignItems: "center", cursor: "help", display: "inline-flex", gap: 4 }}>
               AI วิเคราะห์ <AppIcon name="info" size={14} />
             </Text>
@@ -532,7 +533,7 @@ function CaseInbox({
               aria-label="ค้นหารายการเคส"
               className="caseInboxFilterSearch"
               onChange={(event) => { setSearch(event.currentTarget.value); setCasePage(1); }}
-              placeholder="เลขเคส ชื่อลูกค้า หรือปัญหาที่แจ้ง"
+              placeholder="เลขเคส ชื่อผู้ใช้งาน หรือปัญหาที่แจ้ง"
               value={search}
             />
             <Button
@@ -596,11 +597,11 @@ function CaseInbox({
             </colgroup>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>ลูกค้า / เลขเคส</Table.Th>
+                <Table.Th>ผู้ใช้งาน / เลขเคส</Table.Th>
                 <Table.Th>ปัญหาที่แจ้ง</Table.Th>
                 <Table.Th ta="center">หมวดหมู่</Table.Th>
                 <Table.Th ta="center">
-                  <Tooltip label="ระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความลูกค้า">
+                  <Tooltip label="ระดับความมั่นใจของ AI จากการวิเคราะห์ข้อความผู้ใช้งาน">
                     <span style={{ alignItems: "center", display: "inline-flex", gap: 4 }}>AI วิเคราะห์ <AppIcon name="info" size={14} /></span>
                   </Tooltip>
                 </Table.Th>
@@ -637,7 +638,7 @@ function CaseInbox({
                     {item.latestMessage?.text && item.latestMessage.text !== item.problemSummary && item.latestMessage.text !== item.initialCustomerMessage ? (
                       <Group gap={4} mt={4} wrap="nowrap">
                         <Badge color={item.latestMessage.source === "CUSTOMER" ? "blue" : item.latestMessage.source === "TECH_SUPPORT" ? "indigo" : item.latestMessage.source === "LINE_BOT" ? "green" : "gray"} size="xs" variant="light">
-                          {item.latestMessage.source === "CUSTOMER" ? "ลูกค้า" : item.latestMessage.source === "TECH_SUPPORT" ? "Tech Support" : item.latestMessage.source === "LINE_BOT" ? "LINE Bot" : "ระบบ"}
+                          {item.latestMessage.source === "CUSTOMER" ? "ผู้ใช้งาน" : item.latestMessage.source === "TECH_SUPPORT" ? "Tech Support" : item.latestMessage.source === "LINE_BOT" ? "LINE Bot" : "ระบบ"}
                         </Badge>
                         <Text c="dimmed" lineClamp={1} size="xs" title={item.latestMessage.text}>{item.latestMessage.text}</Text>
                       </Group>
@@ -743,6 +744,7 @@ function CaseDetail({
   onReopenCase,
   onRequestInfo,
   onSaveAiFeedback,
+  onRefreshSolution,
   onBackToInbox,
 }: {
   item: SupportCase | null;
@@ -757,6 +759,7 @@ function CaseDetail({
   onReopenCase: (reason: string) => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
   onSaveAiFeedback: (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT" | null) => Promise<void>;
+  onRefreshSolution: () => Promise<void>;
   onBackToInbox: () => void;
 }) {
   const teamsAction = "ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams";
@@ -765,6 +768,8 @@ function CaseDetail({
   const [actionNotice, setActionNotice] = useState<string>();
   const [feedbackSaving, setFeedbackSaving] = useState<Partial<Record<"caseUnderstandingFeedback" | "solutionSelectionFeedback", boolean>>>({});
   const [feedbackError, setFeedbackError] = useState<string>();
+  const [isRefreshingSolution, setIsRefreshingSolution] = useState(false);
+  const [analysisToastVisible, setAnalysisToastVisible] = useState(false);
   const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
   const [customerReplyDraft, setCustomerReplyDraft] = useState("");
   const [requestInfoDraft, setRequestInfoDraft] = useState("");
@@ -788,7 +793,7 @@ function CaseDetail({
   const [teamsThreadOpen, setTeamsThreadOpen] = useState(false);
   const [expandedReferenceCaseId, setExpandedReferenceCaseId] = useState<string>();
   const [reopenConfirmationOpen, setReopenConfirmationOpen] = useState(false);
-  const [reopenReason, setReopenReason] = useState("ลูกค้ายังพบปัญหา");
+  const [reopenReason, setReopenReason] = useState("ผู้ใช้งานยังพบปัญหา");
   const handledInitialAction = useRef(false);
 
   useEffect(() => {
@@ -819,6 +824,12 @@ function CaseDetail({
     return () => window.clearTimeout(timer);
   }, [closeToastVisible]);
 
+  useEffect(() => {
+    if (!analysisToastVisible) return;
+    const timer = window.setTimeout(() => setAnalysisToastVisible(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [analysisToastVisible]);
+
   if (!item) {
     return (
       <Card padding="lg" radius="md" withBorder>
@@ -837,8 +848,12 @@ function CaseDetail({
   const isClosed = item.status === "closed" || item.status === "resolved";
   const extractedSolution = item.supportSolution && item.supportSolution !== "NO_ACTIONABLE_SOLUTION"
     ? item.supportSolution
-    : "—";
+    : "กำลังตรวจสอบ / ยังไม่มีวิธีแก้ที่ยืนยันแล้ว";
   const hasSuggestedSolution = Boolean(item.supportSolution && item.supportSolution !== "NO_ACTIONABLE_SOLUTION");
+  const latestConversationAt = Math.max(0, ...item.conversation
+    .filter((message) => message.channel === "line")
+    .map((message) => new Date(message.receivedAt ?? message.sentAt ?? message.deliveredAt ?? message.createdAt).getTime()));
+  const hasUnanalyzedConversation = latestConversationAt > new Date(item.solutionAnalyzedAt ?? 0).getTime();
   const hasTeamsTechReply = item.conversation.some((message) => (
     message.senderType === "TECH"
     && message.channel === "ms_teams"
@@ -852,6 +867,7 @@ function CaseDetail({
     && message.messageType !== "CASE_CLOSED"
     && Boolean(message.originalText.trim())
   ));
+  const canRefreshSolution = hasUnanalyzedConversation || (hasLineTechReply && !hasSuggestedSolution);
   const referenceMessages = item.referenceMessages ?? [];
   const referenceMessagesExpanded = expandedReferenceCaseId === item.id;
   const visibleReferenceMessages = referenceMessagesExpanded ? referenceMessages : referenceMessages.slice(0, 3);
@@ -933,6 +949,11 @@ function CaseDetail({
   const submitCloseCase = async () => {
     if (!closeCause.trim() || !closeResolution.trim() || !closePrevention.trim() || !closeMessageText.trim()) {
       setCloseValidationAttempted(true);
+      return;
+    }
+    if (hasUnanalyzedConversation) {
+      setActionError("มีบทสนทนาใหม่ที่ยังไม่ได้วิเคราะห์ กรุณาอัปเดตผลวิเคราะห์ก่อนปิดเคส");
+      setCloseConfirmationOpen(false);
       return;
     }
     const message = closeCustomerMessage.trim();
@@ -1192,9 +1213,25 @@ function CaseDetail({
         </Card>
 
         <Card className="caseAiAnalysisCard" padding={20} radius="md" withBorder>
-          <Title mb="xs" order={3}>
-            ผลวิเคราะห์โดย AI
-          </Title>
+          <Group align="center" justify="space-between" mb="xs" wrap="wrap">
+            <Title order={3}>ผลวิเคราะห์โดย AI</Title>
+            <Tooltip label={canRefreshSolution ? "อัปเดตผลวิเคราะห์จากบทสนทนาล่าสุด" : "ยังไม่มีข้อความใหม่ให้วิเคราะห์"} withArrow>
+              <Button color="blue" disabled={!canRefreshSolution || isRefreshingSolution} leftSection={<AppIcon name="sparkles" size={15} />} loading={isRefreshingSolution} onClick={() => void (async () => {
+                setIsRefreshingSolution(true);
+                setActionError(undefined);
+                try {
+                  await onRefreshSolution();
+                  setAnalysisToastVisible(true);
+                } catch (error) {
+                  setActionError(error instanceof Error ? error.message : "อัปเดตผลวิเคราะห์ไม่สำเร็จ");
+                } finally {
+                  setIsRefreshingSolution(false);
+                }
+              })()} size="xs" variant="light">
+                {isRefreshingSolution ? "กำลังอัปเดตผลวิเคราะห์..." : "อัปเดตผลวิเคราะห์"}
+              </Button>
+            </Tooltip>
+          </Group>
             <SimpleGrid cols={1} mb="sm">
             <Box>
               <Text c="dimmed" fw={700} size="sm">
@@ -1238,6 +1275,7 @@ function CaseDetail({
           <Divider my="sm" />
           <Text c="dimmed" fw={700} size="sm">วิธีแก้ที่สกัดได้</Text>
           <Text className="compactText" lineClamp={3} mt={4} size="sm">{extractedSolution}</Text>
+          <Text c="dimmed" mt="xs" size="xs">อัปเดตล่าสุด {formatEventTime(item.solutionAnalyzedAt)}</Text>
           <Box className="caseAiFeedbackSection" mt="xs">
             <Group justify="space-between" wrap="wrap">
               <Box>
@@ -1312,7 +1350,7 @@ function CaseDetail({
                   ระบบส่งรายละเอียดเคสไปยัง Microsoft Teams แล้ว
                 </Text>
                 <Text c="dimmed" mt={4} size="xs">
-                  ทีม Tech Support สามารถตอบกลับจาก Microsoft Teams หรือจากหน้าเว็บ ระบบจะนำคำตอบจากทีมไปวิเคราะห์และใช้สร้างร่างข้อความตอบลูกค้าต่อไป
+                  ทีม Tech Support สามารถตอบกลับจาก Microsoft Teams หรือจากหน้าเว็บ ระบบจะนำคำตอบจากทีมไปวิเคราะห์และใช้สร้างร่างข้อความตอบผู้ใช้งานต่อไป
                 </Text>
                 <Text c="dimmed" mt={4} size="xs">
                   ด้านล่างเป็นตัวอย่างรูปแบบการ์ดที่ส่งไปยัง Microsoft Teams
@@ -1336,7 +1374,7 @@ function CaseDetail({
                     <Stack gap={6}>
                       <Group justify="space-between">
                         <Text c="dimmed" size="sm">
-                          ลูกค้า
+                          ผู้ใช้งาน
                         </Text>
                         <Text fw={700} size="sm">
                           {item.customerName}
@@ -1500,7 +1538,7 @@ function CaseDetail({
         <Text>ต้องการเปิดเคส {item.caseNumber} กลับมาดำเนินการต่อใช่ไหม?</Text>
         <Text c="dimmed" mt="xs" size="sm">สถานะเคสจะกลับเป็นเปิดอยู่ เพื่อให้ทีม Tech Support ตรวจสอบต่อ</Text>
         <Select
-          data={["ลูกค้ายังพบปัญหา", "ปิดเคสผิด", "มีข้อมูลใหม่", "อื่น ๆ"]}
+          data={["ผู้ใช้งานยังพบปัญหา", "ปิดเคสผิด", "มีข้อมูลใหม่", "อื่น ๆ"]}
           label="เหตุผลที่เปิดเคสอีกครั้ง"
           mt="md"
           onChange={(value) => setReopenReason(value ?? "อื่น ๆ")}
@@ -1524,7 +1562,8 @@ function CaseDetail({
           </Button>
         </Group>
       </Modal>
-      {closeToastVisible ? <Box className="caseConversationCopyToast" role="status">ปิดเคสและแจ้งลูกค้าทาง LINE แล้ว</Box> : null}
+      {closeToastVisible ? <Box className="caseConversationCopyToast" role="status">ปิดเคสและแจ้งผู้ใช้งานทาง LINE แล้ว</Box> : null}
+      {analysisToastVisible ? <Box className="caseConversationCopyToast" role="status">อัปเดตผลวิเคราะห์ล่าสุดแล้ว</Box> : null}
     </Stack>
   );
 }
@@ -1686,7 +1725,7 @@ function ConfidenceReview({
           data={[
             { value: "CASE_UNDERSTANDING", label: "AI เข้าใจปัญหาผิด" },
             { value: "SOLUTION_SELECTION", label: "AI เลือกวิธีแก้ผิด" },
-            { value: "INSUFFICIENT_CUSTOMER_INFO", label: "ข้อมูลจากลูกค้าไม่เพียงพอ" },
+            { value: "INSUFFICIENT_CUSTOMER_INFO", label: "ข้อมูลจากผู้ใช้งานไม่เพียงพอ" },
             { value: "BETTER_SOLUTION", label: "มีวิธีแก้อื่นที่ถูกต้องกว่า" },
           ]}
           label="เหตุผล"
@@ -2145,7 +2184,7 @@ function AutomationSettings({
           <TextInput
             className="autoAnswerLogsSearch"
             label="ค้นหา"
-            placeholder="ค้นหาหมายเลขเคส ลูกค้า หรือข้อความ"
+            placeholder="ค้นหาหมายเลขเคส ผู้ใช้งาน หรือข้อความ"
             value={logSearch}
             onChange={(event) => updateLogFilter("search", event.currentTarget.value)}
           />
@@ -2154,7 +2193,7 @@ function AutomationSettings({
             clearable
             data={[
               { value: "CASE_ACKNOWLEDGEMENT", label: "รับเรื่อง" },
-              { value: "CUSTOMER_REPLY", label: "ตอบลูกค้า" },
+              { value: "CUSTOMER_REPLY", label: "ตอบผู้ใช้งาน" },
               { value: "REQUEST_MORE_INFO", label: "ขอข้อมูลเพิ่ม" },
               { value: "STATUS_UPDATE", label: "อัปเดตสถานะ" },
               { value: "CASE_CLOSED", label: "ปิดเคส" },
@@ -2192,7 +2231,7 @@ function AutomationSettings({
             <Table.Thead className="autoAnswerLogsTableHead">
               <Table.Tr>
                 <Table.Th style={{ width: 120 }}>เวลา</Table.Th>
-                <Table.Th style={{ width: 190 }}>ลูกค้า</Table.Th>
+                <Table.Th style={{ width: 190 }}>ผู้ใช้งาน</Table.Th>
                 <Table.Th>ข้อความที่ตอบ</Table.Th>
                 <Table.Th className="autoAnswerLogsCenteredHeader" style={{ width: 120 }}>วิธีแก้</Table.Th>
                 <Table.Th className="autoAnswerLogsCenteredHeader" style={{ width: 160 }}>Teams</Table.Th>
@@ -2431,7 +2470,7 @@ function AutomationSettings({
           </Box>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             <Box>
-              <Text c="dimmed" size="xs">ลูกค้า</Text>
+              <Text c="dimmed" size="xs">ผู้ใช้งาน</Text>
               <Text fw={500}>{selectedLogMessage?.customer ?? "-"}</Text>
             </Box>
             <Box>
@@ -2740,6 +2779,13 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
+  const handleRefreshSolution = async () => {
+    if (!selectedCase) return;
+    const updatedCase = await refreshCaseExtractedSolution(selectedCase.id);
+    setSelectedCase(updatedCase);
+    setCases((current) => current.map((item) => item.id === updatedCase.id ? updatedCase : item));
+  };
+
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { reason: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION"; explanation: string; correctedSolution: string }) => {
     await reviewConfidenceSuggestion({
       caseId: item.caseId,
@@ -2851,6 +2897,7 @@ export default function OffMlProjectDashboardContent({
                 onReopenCase={handleReopenCase}
                 onRequestInfo={handleRequestInfo}
                 onSaveAiFeedback={handleSaveAiFeedback}
+                onRefreshSolution={handleRefreshSolution}
                 onBackToInbox={handleBackToInbox}
               />
             </Tabs.Panel>

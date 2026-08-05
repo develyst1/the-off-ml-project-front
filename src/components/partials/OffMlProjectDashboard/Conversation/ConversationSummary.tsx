@@ -16,7 +16,7 @@ interface ConversationSummaryProps {
 
 const countItems = [
   { key: "total", filter: "all", label: "รายการทั้งหมด", color: "blue", icon: "message" },
-  { key: "customer", filter: "customer", label: "ลูกค้า", color: "blue", icon: "message" },
+  { key: "customer", filter: "customer", label: "ผู้ใช้งาน", color: "blue", icon: "message" },
   { key: "bot", filter: "bot", label: "LINE Bot", color: "green", icon: "brain" },
   { key: "system", filter: "system", label: "ระบบ", color: "gray", icon: "settings" },
   { key: "tech", filter: "tech", label: "ทีม Tech", color: "indigo", icon: "message" },

@@ -29,6 +29,7 @@ export interface SupportCase {
   caseCreatedAt?: string;
   systemReceivedAt?: string;
   aiAnalyzedAt?: string;
+  solutionAnalyzedAt?: string;
   teamsSentAt?: string;
   techRepliedAt?: string;
   customerAcknowledgedAt?: string;

@@ -298,6 +298,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     caseCreatedAt: caseItem.createdAt,
     systemReceivedAt: caseItem.systemReceivedAt,
     aiAnalyzedAt: caseItem.aiAnalyzedAt,
+    solutionAnalyzedAt: techAnalysis?.createdAt,
     teamsSentAt: caseItem.teamsSentAt,
     techRepliedAt: caseItem.techRepliedAt,
     customerAcknowledgedAt: customerAcknowledgement ? messageSentAt(customerAcknowledgement) : undefined,
@@ -345,14 +346,14 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     slaHours,
     summary: problemSummary,
     teamsThread: [
-      "ระบบแจ้งลูกค้า + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
+      "ระบบแจ้งผู้ใช้งาน + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
       techReply ? `Tech Support ตอบกลับ: ${techReply}` : "รอทีม Tech Support วิเคราะห์และตอบกลับ",
     ],
     conversation: [...caseItem.messages].sort((left, right) => {
       const timeDifference = new Date(messageConversationAt(left)).getTime() - new Date(messageConversationAt(right)).getTime();
       return timeDifference || left.id.localeCompare(right.id);
     }),
-    supportSolution: latestSolution?.solutionSteps.join("\n") || techAnalysis?.summary || customerExtractedSolution,
+    supportSolution: techAnalysis?.summary || latestSolution?.solutionSteps.join("\n") || customerExtractedSolution,
     hasConfirmedTechSolution: Boolean(confirmedSolution),
     confirmedTechSolutionText: confirmedSolution?.rawReplyText,
     teamActions,
@@ -533,6 +534,11 @@ export async function saveCaseAiFeedback(caseId: string, field: "caseUnderstandi
     method: "PATCH",
     body: JSON.stringify({ field, value }),
   });
+  return mapCaseResponse(caseItem);
+}
+
+export async function refreshCaseExtractedSolution(caseId: string): Promise<SupportCase> {
+  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/refresh-solution`, { method: "POST" });
   return mapCaseResponse(caseItem);
 }
 

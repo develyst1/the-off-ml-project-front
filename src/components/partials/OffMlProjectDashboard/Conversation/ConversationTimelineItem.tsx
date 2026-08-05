@@ -17,7 +17,7 @@ export function ConversationTimelineItem({ isGroupedWithPrevious = false, isLast
   const content = getConversationContent(message);
   const [expanded, setExpanded] = useState(false);
   const isLongMessage = content.length > 220;
-  const hasDistinctActionLabel = !["ข้อความจากลูกค้า", "ข้อความจากทีม Tech", "ข้อมูลเพิ่มเติมจากลูกค้า"].includes(meta.actionLabel);
+  const hasDistinctActionLabel = !["ข้อความจากผู้ใช้งาน", "ข้อความจากทีม Tech", "ข้อมูลเพิ่มเติมจากผู้ใช้งาน"].includes(meta.actionLabel);
 
   return (
     <Box className={`caseConversationTimelineItem ${meta.isSystemEvent ? "isSystemEvent" : ""} ${isLatest ? "isLatest" : ""} ${isGroupedWithPrevious ? "isGrouped" : ""}`} id={`case-conversation-message-${message.id}`}>

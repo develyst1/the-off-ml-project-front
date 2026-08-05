@@ -12,20 +12,20 @@ export interface ConversationMeta {
 }
 
 const messageTypeLabels: Record<string, string> = {
-  CUSTOMER_MESSAGE: "ข้อความจากลูกค้า",
-  CUSTOMER_ADDITIONAL_INFO: "ข้อมูลเพิ่มเติมจากลูกค้า",
+  CUSTOMER_MESSAGE: "ข้อความจากผู้ใช้งาน",
+  CUSTOMER_ADDITIONAL_INFO: "ข้อมูลเพิ่มเติมจากผู้ใช้งาน",
   CASE_ACKNOWLEDGEMENT: "รับเรื่อง",
   REQUEST_MORE_INFO: "ขอข้อมูลเพิ่มเติม",
   TECH_RAW_REPLY: "ข้อความจากทีม Tech",
   TECH_REPLY: "ข้อความจากทีม Tech",
   AI_REWRITTEN_REPLY: "AI ช่วยเรียบเรียง",
   CUSTOMER_REWRITE: "AI ช่วยเรียบเรียง",
-  CUSTOMER_REPLY: "ส่งให้ลูกค้า",
+  CUSTOMER_REPLY: "ส่งให้ผู้ใช้งาน",
   INTERNAL_NOTE: "ข้อความภายใน",
   CASE_FORWARDED: "เหตุการณ์ระบบ",
   STATUS_UPDATE: "เหตุการณ์ระบบ",
   CASE_REOPENED: "เหตุการณ์ระบบ",
-  CASE_CLOSED: "เหตุการณ์ระบบ",
+  CASE_CLOSED: "ปิดเคส",
   SYSTEM_EVENT: "เหตุการณ์ระบบ",
   RESOLUTION: "แนวทางแก้ไข",
   text: "ข้อความสนทนา",
@@ -33,7 +33,7 @@ const messageTypeLabels: Record<string, string> = {
 };
 
 const metaByFilter: Record<Exclude<ConversationFilter, "all"> | "other", Omit<ConversationMeta, "actionLabel" | "isSystemEvent">> = {
-  customer: { filter: "customer", label: "ลูกค้า", color: "blue", accent: "#228be6", icon: "message" },
+  customer: { filter: "customer", label: "ผู้ใช้งาน", color: "blue", accent: "#228be6", icon: "message" },
   bot: { filter: "bot", label: "LINE Bot", color: "green", accent: "#2f9e44", icon: "brain" },
   system: { filter: "system", label: "ระบบ", color: "gray", accent: "#868e96", icon: "settings" },
   tech: { filter: "tech", label: "ทีม Tech", color: "indigo", accent: "#4263eb", icon: "message" },
@@ -51,6 +51,9 @@ function getMessageFilter(message: ConversationMessage): ConversationMeta["filte
 }
 
 function isSystemEvent(message: ConversationMessage) {
+  // A delivered close summary is a real outgoing LINE message. The separate
+  // internal CASE_CLOSED audit event remains a system event.
+  if (message.messageType === "CASE_CLOSED" && message.channel === "line" && wasSentToCustomer(message)) return false;
   return message.senderType === "SYSTEM" || ["CASE_FORWARDED", "STATUS_UPDATE", "CASE_REOPENED", "CASE_CLOSED", "SYSTEM_EVENT"].includes(message.messageType ?? "");
 }
 
