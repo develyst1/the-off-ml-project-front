@@ -61,11 +61,16 @@ export interface SupportCase {
   problemSummaryStatus: "PENDING" | "SUCCESS" | "FAILED";
   problemSummaryGeneratedAt?: string;
   analysisStatus: "AI_SUCCESS" | "AI_LOW_CONFIDENCE" | "AI_FAILED" | "NO_CUSTOMER_MESSAGE";
-  confidenceReviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  confidenceReviewStatus?: "PENDING" | "QUALITY_APPROVED" | "QUALITY_REJECTED" | "AUTO_ANSWER_APPROVED" | "AUTO_ANSWER_REJECTED";
   confidenceReviewedAt?: string;
   confidenceReviewedBy?: string;
   caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
+  currentAnalysis?: { id: string; analysisVersion: number };
+  aiFeedback?: {
+    issueUnderstanding?: "CORRECT" | "INCORRECT";
+    solutionSelection?: "CORRECT" | "INCORRECT";
+  };
   assignee?: string | null;
   lastActivityAt: string;
   hasUnreadCustomerMessage: boolean;
@@ -163,8 +168,10 @@ export interface OffMlProjectMessageResponse {
 
 export interface OffMlProjectAnalysisResponse {
   id: string;
+  analysisId: string;
   caseId: string;
   messageId?: string;
+  analysisVersion: number;
   analysisType: "customer_message" | "customer_outcome" | "tech_solution" | "customer_rewrite" | "case_match" | "tech_message_review";
   summary?: string;
   category?: string;
@@ -213,11 +220,16 @@ export interface OffMlProjectCaseResponse {
   problemSummarySourceMessageId?: string;
   problemSummaryVersion?: number;
   problemSummaryStatus?: "PENDING" | "SUCCESS" | "FAILED";
-  confidenceReviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  confidenceReviewStatus?: "PENDING" | "QUALITY_APPROVED" | "QUALITY_REJECTED" | "AUTO_ANSWER_APPROVED" | "AUTO_ANSWER_REJECTED";
   confidenceReviewedAt?: string;
   confidenceReviewedBy?: string;
   caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
+  currentAnalysis?: { id: string; analysisVersion: number };
+  aiFeedback?: {
+    issueUnderstanding?: "CORRECT" | "INCORRECT";
+    solutionSelection?: "CORRECT" | "INCORRECT";
+  };
   assigneeName?: string;
   hasUnreadCustomerMessage?: boolean;
   rawMessageTimelineExpired?: boolean;
@@ -248,6 +260,9 @@ export interface ConfidenceSuggestion {
   caseDiscriminationConfidence: number;
   reviewStage: "QUALITY" | "AUTO_ANSWER";
   reviewHint: string;
+  analysisId?: string;
+  analysisVersion?: number;
+  hasSuggestedSolution?: boolean;
 }
 
 export interface AutoAnswerSolution {
@@ -302,6 +317,8 @@ export interface AnalyticsSummary {
     value: number;
     caseUnderstandingAccuracy?: number;
     solutionSelectionAccuracy?: number;
+    caseUnderstandingReviewedCount?: number;
+    solutionSelectionReviewedCount?: number;
   }>;
   confidenceDistribution: Array<{ label: string; value: number }>;
 }

@@ -12,6 +12,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Collapse,
   Drawer,
   Divider,
@@ -758,7 +759,7 @@ function CaseDetail({
   onRewriteAi: (mode: AiRewriteMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
   onReopenCase: (reason: string) => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
-  onSaveAiFeedback: (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT" | null) => Promise<void>;
+  onSaveAiFeedback: (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; result: "CORRECT" | "INCORRECT" }) => Promise<void>;
   onRefreshSolution: () => Promise<void>;
   onBackToInbox: () => void;
 }) {
@@ -889,12 +890,21 @@ function CaseDetail({
               ? "ได้รับคำตอบจากทีม Tech แล้ว และส่งคำตอบกลับผู้ใช้งานทาง LINE แล้ว"
               : "ได้รับคำตอบจากทีม Tech แล้ว ตอนนี้กำลังวิเคราะห์วิธีแก้ปัญหา"
           : "รอคำตอบจากทีม Tech Support";
-  const saveAiFeedback = async (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT" | null) => {
+  const saveAiFeedback = async (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT") => {
     if (feedbackSaving[field]) return;
+    if (!item?.currentAnalysis) {
+      setFeedbackError("ยังไม่มีผลวิเคราะห์ที่สามารถประเมินได้");
+      return;
+    }
     setFeedbackSaving((current) => ({ ...current, [field]: true }));
     setFeedbackError(undefined);
     try {
-      await onSaveAiFeedback(field, value);
+      await onSaveAiFeedback({
+        analysisId: item.currentAnalysis.id,
+        analysisVersion: item.currentAnalysis.analysisVersion,
+        feedbackType: field === "caseUnderstandingFeedback" ? "ISSUE_UNDERSTANDING" : "SOLUTION_SELECTION",
+        result: value,
+      });
     } catch (error) {
       setFeedbackError(error instanceof Error ? error.message : "บันทึกผลการตรวจของทีม Tech ไม่สำเร็จ");
     } finally {
@@ -1261,12 +1271,12 @@ function CaseDetail({
               </Box>
               <Group gap={4}>
                 <Tooltip label="เข้าใจเคสถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เข้าใจเคสถูกต้อง" color={item.caseUnderstandingFeedback === "CORRECT" ? "green" : "gray"} disabled={Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => void saveAiFeedback("caseUnderstandingFeedback", item.caseUnderstandingFeedback === "CORRECT" ? null : "CORRECT")} size="sm" variant={item.caseUnderstandingFeedback === "CORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เข้าใจเคสถูกต้อง" color={item.caseUnderstandingFeedback === "CORRECT" ? "green" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => void saveAiFeedback("caseUnderstandingFeedback", "CORRECT")} size="sm" variant={item.caseUnderstandingFeedback === "CORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-up" size={15} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="เข้าใจเคสไม่ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เข้าใจเคสไม่ถูกต้อง" color={item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "gray"} disabled={Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => void saveAiFeedback("caseUnderstandingFeedback", item.caseUnderstandingFeedback === "INCORRECT" ? null : "INCORRECT")} size="sm" variant={item.caseUnderstandingFeedback === "INCORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เข้าใจเคสไม่ถูกต้อง" color={item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => void saveAiFeedback("caseUnderstandingFeedback", "INCORRECT")} size="sm" variant={item.caseUnderstandingFeedback === "INCORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-down" size={15} />
                   </ActionIcon>
                 </Tooltip>
@@ -1287,12 +1297,12 @@ function CaseDetail({
               </Box>
               <Group gap={4}>
                 <Tooltip label="เลือกวิธีแก้ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เลือกวิธีแก้ถูกต้อง" color={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "green" : "gray"} disabled={!hasSuggestedSolution || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => void saveAiFeedback("solutionSelectionFeedback", item.solutionSelectionFeedback === "CORRECT" ? null : "CORRECT")} size="sm" variant={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เลือกวิธีแก้ถูกต้อง" color={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "green" : "gray"} disabled={!item.currentAnalysis || !hasSuggestedSolution || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => void saveAiFeedback("solutionSelectionFeedback", "CORRECT")} size="sm" variant={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-up" size={15} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="เลือกวิธีแก้ไม่ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เลือกวิธีแก้ไม่ถูกต้อง" color={item.solutionSelectionFeedback === "INCORRECT" ? "red" : "gray"} disabled={Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => void saveAiFeedback("solutionSelectionFeedback", item.solutionSelectionFeedback === "INCORRECT" ? null : "INCORRECT")} size="sm" variant={item.solutionSelectionFeedback === "INCORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เลือกวิธีแก้ไม่ถูกต้อง" color={item.solutionSelectionFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => void saveAiFeedback("solutionSelectionFeedback", "INCORRECT")} size="sm" variant={item.solutionSelectionFeedback === "INCORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-down" size={15} />
                   </ActionIcon>
                 </Tooltip>
@@ -1579,15 +1589,15 @@ function ConfidenceReview({
   error?: string;
   isLoading: boolean;
   onRetry: () => void;
-  onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { reason: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION"; explanation: string; correctedSolution: string }) => Promise<void>;
+  onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { understandingIncorrect: boolean; solutionIncorrect: boolean; explanation: string }) => Promise<void>;
   suggestions: ConfidenceSuggestion[];
 }) {
   const REVIEW_PAGE_SIZE = 10;
   const [reviewedSuggestions, setReviewedSuggestions] = useState<Record<string, "approved" | "rejected">>({});
   const [rejectedSuggestion, setRejectedSuggestion] = useState<ConfidenceSuggestion | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<"CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION" | null>(null);
+  const [understandingIncorrect, setUnderstandingIncorrect] = useState(false);
+  const [solutionIncorrect, setSolutionIncorrect] = useState(false);
   const [rejectionExplanation, setRejectionExplanation] = useState("");
-  const [correctedSolution, setCorrectedSolution] = useState("");
   const [reviewPage, setReviewPage] = useState(1);
 
   const reviewPageCount = Math.max(1, Math.ceil(suggestions.length / REVIEW_PAGE_SIZE));
@@ -1600,13 +1610,13 @@ function ConfidenceReview({
   };
 
   const submitRejection = async () => {
-    if (!rejectedSuggestion || !rejectionReason) return;
-    await onReview(rejectedSuggestion, "rejected", { reason: rejectionReason, explanation: rejectionExplanation, correctedSolution });
+    if (!rejectedSuggestion || (!understandingIncorrect && !solutionIncorrect)) return;
+    await onReview(rejectedSuggestion, "rejected", { understandingIncorrect, solutionIncorrect, explanation: rejectionExplanation });
     setReviewedSuggestions((current) => ({ ...current, [rejectedSuggestion.id]: "rejected" }));
     setRejectedSuggestion(null);
-    setRejectionReason(null);
+    setUnderstandingIncorrect(false);
+    setSolutionIncorrect(false);
     setRejectionExplanation("");
-    setCorrectedSolution("");
   };
 
   return (
@@ -1721,24 +1731,20 @@ function ConfidenceReview({
           ) : null}
         </Stack>
       )}
-      <Modal opened={Boolean(rejectedSuggestion)} onClose={() => setRejectedSuggestion(null)} title="ระบุสาเหตุที่ AI ไม่ถูกต้อง">
-        <Select
-          data={[
-            { value: "CASE_UNDERSTANDING", label: "AI เข้าใจปัญหาผิด" },
-            { value: "SOLUTION_SELECTION", label: "AI เลือกวิธีแก้ผิด" },
-            { value: "INSUFFICIENT_CUSTOMER_INFO", label: "ข้อมูลจากผู้ใช้งานไม่เพียงพอ" },
-            { value: "BETTER_SOLUTION", label: "มีวิธีแก้อื่นที่ถูกต้องกว่า" },
-          ]}
-          label="เหตุผล"
-          onChange={(value) => setRejectionReason(value as typeof rejectionReason)}
-          required
-          value={rejectionReason}
-        />
+      <Modal opened={Boolean(rejectedSuggestion)} onClose={() => setRejectedSuggestion(null)} title="ระบุด้านที่ AI ไม่ถูกต้อง">
+        <Stack gap="xs">
+          <Checkbox checked={understandingIncorrect} label="AI เข้าใจเคสไม่ถูกต้อง" onChange={(event) => setUnderstandingIncorrect(event.currentTarget.checked)} />
+          <Checkbox
+            checked={solutionIncorrect}
+            disabled={rejectedSuggestion?.hasSuggestedSolution === false}
+            label="AI เลือกวิธีแก้ไม่ถูกต้อง"
+            onChange={(event) => setSolutionIncorrect(event.currentTarget.checked)}
+          />
+        </Stack>
         <Textarea label="คำอธิบายเพิ่มเติม" minRows={2} mt="sm" onChange={(event) => setRejectionExplanation(event.currentTarget.value)} value={rejectionExplanation} />
-        <Textarea label="วิธีแก้ที่ถูกต้องจากทีม Tech" minRows={2} mt="sm" onChange={(event) => setCorrectedSolution(event.currentTarget.value)} value={correctedSolution} />
         <Group justify="flex-end" mt="md">
           <Button onClick={() => setRejectedSuggestion(null)} variant="default">ยกเลิก</Button>
-          <Button color="red" disabled={!rejectionReason} onClick={() => void submitRejection()}>บันทึกผลตรวจ</Button>
+          <Button color="red" disabled={!understandingIncorrect && !solutionIncorrect} onClick={() => void submitRejection()}>บันทึกผลตรวจ</Button>
         </Group>
       </Modal>
     </Stack>
@@ -2773,9 +2779,12 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
 
-  const handleSaveAiFeedback = async (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT" | null) => {
+  const handleSaveAiFeedback = async (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; result: "CORRECT" | "INCORRECT" }) => {
     if (!selectedCase) return;
-    const updatedCase = await saveCaseAiFeedback(selectedCase.id, field, value);
+    const saved = await saveCaseAiFeedback(selectedCase.id, input);
+    const updatedCase = { ...selectedCase, aiFeedback: saved.aiFeedback,
+      caseUnderstandingFeedback: saved.aiFeedback.issueUnderstanding,
+      solutionSelectionFeedback: saved.aiFeedback.solutionSelection };
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
   };
@@ -2787,16 +2796,27 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => item.id === updatedCase.id ? updatedCase : item));
   };
 
-  const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { reason: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION"; explanation: string; correctedSolution: string }) => {
+  const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { understandingIncorrect: boolean; solutionIncorrect: boolean; explanation: string }) => {
+    if (!item.analysisId || !item.analysisVersion) {
+      throw new Error("ยังไม่มีผลวิเคราะห์ที่สามารถประเมินได้");
+    }
+    const understandingResult = result === "approved"
+      ? "CORRECT"
+      : feedback?.understandingIncorrect ? "INCORRECT" : undefined;
+    const solutionResult = result === "approved"
+      ? (item.hasSuggestedSolution === false ? undefined : "CORRECT")
+      : feedback?.solutionIncorrect ? "INCORRECT" : undefined;
+    if (!understandingResult && !solutionResult) {
+      throw new Error("กรุณาเลือกด้านที่ AI วิเคราะห์ไม่ถูกต้องอย่างน้อย 1 ด้าน");
+    }
     await reviewConfidenceSuggestion({
       caseId: item.caseId,
       id: item.id,
-      solutionId: item.suggestedSolutionId === "-" ? undefined : item.suggestedSolutionId,
-      reviewStage: item.reviewStage,
-      result,
-      rejectionReason: feedback?.reason,
-      additionalExplanation: feedback?.explanation,
-      correctedSolution: feedback?.correctedSolution,
+      analysisId: item.analysisId,
+      analysisVersion: item.analysisVersion,
+      understandingResult,
+      solutionResult,
+      reason: feedback?.explanation,
     });
     await Promise.all([loadCases(), loadDashboardData()]);
     setActiveTab("confidence");

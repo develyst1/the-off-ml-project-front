@@ -332,8 +332,10 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     confidenceReviewStatus: caseItem.confidenceReviewStatus,
     confidenceReviewedAt: caseItem.confidenceReviewedAt,
     confidenceReviewedBy: caseItem.confidenceReviewedBy,
-    caseUnderstandingFeedback: caseItem.caseUnderstandingFeedback,
-    solutionSelectionFeedback: caseItem.solutionSelectionFeedback,
+    caseUnderstandingFeedback: caseItem.aiFeedback?.issueUnderstanding,
+    solutionSelectionFeedback: caseItem.aiFeedback?.solutionSelection,
+    currentAnalysis: caseItem.currentAnalysis,
+    aiFeedback: caseItem.aiFeedback,
     assignee: caseItem.assigneeName ?? null,
     lastActivityAt: caseItem.updatedAt,
     hasUnreadCustomerMessage,
@@ -529,12 +531,17 @@ export async function reopenCase(caseId: string, reopenReason: string): Promise<
   return mapCaseResponse(caseItem);
 }
 
-export async function saveCaseAiFeedback(caseId: string, field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT" | null): Promise<SupportCase> {
-  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/ai-feedback`, {
+export async function saveCaseAiFeedback(caseId: string, input: {
+  analysisId: string;
+  analysisVersion: number;
+  feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION";
+  result: "CORRECT" | "INCORRECT";
+  reason?: string;
+}): Promise<{ feedback: { result: "CORRECT" | "INCORRECT" }; aiFeedback: NonNullable<SupportCase["aiFeedback"]> }> {
+  return request<{ feedback: { result: "CORRECT" | "INCORRECT" }; aiFeedback: NonNullable<SupportCase["aiFeedback"]> }>(`/cases/${caseId}/ai-feedback`, {
     method: "PATCH",
-    body: JSON.stringify({ field, value }),
+    body: JSON.stringify(input),
   });
-  return mapCaseResponse(caseItem);
 }
 
 export async function refreshCaseExtractedSolution(caseId: string): Promise<SupportCase> {
@@ -549,23 +556,21 @@ export async function getConfidenceSuggestions(): Promise<ConfidenceSuggestion[]
 export async function reviewConfidenceSuggestion(input: {
   caseId: string;
   id: string;
-  solutionId?: string;
-  reviewStage: "QUALITY" | "AUTO_ANSWER";
-  result: "approved" | "rejected";
-  rejectionReason?: "CASE_UNDERSTANDING" | "SOLUTION_SELECTION" | "INSUFFICIENT_CUSTOMER_INFO" | "BETTER_SOLUTION";
-  additionalExplanation?: string;
-  correctedSolution?: string;
+  analysisId: string;
+  analysisVersion: number;
+  understandingResult?: "CORRECT" | "INCORRECT";
+  solutionResult?: "CORRECT" | "INCORRECT";
+  reason?: string;
 }) {
-  return request<{ caseId: string; id: string; result: "approved" | "rejected" }>(`/confidence/suggestions/${input.id}/review`, {
+  return request<{ caseId: string; id: string }>(`/confidence/suggestions/${input.id}/review`, {
     method: "POST",
     body: JSON.stringify({
       caseId: input.caseId,
-      solutionId: input.solutionId,
-      reviewStage: input.reviewStage,
-      result: input.result,
-      rejectionReason: input.rejectionReason,
-      additionalExplanation: input.additionalExplanation,
-      correctedSolution: input.correctedSolution,
+      analysisId: input.analysisId,
+      analysisVersion: input.analysisVersion,
+      understandingResult: input.understandingResult,
+      solutionResult: input.solutionResult,
+      reason: input.reason,
     }),
   });
 }
