@@ -309,6 +309,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     teamsDeliveryStatus: caseItem.teamsDeliveryStatus,
     teamsDeliveryAt: caseItem.teamsDeliveryAt,
     teamsDeliveryError: caseItem.teamsDeliveryError,
+    customerId: caseItem.customer.id,
     customerName: caseItem.customer.displayName ?? caseItem.customer.lineUserId,
     lineUserId: caseItem.customer.lineUserId,
     originalText: customerMessage,

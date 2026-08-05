@@ -21,6 +21,7 @@ export type CaseEventType = "CASE_RECEIVED" | "AI_ANALYZED" | "TEAMS_SENT" | "TE
 
 export interface SupportCase {
   id: string;
+  customerId: string;
   caseNumber: string;
   aiStatus?: "AI_SUCCESS" | "AI_LOW_CONFIDENCE" | "AI_FAILED";
   dataStatus?: "COMPLETE" | "DATA_INCOMPLETE";

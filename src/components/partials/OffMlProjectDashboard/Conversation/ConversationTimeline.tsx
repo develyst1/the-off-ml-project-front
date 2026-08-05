@@ -82,7 +82,7 @@ export function ConversationTimeline({ hasActiveFilters, isConversationOnly, lat
   const remainingCount = totalMatching - messages.length;
   const loadPreviousButton = remainingCount > 0 ? (
     <Button onClick={onLoadMore} size="sm" variant="subtle">
-      โหลดข้อความก่อนหน้าอีก {Math.min(10, remainingCount)} รายการ
+      ดูข้อความก่อนหน้า {Math.min(7, remainingCount)} รายการ
     </Button>
   ) : null;
 

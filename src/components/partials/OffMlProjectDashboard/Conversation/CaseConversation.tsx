@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, Skeleton, Stack } from "@mantine/core";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SupportCase } from "@/types/app/offMlProject";
 import { CaseConversationHeader } from "./CaseConversationHeader";
 import { ConversationEmptyState } from "./ConversationEmptyState";
@@ -9,8 +9,9 @@ import { ConversationFilters } from "./ConversationFilters";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { conversationOccurredAt, getConversationContent, getConversationMeta, isConversationMessage, matchesDeliveryStatus, matchesMessageType } from "./conversation.config";
 import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessage, ConversationMessageType, ConversationRange, ConversationSort, ConversationViewMode } from "./types";
+import { useRealtimeEvents, type ConversationMessageCreatedEvent } from "@/hooks/useRealtimeEvents";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 7;
 
 interface CaseConversationProps {
   error?: string;
@@ -45,6 +46,20 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   const rawMessageRetentionExpired = messages.length === 0 && item.rawMessageTimelineExpired === true;
   const conversationCount = useMemo(() => messages.filter(isConversationMessage).length, [messages]);
   const systemEventCount = useMemo(() => messages.filter((message) => getConversationMeta(message).isSystemEvent).length, [messages]);
+
+  const handleRealtimeMessage = useCallback((event: ConversationMessageCreatedEvent) => {
+    if (event.userId !== item.customerId) return;
+    onRetry?.();
+  }, [item.customerId, onRetry]);
+
+  const handleRealtimeReconnect = useCallback(() => {
+    onRetry?.();
+  }, [onRetry]);
+
+  useRealtimeEvents({
+    onConversationMessageCreated: handleRealtimeMessage,
+    onReconnected: handleRealtimeReconnect,
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300);
