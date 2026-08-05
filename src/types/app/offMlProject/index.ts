@@ -317,8 +317,8 @@ export interface AnalyticsSummary {
     value: number;
     caseUnderstandingAccuracy?: number;
     solutionSelectionAccuracy?: number;
-    caseUnderstandingReviewedCount?: number;
-    solutionSelectionReviewedCount?: number;
+    caseUnderstandingReviewedCount: number;
+    solutionSelectionReviewedCount: number;
   }>;
   confidenceDistribution: Array<{ label: string; value: number }>;
 }

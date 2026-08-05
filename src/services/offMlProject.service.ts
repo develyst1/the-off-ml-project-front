@@ -575,8 +575,8 @@ export async function reviewConfidenceSuggestion(input: {
   });
 }
 
-export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  return request<AnalyticsSummary>("/analytics/summary");
+export async function getAnalyticsSummary(range: "today" | "7d" | "30d" = "30d"): Promise<AnalyticsSummary> {
+  return request<AnalyticsSummary>(`/analytics/summary?range=${range}`);
 }
 
 export async function getAutomationSettings(): Promise<AutomationSettings> {

@@ -1755,11 +1755,13 @@ function AnalyticsDashboard({
   cases,
   isLoadingCases,
   onDrillDown,
+  onRangeChange,
   summary,
 }: {
   cases: SupportCase[];
   isLoadingCases: boolean;
   onDrillDown: (filter: { category?: string; confidence?: string }) => void;
+  onRangeChange: (range: "today" | "7d" | "30d") => void;
   summary: AnalyticsSummary;
 }) {
   type AnalyticsRange = "today" | "7d" | "30d";
@@ -1813,27 +1815,34 @@ function AnalyticsDashboard({
   }, [metrics.total, periodCases, summary.confidenceDistribution]);
   const categoryRows = useMemo(() => {
     const grouped = new Map<string, { key: string; label: string; count: number; understanding: number[]; discrimination: number[] }>();
-    const add = (keyValue: string | undefined, labelValue: string | undefined, count: number, understanding?: number, discrimination?: number) => {
+    const add = (
+      keyValue: string | undefined,
+      labelValue: string | undefined,
+      count: number,
+      understanding?: number,
+      discrimination?: number,
+      understandingReviewedCount = 0,
+      discriminationReviewedCount = 0,
+    ) => {
       const key = normalizeAnalyticsCategoryKey(keyValue, labelValue);
       const label = key === "OTHER" ? "อื่นๆ" : displayCategory(labelValue ?? key);
       const current = grouped.get(key) ?? { key, label, count: 0, understanding: [], discrimination: [] };
       current.count += count;
-      if (Number.isFinite(understanding)) current.understanding.push(understanding as number);
-      if (Number.isFinite(discrimination)) current.discrimination.push(discrimination as number);
+      if (understandingReviewedCount > 0 && Number.isFinite(understanding)) current.understanding.push(understanding as number);
+      if (discriminationReviewedCount > 0 && Number.isFinite(discrimination)) current.discrimination.push(discrimination as number);
       grouped.set(key, current);
     };
 
-    if (periodCases !== null) {
-      periodCases.forEach((item) => add(
-        item.categoryKey || item.category,
-        item.category,
-        1,
-        item.caseUnderstandingFeedback === "CORRECT" ? 100 : item.caseUnderstandingFeedback === "INCORRECT" ? 0 : undefined,
-        item.solutionSelectionFeedback === "CORRECT" ? 100 : item.solutionSelectionFeedback === "INCORRECT" ? 0 : undefined,
-      ));
-    } else {
-      summary.categories.forEach((item) => add(item.key, item.label, item.count, item.caseUnderstandingAccuracy, item.solutionSelectionAccuracy));
-    }
+    // Category quality always comes from ai_review_feedback via analytics summary.
+    summary.categories.forEach((item) => add(
+      item.key,
+      item.label,
+      item.count,
+      item.caseUnderstandingAccuracy,
+      item.solutionSelectionAccuracy,
+      item.caseUnderstandingReviewedCount,
+      item.solutionSelectionReviewedCount,
+    ));
 
     const total = metrics.total;
     return [...grouped.values()]
@@ -1846,7 +1855,7 @@ function AnalyticsDashboard({
         discrimination: item.discrimination.length ? Math.round(item.discrimination.reduce((sum, value) => sum + value, 0) / item.discrimination.length) : undefined,
       }))
       .sort((left, right) => right.count - left.count);
-  }, [metrics.total, periodCases, summary.categories]);
+  }, [metrics.total, summary.categories]);
   const topCategories = categoryRows.filter((item) => item.key !== "OTHER").slice(0, 5);
   const remainderCategories = categoryRows.filter((item) => item.key === "OTHER" || !topCategories.some((top) => top.key === item.key));
   const otherCategory: CategoryRow | undefined = remainderCategories.length ? {
@@ -1868,7 +1877,11 @@ function AnalyticsDashboard({
     <Stack gap="lg">
       <Group justify="space-between" align="flex-end" wrap="wrap">
         <Text c="dimmed" size="sm">ข้อมูลช่วง: {rangeLabels[range]}</Text>
-        <Select aria-label="ช่วงเวลา Analytics" data={Object.entries(rangeLabels).map(([value, label]) => ({ value, label }))} onChange={(value) => setRange((value as AnalyticsRange | null) ?? "30d")} size="sm" value={range} w={140} />
+        <Select aria-label="ช่วงเวลา Analytics" data={Object.entries(rangeLabels).map(([value, label]) => ({ value, label }))} onChange={(value) => {
+          const nextRange = (value as AnalyticsRange | null) ?? "30d";
+          setRange(nextRange);
+          onRangeChange(nextRange);
+        }} size="sm" value={range} w={140} />
       </Group>
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
         <MetricCard color="blue" icon="inbox" label={`เคสทั้งหมด${range === "30d" ? " 30 วัน" : rangeLabels[range]}`} value={String(metrics.total)} />
@@ -2616,6 +2629,14 @@ export default function OffMlProjectDashboardContent({
     }
   }, [caseId]);
 
+  const loadAnalyticsSummary = useCallback(async (range: "today" | "7d" | "30d" = "30d") => {
+    try {
+      setAnalyticsSummary(await getAnalyticsSummary(range));
+    } catch (error) {
+      setDashboardError(error instanceof Error ? error.message : "โหลด Analytics จาก backend ไม่สำเร็จ");
+    }
+  }, []);
+
   const loadAutoAnswerLogs = async (query: AutoAnswerLogsQuery) => {
     const requestId = ++autoAnswerLogsRequestId.current;
     setIsLoadingAutoAnswerLogs(true);
@@ -2787,6 +2808,7 @@ export default function OffMlProjectDashboardContent({
       solutionSelectionFeedback: saved.aiFeedback.solutionSelection };
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+    await loadAnalyticsSummary();
   };
 
   const handleRefreshSolution = async () => {
@@ -2932,7 +2954,7 @@ export default function OffMlProjectDashboardContent({
               />
             </Tabs.Panel>
             <Tabs.Panel value="analytics">
-              <AnalyticsDashboard cases={cases} isLoadingCases={isLoadingCases} onDrillDown={handleAnalyticsDrillDown} summary={analyticsSummary} />
+              <AnalyticsDashboard cases={cases} isLoadingCases={isLoadingCases} onDrillDown={handleAnalyticsDrillDown} onRangeChange={(range) => void loadAnalyticsSummary(range)} summary={analyticsSummary} />
             </Tabs.Panel>
             <Tabs.Panel value="automation">
               <AutomationSettings
