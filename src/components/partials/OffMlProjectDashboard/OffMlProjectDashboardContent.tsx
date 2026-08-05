@@ -1100,33 +1100,38 @@ function CaseDetail({
   return (
     <Stack gap="lg">
       <Box className="caseDetailHeader">
-        <Group justify="space-between" wrap="wrap">
-          <Box>
-            <Button mb="xs" onClick={onBackToInbox} size="xs" variant="subtle">
-              ← กลับไปหน้า Inbox
-            </Button>
-            <Title order={2}>เคส {item.caseNumber}</Title>
-            <Text c="dimmed" size="sm">ผู้ใช้งาน: {item.customerName}</Text>
-            <Group className="caseDetailHeaderSummary" gap="sm" mt={6} wrap="wrap">
-              <Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge>
-              <Text c="dimmed" size="xs">ทีม: {item.assignee || "ยังไม่มีผู้รับผิดชอบ"}</Text>
-              <Text c="dimmed" size="xs">ข้อความล่าสุด: {formatEventTime(item.lastActivityAt)}</Text>
-              {item.closedAt ? <Text c="dimmed" size="xs">ปิดเมื่อ: {formatEventTime(item.closedAt)}</Text> : null}
-            </Group>
-          </Box>
-          <Group className="caseDetailHeaderBadges" gap="xs" wrap="wrap">
-            {item.aiStatus !== "AI_FAILED" ? <Badge color={confidenceColor(item.aiConfidence)} variant="light">AI {item.aiConfidence}%</Badge> : null}
-            {item.isSlaBreached ? <Badge color="red" variant="light">เกิน SLA</Badge> : null}
-          </Group>
+        <Button mb={4} onClick={onBackToInbox} size="xs" variant="subtle">
+          ← กลับไปหน้า Inbox
+        </Button>
+        <Group className="caseDetailHeaderTitle" gap="xs" wrap="wrap">
+          <Title order={2}>เคส {item.caseNumber}</Title>
+          <Badge color={currentStatusMeta.color} variant="light">{statusLabel}</Badge>
+          {item.aiStatus !== "AI_FAILED" ? <Badge color={confidenceColor(item.aiConfidence)} variant="light">AI {item.aiConfidence}%</Badge> : null}
+          {item.isSlaBreached ? <Badge color="red" variant="light">เกิน SLA</Badge> : null}
         </Group>
-        {isClosed && item.closedAt && item.closedBy ? <Text c="dimmed" mt={4} size="xs">ปิดโดย {item.closedBy}</Text> : null}
+        <Group className="caseDetailHeaderSummary" gap={6} mt={4} wrap="wrap">
+          <Text c="dimmed" size="xs">ผู้ใช้งาน: {item.customerName}</Text>
+          {isClosed ? <>
+            {item.closedAt ? <><Text c="dimmed" size="xs">·</Text><Text c="dimmed" size="xs">ปิดเมื่อ: {formatEventTime(item.closedAt)}</Text></> : null}
+            {item.closedBy ? <><Text c="dimmed" size="xs">·</Text><Text c="dimmed" size="xs">ปิดโดย: {item.closedBy}</Text></> : null}
+          </> : <>
+            <Text c="dimmed" size="xs">·</Text>
+            <Text c="dimmed" size="xs">ทีม: {item.assignee || "ยังไม่มีผู้รับผิดชอบ"}</Text>
+            <Text c="dimmed" size="xs">·</Text>
+            <Text c="dimmed" size="xs">ข้อความล่าสุด: {formatEventTime(item.lastActivityAt)}</Text>
+          </>}
+        </Group>
+        {isClosed ? (
+          <Group className="caseDetailStatusContext" gap="xs" mt={6} wrap="nowrap">
+            <AppIcon name="message" size={15} />
+            <Text size="xs">{caseStatusMessage}</Text>
+          </Group>
+        ) : null}
       </Box>
 
-      <Alert className="caseDetailStatusAlert" color={isClosed ? "gray" : "blue"} icon={<AppIcon name="message" />} radius="md" variant="light">
-        {caseStatusMessage}
-      </Alert>
+      {!isClosed ? <Alert className="caseDetailStatusAlert" color="blue" icon={<AppIcon name="message" />} radius="md" variant="light">{caseStatusMessage}</Alert> : null}
 
-      <SimpleGrid className="caseDetailSummaryGrid" cols={{ base: 1, lg: 2 }}>
+      <Box className="caseDetailSummaryGrid">
         <Card className="caseReferenceCard" padding="lg" radius="md" withBorder>
           <Title mb="sm" order={3}>
             ข้อมูลผู้ใช้งานและปัญหาที่แจ้ง
@@ -1186,11 +1191,11 @@ function CaseDetail({
           </Stack>
         </Card>
 
-        <Card className="caseAiAnalysisCard" padding="lg" radius="md" withBorder>
-          <Title mb="sm" order={3}>
+        <Card className="caseAiAnalysisCard" padding={20} radius="md" withBorder>
+          <Title mb="xs" order={3}>
             ผลวิเคราะห์โดย AI
           </Title>
-            <SimpleGrid cols={1} mb="md">
+            <SimpleGrid cols={1} mb="sm">
             <Box>
               <Text c="dimmed" fw={700} size="sm">
                 หมวดหมู่
@@ -1200,16 +1205,16 @@ function CaseDetail({
               </Badge>
             </Box>
           </SimpleGrid>
-          <Divider />
+          <Divider my="sm" />
           <Text fw={700} size="sm">ผลการตรวจของทีม Tech</Text>
-          <Text c="dimmed" fw={700} mt="md" size="sm">
+          <Text c="dimmed" fw={700} mt="sm" size="sm">
             สรุปผลวิเคราะห์
           </Text>
           <Text className="compactText" mt={6}>
             {item.summary}
           </Text>
-          <Box className="caseAiFeedbackSection" mt="sm">
-            <Group justify="space-between" mt="xs" wrap="wrap">
+          <Box className="caseAiFeedbackSection" mt="xs">
+            <Group justify="space-between" wrap="wrap">
               <Box>
                 <Text size="sm">AI เข้าใจเคสถูกต้องหรือไม่</Text>
                 <Text c={item.caseUnderstandingFeedback === "CORRECT" ? "green" : item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "dimmed"} size="xs">
@@ -1230,10 +1235,10 @@ function CaseDetail({
               </Group>
             </Group>
           </Box>
-          <Divider my="md" />
+          <Divider my="sm" />
           <Text c="dimmed" fw={700} size="sm">วิธีแก้ที่สกัดได้</Text>
           <Text className="compactText" lineClamp={3} mt={4} size="sm">{extractedSolution}</Text>
-          <Box className="caseAiFeedbackSection" mt="sm">
+          <Box className="caseAiFeedbackSection" mt="xs">
             <Group justify="space-between" wrap="wrap">
               <Box>
                 <Text size="sm">AI เลือกวิธีแก้ถูกต้องหรือไม่</Text>
@@ -1256,12 +1261,11 @@ function CaseDetail({
             </Group>
             {feedbackError ? <Alert color="red" mt="sm" title="บันทึกผลการตรวจไม่สำเร็จ">{feedbackError}</Alert> : null}
           </Box>
-          <Text c="dimmed" mt="sm" size="xs">วิเคราะห์เสร็จเมื่อ: {formatEventTime(item.aiAnalyzedAt)}</Text>
+          <Text c="dimmed" mt="xs" size="xs">วิเคราะห์เสร็จเมื่อ: {formatEventTime(item.aiAnalyzedAt)}</Text>
         </Card>
-      </SimpleGrid>
+      </Box>
 
-      <Box className="caseDetailSections">
-        <Box className="caseDetailBottomGrid">
+      <Box className="caseDetailEngagementGrid">
         <Box className="caseConversationColumn">
           <CaseConversation item={item} />
         </Box>
@@ -1391,34 +1395,28 @@ function CaseDetail({
           </Collapse>
       </Card>
 
-      <Card className={`caseCloseCaseCard${isClosed ? " caseCloseCaseCard--closed" : ""}`} padding="md" radius="md" withBorder>
-        <Stack gap="md">
-          <Group gap="sm">
+      <Card className={`caseCloseCaseCard${isClosed ? " caseCloseCaseCard--closed" : ""}`} padding={isClosed ? 16 : "md"} radius="md" withBorder>
+        <Stack gap={isClosed ? "xs" : "md"}>
+          <Group gap={isClosed ? "xs" : "sm"}>
             <ThemeIcon color={isClosed ? "green" : "red"} radius="xl" variant="light">
               <AppIcon name="check" />
             </ThemeIcon>
             <Box>
               <Text fw={800}>{isClosed ? "ปิดเคสแล้ว" : "ปิดเคส"}</Text>
-              <Text c="dimmed" size="xs">
-                {isClosed ? "ส่งข้อความสรุปและปิดเคสเรียบร้อยแล้ว" : "กรอกข้อมูลให้ครบก่อนยืนยันปิดเคส"}
-              </Text>
+              {!isClosed ? <Text c="dimmed" size="xs">กรอกข้อมูลให้ครบก่อนยืนยันปิดเคส</Text> : null}
             </Box>
           </Group>
 
           {isClosed ? (
             <Box className="caseClosedComposer">
-              <Badge color="green" variant="light">ปิดเคสแล้ว</Badge>
-              <Text mt="sm" size="sm">
-                {item.hasCustomerConfirmation ? "ผู้ใช้งานยืนยันว่าใช้งานได้แล้ว" : "ส่งข้อความสรุปและปิดเคสให้ผู้ใช้งานแล้ว"}
-              </Text>
+              <Text size="sm">ส่งข้อความสรุปและปิดเคสให้ผู้ใช้งานแล้ว</Text>
               <Text c="dimmed" mt={4} size="xs">
                 ปิดเคสเมื่อ {formatEventTime(item.closedAt)}{item.closedBy ? ` · โดย ${item.closedBy}` : ""}
               </Text>
-              {item.customerOutcome?.text ? <Text c="dimmed" mt={4} size="xs">รายละเอียด: {item.customerOutcome.text}</Text> : null}
               <Button
                 disabled={isActionRunning}
                 loading={actionState === "reopening"}
-                mt="md"
+                mt="sm"
                 onClick={() => setReopenConfirmationOpen(true)}
                 size="xs"
                 variant="outline"
@@ -1450,7 +1448,6 @@ function CaseDetail({
         </Stack>
       </Card>
 
-      </Box>
       </Box>
       </Box>
       <Modal
