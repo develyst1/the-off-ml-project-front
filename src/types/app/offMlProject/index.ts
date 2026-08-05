@@ -119,6 +119,10 @@ export interface OffMlProjectCustomerResponse {
 export interface InboxMessage {
   id: string;
   customerId: string;
+  caseId?: string;
+  assignedCaseId?: string;
+  assignedBy?: string;
+  assignedAt?: string;
   direction: "INBOUND" | "OUTBOUND";
   senderType: "CUSTOMER" | "TECH" | "BOT";
   text: string;

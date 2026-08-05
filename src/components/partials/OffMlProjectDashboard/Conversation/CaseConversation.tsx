@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Skeleton, Stack } from "@mantine/core";
+import { Button, Card, Group, Skeleton, Stack, Text, Textarea } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SupportCase } from "@/types/app/offMlProject";
 import { CaseConversationHeader } from "./CaseConversationHeader";
@@ -18,6 +18,7 @@ interface CaseConversationProps {
   isLoading?: boolean;
   item: SupportCase;
   onRetry?: () => void;
+  onReply?: (text: string) => Promise<void>;
 }
 
 function isInRange(message: ConversationMessage, range: ConversationRange) {
@@ -32,7 +33,7 @@ function isInRange(message: ConversationMessage, range: ConversationRange) {
   return timestamp >= Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
-export function CaseConversation({ error, isLoading = false, item, onRetry }: CaseConversationProps) {
+export function CaseConversation({ error, isLoading = false, item, onRetry, onReply }: CaseConversationProps) {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConversationFilter>("all");
@@ -42,6 +43,8 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
   const [range, setRange] = useState<ConversationRange>("all");
   const [viewMode, setViewMode] = useState<ConversationViewMode>("CONVERSATION_ONLY");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [replyText, setReplyText] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const messages = useMemo(() => item.conversation ?? [], [item.conversation]);
   const rawMessageRetentionExpired = messages.length === 0 && item.rawMessageTimelineExpired === true;
   const conversationCount = useMemo(() => messages.filter(isConversationMessage).length, [messages]);
@@ -155,6 +158,13 @@ export function CaseConversation({ error, isLoading = false, item, onRetry }: Ca
           sort={sort}
           totalMatching={filteredMessages.length}
         />}
+        {onReply ? <Stack gap={6} pt="xs">
+          <Text fw={600} size="sm">กำลังส่งข้อความในเคส {item.caseNumber}</Text>
+          <Group align="flex-end" wrap="nowrap">
+            <Textarea autosize disabled={["closed", "resolved", "sent_to_customer"].includes(item.status)} minRows={2} onChange={(event) => setReplyText(event.currentTarget.value)} placeholder="พิมพ์ข้อความถึงผู้ใช้งาน" style={{ flex: 1 }} value={replyText} />
+            <Button disabled={!replyText.trim() || ["closed", "resolved", "sent_to_customer"].includes(item.status)} loading={isSending} onClick={() => void (async () => { setIsSending(true); try { await onReply(replyText.trim()); setReplyText(""); } finally { setIsSending(false); } })()}>ส่ง</Button>
+          </Group>
+        </Stack> : null}
       </Stack>
     </Card>
   );

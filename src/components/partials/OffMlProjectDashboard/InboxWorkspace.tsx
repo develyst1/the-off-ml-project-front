@@ -79,6 +79,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isAiDrafting, setIsAiDrafting] = useState(false);
   const [isDraftConfirmOpen, setIsDraftConfirmOpen] = useState(false);
   const [isOpenCaseModalOpen, setIsOpenCaseModalOpen] = useState(false);
+  const [isExistingCaseWarningOpen, setIsExistingCaseWarningOpen] = useState(false);
   const [caseTitle, setCaseTitle] = useState("");
   const [caseDescription, setCaseDescription] = useState("");
   const [caseFrom, setCaseFrom] = useState("");
@@ -232,7 +233,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     }
   };
 
-  const openCaseModal = () => {
+  const prepareOpenCaseModal = () => {
     if (!selected) return;
     const latestAt = Math.max(...selected.messages.map((message) => new Date(message.createdAt).getTime()));
     const to = new Date(latestAt);
@@ -246,6 +247,16 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     setIsDraftDirty(false);
     setCaseComposeConfirmation(null);
     setIsOpenCaseModalOpen(true);
+  };
+
+  const openCaseModal = () => {
+    if (!selected) return;
+    const openCases = selected.cases.filter((item) => !["closed", "resolved", "sent_to_customer"].includes(item.status));
+    if (openCases.length > 0) {
+      setIsExistingCaseWarningOpen(true);
+      return;
+    }
+    prepareOpenCaseModal();
   };
 
   const handleOpenCase = async () => {
@@ -413,6 +424,20 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
           </Group>
         </Stack>
       </Modal>
+      <Modal opened={isExistingCaseWarningOpen} onClose={() => setIsExistingCaseWarningOpen(false)} title="ยังมีเคสที่เปิดอยู่" centered size="lg">
+        <Stack gap="md">
+          <Text size="sm">ผู้ใช้งานรายนี้ยังมีเคสที่ไม่ได้ปิดอยู่ กรุณาตรวจสอบก่อนเปิดเคสใหม่ เพื่อป้องกันข้อความและการดำเนินงานปะปนกัน</Text>
+          {(selected?.cases ?? []).filter((item) => !["closed", "resolved", "sent_to_customer"].includes(item.status)).map((item) => (
+            <Card key={item.id} padding="sm" withBorder>
+              <Group justify="space-between" align="flex-start">
+                <Box><Text fw={700}>{item.caseNumber}</Text><Text size="sm">{item.title ?? "ไม่ระบุหัวข้อปัญหา"}</Text><Text c="dimmed" size="xs">สถานะ: {item.status} · เปิดเมื่อ {formatTime(item.createdAt)}</Text></Box>
+                <Button size="xs" variant="outline" onClick={() => router.push(`/cases/${encodeURIComponent(item.id)}`)}>ไปที่เคสนี้</Button>
+              </Group>
+            </Card>
+          ))}
+          <Group justify="flex-end"><Button variant="default" onClick={() => setIsExistingCaseWarningOpen(false)}>ยกเลิก</Button><Button onClick={() => { setIsExistingCaseWarningOpen(false); prepareOpenCaseModal(); }}>เปิดเคสใหม่ต่อ</Button></Group>
+        </Stack>
+      </Modal>
       <Modal opened={isOpenCaseModalOpen} onClose={() => !isOpening && setIsOpenCaseModalOpen(false)} title="เปิดเคส" centered size="xl" closeOnClickOutside={!isOpening}>
         <Stack gap="md">
           <Text c="dimmed" size="sm">กรอกข้อมูลเคส เลือกข้อความจากแชท หรือใช้ทั้งสองอย่างร่วมกันได้</Text>
@@ -543,6 +568,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
                           {showDateSeparator ? <Text className="inboxConversationDateSeparator" size="xs">{formatInboxDayLabel(message.createdAt)}</Text> : null}
                           <Box style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>
                             <PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} />
+                            <Text c="dimmed" mt={2} size="xs">{message.caseId ? `เคส ${selected.cases.find((item) => item.id === message.caseId)?.caseNumber ?? message.caseId}` : "ยังไม่ได้จัดเข้ากับเคส"}</Text>
                           </Box>
                         </Box>
                       );

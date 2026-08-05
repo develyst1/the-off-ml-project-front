@@ -867,7 +867,8 @@ function CaseDetail({
     && message.messageType !== "CASE_CLOSED"
     && Boolean(message.originalText.trim())
   ));
-  const canRefreshSolution = hasUnanalyzedConversation || (hasLineTechReply && !hasSuggestedSolution);
+  const hasLegacyCloseMetadataInSolution = /ปิดเคส\s+OFF-\d{4}-\d+/u.test(item.supportSolution ?? "");
+  const canRefreshSolution = hasUnanalyzedConversation || (hasLineTechReply && (!hasSuggestedSolution || hasLegacyCloseMetadataInSolution));
   const referenceMessages = item.referenceMessages ?? [];
   const referenceMessagesExpanded = expandedReferenceCaseId === item.id;
   const visibleReferenceMessages = referenceMessagesExpanded ? referenceMessages : referenceMessages.slice(0, 3);
@@ -1305,7 +1306,7 @@ function CaseDetail({
 
       <Box className="caseDetailEngagementGrid">
         <Box className="caseConversationColumn">
-          <CaseConversation item={item} />
+          <CaseConversation item={item} onReply={onReply} />
         </Box>
         <Box className="caseDetailActionColumn">
         <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
