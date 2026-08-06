@@ -259,6 +259,7 @@ export interface ConfidenceSuggestion {
   caseUnderstandingConfidence: number;
   caseDiscriminationConfidence: number;
   reviewStage: "QUALITY" | "AUTO_ANSWER";
+  reviewStatus: "LOW_CONFIDENCE" | "NEGATIVE_FEEDBACK" | "NOT_REVIEWED";
   reviewHint: string;
   analysisId?: string;
   analysisVersion?: number;

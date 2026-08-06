@@ -1681,6 +1681,9 @@ function ConfidenceReview({
               <Badge color={item.reviewStage === "AUTO_ANSWER" ? "green" : "yellow"} variant="light">
                 {item.reviewStage === "AUTO_ANSWER" ? "พร้อมพิจารณา Auto-answer" : "ตรวจคุณภาพ AI"}
               </Badge>
+              <Badge color={item.reviewStatus === "LOW_CONFIDENCE" ? "orange" : item.reviewStatus === "NEGATIVE_FEEDBACK" ? "red" : "gray"} variant="light">
+                {item.reviewStatus === "LOW_CONFIDENCE" ? "ความมั่นใจต่ำ" : item.reviewStatus === "NEGATIVE_FEEDBACK" ? "มี Feedback ไม่ถูกต้อง" : "ยังไม่ได้ตรวจสอบ"}
+              </Badge>
               <Badge color="blue" variant="light">{item.category}</Badge>
             </Group>
           </Group>
