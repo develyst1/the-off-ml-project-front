@@ -14,22 +14,33 @@ export type ConversationMessageCreatedEvent = {
   direction: "INBOUND" | "OUTBOUND";
 };
 
+export type CaseAnalysisUpdatedEvent = {
+  eventId: string;
+  caseId: string;
+  analysisId: string;
+  analysisVersion: number;
+  createdAt: string;
+};
+
 type UseRealtimeEventsOptions = {
   onConversationMessageCreated: (event: ConversationMessageCreatedEvent) => void;
+  onCaseAnalysisUpdated?: (event: CaseAnalysisUpdatedEvent) => void;
   onReconnected: () => void;
   onConnectionStateChange?: (connected: boolean) => void;
 };
 
-export function useRealtimeEvents({ onConnectionStateChange, onConversationMessageCreated, onReconnected }: UseRealtimeEventsOptions) {
+export function useRealtimeEvents({ onCaseAnalysisUpdated, onConnectionStateChange, onConversationMessageCreated, onReconnected }: UseRealtimeEventsOptions) {
   const messageCreatedRef = useRef(onConversationMessageCreated);
+  const analysisUpdatedRef = useRef(onCaseAnalysisUpdated);
   const reconnectedRef = useRef(onReconnected);
   const connectionStateRef = useRef(onConnectionStateChange);
 
   useEffect(() => {
     messageCreatedRef.current = onConversationMessageCreated;
+    analysisUpdatedRef.current = onCaseAnalysisUpdated;
     reconnectedRef.current = onReconnected;
     connectionStateRef.current = onConnectionStateChange;
-  }, [onConnectionStateChange, onConversationMessageCreated, onReconnected]);
+  }, [onCaseAnalysisUpdated, onConnectionStateChange, onConversationMessageCreated, onReconnected]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -78,13 +89,22 @@ export function useRealtimeEvents({ onConnectionStateChange, onConversationMessa
         // Ignore malformed events and retain the current Inbox data.
       }
     };
+    const handleAnalysisUpdated = (event: MessageEvent<string>) => {
+      try {
+        analysisUpdatedRef.current?.(JSON.parse(event.data) as CaseAnalysisUpdatedEvent);
+      } catch {
+        // Ignore malformed events and retain the current Case Detail data.
+      }
+    };
     source.addEventListener("open", handleOpen);
     source.addEventListener("error", handleError);
     source.addEventListener("conversation.message.created", handleMessageCreated);
+    source.addEventListener("case.analysis.updated", handleAnalysisUpdated);
     return () => {
       source.removeEventListener("open", handleOpen);
       source.removeEventListener("error", handleError);
       source.removeEventListener("conversation.message.created", handleMessageCreated);
+      source.removeEventListener("case.analysis.updated", handleAnalysisUpdated);
       clearReconnectGraceTimer();
       source.close();
     };

@@ -1263,6 +1263,7 @@ function CaseDetail({
               </Button>
             </Tooltip>
           </Group>
+          <Text c="dimmed" size="xs">Analysis Version {item.currentAnalysis?.analysisVersion ?? "—"} · อัปเดตล่าสุด {formatEventTime(item.currentAnalysis?.createdAt)}</Text>
             <SimpleGrid cols={1} mb="sm">
             <Box>
               <Text c="dimmed" fw={700} size="sm">
@@ -2836,7 +2837,13 @@ export default function OffMlProjectDashboardContent({
 
   const handleRefreshSolution = async () => {
     if (!selectedCase) return;
+    const previousAnalysis = selectedCase.currentAnalysis;
     const updatedCase = await refreshCaseExtractedSolution(selectedCase.id);
+    if (!previousAnalysis || !updatedCase.currentAnalysis
+      || updatedCase.currentAnalysis.id === previousAnalysis.id
+      || updatedCase.currentAnalysis.analysisVersion <= previousAnalysis.analysisVersion) {
+      throw new Error("ระบบยังไม่ยืนยันผลวิเคราะห์เวอร์ชันใหม่ กรุณาลองอีกครั้ง");
+    }
     setSelectedCase(updatedCase);
     setCases((current) => current.map((item) => item.id === updatedCase.id ? updatedCase : item));
   };

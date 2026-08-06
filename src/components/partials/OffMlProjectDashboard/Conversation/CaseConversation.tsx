@@ -9,7 +9,7 @@ import { ConversationFilters } from "./ConversationFilters";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { conversationOccurredAt, getConversationContent, getConversationMeta, isConversationMessage, matchesDeliveryStatus, matchesMessageType } from "./conversation.config";
 import type { ConversationDeliveryStatus, ConversationFilter, ConversationMessage, ConversationMessageType, ConversationRange, ConversationSort, ConversationViewMode } from "./types";
-import { useRealtimeEvents, type ConversationMessageCreatedEvent } from "@/hooks/useRealtimeEvents";
+import { useRealtimeEvents, type CaseAnalysisUpdatedEvent, type ConversationMessageCreatedEvent } from "@/hooks/useRealtimeEvents";
 
 const PAGE_SIZE = 7;
 
@@ -59,7 +59,13 @@ export function CaseConversation({ error, isLoading = false, item, onRetry, onRe
     onRetry?.();
   }, [onRetry]);
 
+  const handleRealtimeAnalysisUpdated = useCallback((event: CaseAnalysisUpdatedEvent) => {
+    if (event.caseId !== item.id) return;
+    onRetry?.();
+  }, [item.id, onRetry]);
+
   useRealtimeEvents({
+    onCaseAnalysisUpdated: handleRealtimeAnalysisUpdated,
     onConversationMessageCreated: handleRealtimeMessage,
     onReconnected: handleRealtimeReconnect,
   });

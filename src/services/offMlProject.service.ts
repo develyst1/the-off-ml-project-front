@@ -143,7 +143,9 @@ function customerMessages(caseItem: OffMlProjectCaseResponse) {
 }
 
 function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCaseResponse["analyses"][number]["analysisType"]) {
-  return latestByCreatedAt(caseItem.analyses.filter((analysis) => analysis.analysisType === type))[0];
+  return [...caseItem.analyses]
+    .filter((analysis) => analysis.analysisType === type)
+    .sort((left, right) => right.analysisVersion - left.analysisVersion || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
 }
 
 function teamActionsFromAnalysis(analysis: OffMlProjectCaseResponse["analyses"][number] | undefined) {
@@ -238,6 +240,11 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const customerExtractedSolution = typeof (customerAnalysis?.rawJson as { extractedSolution?: unknown } | undefined)?.extractedSolution === "string"
     ? (customerAnalysis?.rawJson as { extractedSolution: string }).extractedSolution.trim()
     : undefined;
+  const customerAnalysisIsReanalysis = (customerAnalysis?.rawJson as { analysisMode?: unknown } | undefined)?.analysisMode === "CASE_REANALYSIS";
+  const customerAnalysisAt = new Date(customerAnalysis?.createdAt ?? 0).getTime();
+  const techAnalysisAt = new Date(techAnalysis?.createdAt ?? 0).getTime();
+  const useCustomerSolution = Boolean(customerAnalysis) && (!techAnalysis || (customerAnalysisIsReanalysis && customerAnalysisAt >= techAnalysisAt));
+  const latestSolutionAnalysis = useCustomerSolution ? customerAnalysis : techAnalysis;
   const customerOutcomeAnalysis = latestAnalysis(caseItem, "customer_outcome");
   const latestSolution = latestByCreatedAt(caseItem.solutions)[0];
   const confirmedSolution = latestByCreatedAt(caseItem.solutions.filter((solution) => solution.validatedByTeam))[0];
@@ -299,7 +306,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     caseCreatedAt: caseItem.createdAt,
     systemReceivedAt: caseItem.systemReceivedAt,
     aiAnalyzedAt: caseItem.aiAnalyzedAt,
-    solutionAnalyzedAt: techAnalysis?.createdAt,
+    solutionAnalyzedAt: latestSolutionAnalysis?.createdAt,
     teamsSentAt: caseItem.teamsSentAt,
     techRepliedAt: caseItem.techRepliedAt,
     customerAcknowledgedAt: customerAcknowledgement ? messageSentAt(customerAcknowledgement) : undefined,
@@ -356,7 +363,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
       const timeDifference = new Date(messageConversationAt(left)).getTime() - new Date(messageConversationAt(right)).getTime();
       return timeDifference || left.id.localeCompare(right.id);
     }),
-    supportSolution: techAnalysis?.summary || latestSolution?.solutionSteps.join("\n") || customerExtractedSolution,
+    supportSolution: useCustomerSolution
+      ? customerExtractedSolution
+      : techAnalysis?.summary || latestSolution?.solutionSteps.join("\n"),
     hasConfirmedTechSolution: Boolean(confirmedSolution),
     confirmedTechSolutionText: confirmedSolution?.rawReplyText,
     teamActions,
