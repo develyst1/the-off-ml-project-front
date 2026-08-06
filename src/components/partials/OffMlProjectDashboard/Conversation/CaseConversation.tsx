@@ -51,9 +51,9 @@ export function CaseConversation({ error, isLoading = false, item, onRetry, onRe
   const systemEventCount = useMemo(() => messages.filter((message) => getConversationMeta(message).isSystemEvent).length, [messages]);
 
   const handleRealtimeMessage = useCallback((event: ConversationMessageCreatedEvent) => {
-    if (event.userId !== item.customerId) return;
+    if (event.userId !== item.customerId || event.caseId !== item.id) return;
     onRetry?.();
-  }, [item.customerId, onRetry]);
+  }, [item.customerId, item.id, onRetry]);
 
   const handleRealtimeReconnect = useCallback(() => {
     onRetry?.();

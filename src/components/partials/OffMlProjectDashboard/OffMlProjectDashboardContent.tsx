@@ -746,6 +746,7 @@ function CaseDetail({
   onRequestInfo,
   onSaveAiFeedback,
   onRefreshSolution,
+  onRefreshCase,
   onBackToInbox,
 }: {
   item: SupportCase | null;
@@ -761,6 +762,7 @@ function CaseDetail({
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
   onSaveAiFeedback: (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; result: "CORRECT" | "INCORRECT" }) => Promise<void>;
   onRefreshSolution: () => Promise<void>;
+  onRefreshCase: () => Promise<void>;
   onBackToInbox: () => void;
 }) {
   const teamsAction = "ยังไม่มีการดำเนินการจากปุ่มในการ์ด Teams";
@@ -851,10 +853,29 @@ function CaseDetail({
     ? item.supportSolution
     : "กำลังตรวจสอบ / ยังไม่มีวิธีแก้ที่ยืนยันแล้ว";
   const hasSuggestedSolution = Boolean(item.supportSolution && item.supportSolution !== "NO_ACTIONABLE_SOLUTION");
-  const latestConversationAt = Math.max(0, ...item.conversation
-    .filter((message) => message.channel === "line")
-    .map((message) => new Date(message.receivedAt ?? message.sentAt ?? message.deliveredAt ?? message.createdAt).getTime()));
-  const hasUnanalyzedConversation = latestConversationAt > new Date(item.solutionAnalyzedAt ?? 0).getTime();
+  const analysisAt = Math.max(
+    new Date(item.currentAnalysis?.createdAt ?? 0).getTime(),
+    new Date(item.solutionAnalyzedAt ?? 0).getTime(),
+  );
+  const eligibleConversationMessages = item.conversation.filter((message) => (
+    message.caseId === item.id
+    && message.channel === "line"
+    && (message.senderType === "CUSTOMER" || message.senderType === "TECH")
+    && message.direction !== "INTERNAL"
+    && message.deliveryStatus?.toUpperCase() !== "FAILED"
+    && message.messageType !== "SYSTEM_EVENT"
+  ));
+  const latestConversationAt = Math.max(0, ...eligibleConversationMessages.map((message) => {
+    const assignedAt = typeof message.metadata?.assignedAt === "string" ? message.metadata.assignedAt : undefined;
+    return Math.max(
+      new Date(message.receivedAt ?? 0).getTime(),
+      new Date(message.sentAt ?? 0).getTime(),
+      new Date(message.deliveredAt ?? 0).getTime(),
+      new Date(message.createdAt).getTime(),
+      new Date(assignedAt ?? 0).getTime(),
+    );
+  }));
+  const hasUnanalyzedConversation = Number.isFinite(analysisAt) && latestConversationAt > analysisAt;
   const hasTeamsTechReply = item.conversation.some((message) => (
     message.senderType === "TECH"
     && message.channel === "ms_teams"
@@ -868,8 +889,7 @@ function CaseDetail({
     && message.messageType !== "CASE_CLOSED"
     && Boolean(message.originalText.trim())
   ));
-  const hasLegacyCloseMetadataInSolution = /ปิดเคส\s+OFF-\d{4}-\d+/u.test(item.supportSolution ?? "");
-  const canRefreshSolution = hasUnanalyzedConversation || (hasLineTechReply && (!hasSuggestedSolution || hasLegacyCloseMetadataInSolution));
+  const canRefreshSolution = !isClosed && Boolean(item.currentAnalysis) && hasUnanalyzedConversation;
   const referenceMessages = item.referenceMessages ?? [];
   const referenceMessagesExpanded = expandedReferenceCaseId === item.id;
   const visibleReferenceMessages = referenceMessagesExpanded ? referenceMessages : referenceMessages.slice(0, 3);
@@ -1316,7 +1336,7 @@ function CaseDetail({
 
       <Box className="caseDetailEngagementGrid">
         <Box className="caseConversationColumn">
-          <CaseConversation item={item} onReply={onReply} />
+          <CaseConversation item={item} onReply={onReply} onRetry={onRefreshCase} />
         </Box>
         <Box className="caseDetailActionColumn">
         <Card className="caseTeamsThreadCard" padding="lg" radius="md" style={{ minWidth: 0 }} withBorder>
@@ -2821,6 +2841,13 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => item.id === updatedCase.id ? updatedCase : item));
   };
 
+  const handleRefreshSelectedCase = async () => {
+    if (!selectedCase) return;
+    const updatedCase = await getCase(selectedCase.id);
+    setSelectedCase(updatedCase);
+    setCases((current) => current.map((item) => item.id === updatedCase.id ? updatedCase : item));
+  };
+
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { understandingIncorrect: boolean; solutionIncorrect: boolean; explanation: string }) => {
     if (!item.analysisId || !item.analysisVersion) {
       throw new Error("ยังไม่มีผลวิเคราะห์ที่สามารถประเมินได้");
@@ -2944,6 +2971,7 @@ export default function OffMlProjectDashboardContent({
                 onRequestInfo={handleRequestInfo}
                 onSaveAiFeedback={handleSaveAiFeedback}
                 onRefreshSolution={handleRefreshSolution}
+                onRefreshCase={handleRefreshSelectedCase}
                 onBackToInbox={handleBackToInbox}
               />
             </Tabs.Panel>

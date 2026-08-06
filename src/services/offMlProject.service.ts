@@ -473,9 +473,9 @@ export async function rewriteAdditionalInfoRequest(caseId: string, text: string)
 }
 
 export async function replyToCustomer(caseId: string, text: string): Promise<SupportCase> {
-  const caseItem = await request<OffMlProjectCaseResponse>(`/cases/${caseId}/reply`, {
+  const caseItem = await request<OffMlProjectCaseResponse & { caseId?: string }>(`/cases/${caseId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ content: text, messageType: "CUSTOMER_REPLY" }),
   });
   return mapCaseResponse(caseItem);
 }
