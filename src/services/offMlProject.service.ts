@@ -6,6 +6,7 @@
   AutomationSettings,
   CaseStatus,
   ConfidenceSuggestion,
+  InboxMessage,
   InboxUser,
   OffMlProjectCaseResponse,
   SupportCase,
@@ -395,6 +396,13 @@ export async function getInboxUser(customerId: string): Promise<InboxUser> {
 
 export async function markInboxRead(customerId: string): Promise<InboxUser> {
   return request<InboxUser>(`/inbox/${encodeURIComponent(customerId)}/read`, { method: "POST" });
+}
+
+export async function assignInboxMessageToCase(messageId: string, caseId: string): Promise<InboxMessage> {
+  return request<InboxMessage>(`/inbox/messages/${encodeURIComponent(messageId)}/assign-case`, {
+    method: "POST",
+    body: JSON.stringify({ caseId, assignedBy: "Tech Support Console" }),
+  });
 }
 
 export async function sendInboxReply(customerId: string, text: string): Promise<InboxUser> {

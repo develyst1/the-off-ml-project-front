@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActionIcon, Alert, Badge, Box, Button, Card, Checkbox, Divider, Group, Indicator, Modal, ScrollArea, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Box, Button, Card, Checkbox, Divider, Group, Indicator, Modal, ScrollArea, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { useRouter } from "next/navigation";
-import { composeInboxCaseDraft, composeInboxReply, getInboxUser, getInboxUsers, markInboxRead, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
-import type { InboxUser } from "@/types/app/offMlProject";
+import { assignInboxMessageToCase, composeInboxCaseDraft, composeInboxReply, getInboxUser, getInboxUsers, markInboxRead, openInboxCase, sendInboxReply } from "@/services/offMlProject.service";
+import type { InboxMessage, InboxUser } from "@/types/app/offMlProject";
 import { AppIcon } from "@/components/common";
 import { useRealtimeEvents, type ConversationMessageCreatedEvent } from "@/hooks/useRealtimeEvents";
 
@@ -80,6 +80,9 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [isDraftConfirmOpen, setIsDraftConfirmOpen] = useState(false);
   const [isOpenCaseModalOpen, setIsOpenCaseModalOpen] = useState(false);
   const [isExistingCaseWarningOpen, setIsExistingCaseWarningOpen] = useState(false);
+  const [messageToAssign, setMessageToAssign] = useState<InboxMessage | null>(null);
+  const [assignCaseId, setAssignCaseId] = useState<string | null>(null);
+  const [isAssigningMessage, setIsAssigningMessage] = useState(false);
   const [caseTitle, setCaseTitle] = useState("");
   const [caseDescription, setCaseDescription] = useState("");
   const [caseFrom, setCaseFrom] = useState("");
@@ -398,6 +401,24 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     }
   };
 
+  const handleAssignMessage = async () => {
+    if (!selected || !messageToAssign || !assignCaseId || isAssigningMessage) return;
+    setIsAssigningMessage(true);
+    setError(undefined);
+    try {
+      await assignInboxMessageToCase(messageToAssign.id, assignCaseId);
+      const updated = await getInboxUser(selected.customer.id);
+      moveUserToTop(updated);
+      setSelected(updated);
+      setMessageToAssign(null);
+      setAssignCaseId(null);
+    } catch (assignError) {
+      setError(assignError instanceof Error ? assignError.message : "จัดข้อความเข้ากับเคสไม่สำเร็จ");
+    } finally {
+      setIsAssigningMessage(false);
+    }
+  };
+
   const handleDraftRequest = () => {
     if (draft.trim()) {
       setIsDraftConfirmOpen(true);
@@ -412,6 +433,9 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     ? [...selected.cases].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
     : [];
   const visibleCases = sortedCases.slice(0, 6);
+  const assignableCases = selected
+    ? selected.cases.filter((item) => !["closed", "resolved", "sent_to_customer"].includes(item.status))
+    : [];
 
   return (
     <Stack gap="lg">
@@ -436,6 +460,25 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
             </Card>
           ))}
           <Group justify="flex-end"><Button variant="default" onClick={() => setIsExistingCaseWarningOpen(false)}>ยกเลิก</Button><Button onClick={() => { setIsExistingCaseWarningOpen(false); prepareOpenCaseModal(); }}>เปิดเคสใหม่ต่อ</Button></Group>
+        </Stack>
+      </Modal>
+      <Modal opened={Boolean(messageToAssign)} onClose={() => !isAssigningMessage && setMessageToAssign(null)} title="จัดข้อความเข้ากับเคส" centered>
+        <Stack gap="md">
+          <Text size="sm">เลือกเคสที่ต้องการจัดข้อความนี้เข้าไป</Text>
+          <Text size="sm" fw={600} lineClamp={3}>{messageToAssign?.text}</Text>
+          <Select
+            label="เคสที่ต้องการ"
+            placeholder="เลือกเคส"
+            data={assignableCases.map((item) => ({ value: item.id, label: `${item.caseNumber} · ${item.title ?? "ไม่ระบุหัวข้อปัญหา"}` }))}
+            value={assignCaseId}
+            onChange={setAssignCaseId}
+            searchable
+            nothingFoundMessage="ไม่พบเคสที่เปิดอยู่"
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setMessageToAssign(null)} disabled={isAssigningMessage}>ยกเลิก</Button>
+            <Button onClick={() => void handleAssignMessage()} loading={isAssigningMessage} disabled={!assignCaseId}>จัดเข้ากับเคส</Button>
+          </Group>
         </Stack>
       </Modal>
       <Modal opened={isOpenCaseModalOpen} onClose={() => !isOpening && setIsOpenCaseModalOpen(false)} title="เปิดเคส" centered size="xl" closeOnClickOutside={!isOpening}>
@@ -568,7 +611,14 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
                           {showDateSeparator ? <Text className="inboxConversationDateSeparator" size="xs">{formatInboxDayLabel(message.createdAt)}</Text> : null}
                           <Box style={{ alignSelf: message.senderType === "CUSTOMER" ? "flex-start" : "flex-end", maxWidth: "85%", minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>
                             <PaperMessage sender={message.senderType} text={message.text} at={message.createdAt} />
-                            <Text c="dimmed" mt={2} size="xs">{message.caseId ? `เคส ${selected.cases.find((item) => item.id === message.caseId)?.caseNumber ?? message.caseId}` : "ยังไม่ได้จัดเข้ากับเคส"}</Text>
+                            {message.caseId ? (
+                              <Text c="dimmed" mt={2} size="xs">เคส {selected.cases.find((item) => item.id === message.caseId)?.caseNumber ?? message.caseId}</Text>
+                            ) : (
+                              <Group gap="xs" mt={2}>
+                                <Text c="dimmed" size="xs">ยังไม่ได้จัดเข้ากับเคส</Text>
+                                <Button size="compact-xs" variant="subtle" onClick={() => { setMessageToAssign(message); setAssignCaseId(null); }}>จัดเข้ากับเคส</Button>
+                              </Group>
+                            )}
                           </Box>
                         </Box>
                       );
