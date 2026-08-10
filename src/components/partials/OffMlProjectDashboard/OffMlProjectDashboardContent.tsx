@@ -2856,8 +2856,8 @@ export default function OffMlProjectDashboardContent({
   const handleReopenCase = async (reason: string) => {
     if (!selectedCase) return;
     const updatedCase = await reopenCase(selectedCase.id, reason);
-    setSelectedCase(updatedCase);
-    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+    setSelectedCase((current) => mergeCaseDetail(current, updatedCase));
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item)));
   };
 
   const handleSaveAiFeedback = async (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; result: "CORRECT" | "INCORRECT" }) => {
