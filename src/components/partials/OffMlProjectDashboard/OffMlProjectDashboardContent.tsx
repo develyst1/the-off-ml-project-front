@@ -1291,7 +1291,7 @@ function CaseDetail({
             สรุปผลวิเคราะห์
           </Text>
           <Text className="compactText" mt={6}>
-            {item.summary}
+            {item.currentAnalysis?.summary?.trim() || item.summary}
           </Text>
           <Box className="caseAiFeedbackSection" mt="xs">
             <Group justify="space-between" wrap="wrap">

@@ -66,7 +66,7 @@ export interface SupportCase {
   confidenceReviewedBy?: string;
   caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
-  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; sourceMessageIds?: string[] };
+  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; sourceMessageIds?: string[] };
   aiFeedback?: {
     issueUnderstanding?: "CORRECT" | "INCORRECT";
     solutionSelection?: "CORRECT" | "INCORRECT";
@@ -225,7 +225,7 @@ export interface OffMlProjectCaseResponse {
   confidenceReviewedBy?: string;
   caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
-  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; sourceMessageIds?: string[] };
+  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; sourceMessageIds?: string[] };
   aiFeedback?: {
     issueUnderstanding?: "CORRECT" | "INCORRECT";
     solutionSelection?: "CORRECT" | "INCORRECT";

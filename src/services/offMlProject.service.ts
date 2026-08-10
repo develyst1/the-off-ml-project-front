@@ -354,7 +354,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),
     slaHours,
-    summary: problemSummary,
+    summary: caseItem.currentAnalysis?.summary?.trim() || problemSummary,
     teamsThread: [
       "ระบบแจ้งผู้ใช้งาน + ข้อความต้นฉบับ + ผลวิเคราะห์โดย AI ไปยัง Teams แล้ว",
       techReply ? `Tech Support ตอบกลับ: ${techReply}` : "รอทีม Tech Support วิเคราะห์และตอบกลับ",
