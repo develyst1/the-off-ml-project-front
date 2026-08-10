@@ -97,11 +97,13 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   const [error, setError] = useState<string>();
   const [hasUnreadIncomingMessage, setHasUnreadIncomingMessage] = useState(false);
   const [isConversationNearBottom, setIsConversationNearBottom] = useState(true);
+  const [conversationLoadVersion, setConversationLoadVersion] = useState(0);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean | undefined>(undefined);
   const selectedCustomerIdRef = useRef<string | undefined>(undefined);
   const handledRealtimeMessageIdsRef = useRef(new Set<string>());
   const conversationViewportRef = useRef<HTMLDivElement>(null);
   const isConversationNearBottomRef = useRef(true);
+  const shouldScrollConversationToLatestRef = useRef(false);
 
   const updateConversationScrollPosition = useCallback((scrollTop?: number) => {
     const viewport = conversationViewportRef.current;
@@ -112,7 +114,12 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
     if (nextIsNearBottom) setHasUnreadIncomingMessage(false);
   }, []);
 
-  const load = useCallback(async (customerId?: string) => {
+  const requestConversationLatestScroll = useCallback(() => {
+    shouldScrollConversationToLatestRef.current = true;
+    setConversationLoadVersion((version) => version + 1);
+  }, []);
+
+  const load = useCallback(async (customerId?: string, options?: { scrollToLatest?: boolean }) => {
     setIsLoading(true);
     setError(undefined);
     try {
@@ -122,12 +129,13 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       const nextSelected = selectedId ? nextUsers.find((item) => item.customer.id === selectedId) : undefined;
       selectedCustomerIdRef.current = nextSelected?.customer.id ?? nextUsers[0]?.customer.id;
       setSelected(nextSelected ?? nextUsers[0] ?? null);
+      if (options?.scrollToLatest !== false) requestConversationLatestScroll();
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "โหลด Inbox ไม่สำเร็จ");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [requestConversationLatestScroll]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(initialUserId), 0);
@@ -149,9 +157,15 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => updateConversationScrollPosition(), 0);
+    const timer = window.setTimeout(() => {
+      if (shouldScrollConversationToLatestRef.current) {
+        scrollToLatestConversation();
+        shouldScrollConversationToLatestRef.current = false;
+      }
+      updateConversationScrollPosition();
+    }, 0);
     return () => window.clearTimeout(timer);
-  }, [selected?.customer.id, selected?.messages.length, updateConversationScrollPosition]);
+  }, [conversationLoadVersion, selected?.customer.id, selected?.messages.length, scrollToLatestConversation, updateConversationScrollPosition]);
 
   const handleRealtimeMessage = useCallback((event: ConversationMessageCreatedEvent) => {
     const handledMessageIds = handledRealtimeMessageIdsRef.current;
@@ -181,7 +195,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
 
   const handleRealtimeReconnect = useCallback(() => {
     const customerId = selectedCustomerIdRef.current;
-    void load(customerId).then(async () => {
+    void load(customerId, { scrollToLatest: false }).then(async () => {
       if (!customerId) return;
       try {
         const updated = await getInboxUser(customerId);
@@ -201,12 +215,13 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
 
   useEffect(() => {
     if (isRealtimeConnected !== false) return;
-    const timer = window.setInterval(() => void load(selectedCustomerIdRef.current), 60_000);
+    const timer = window.setInterval(() => void load(selectedCustomerIdRef.current, { scrollToLatest: false }), 60_000);
     return () => window.clearInterval(timer);
   }, [isRealtimeConnected, load]);
 
   const selectUser = async (user: InboxUser) => {
     selectedCustomerIdRef.current = user.customer.id;
+    requestConversationLatestScroll();
     setSelected(user);
     setHasUnreadIncomingMessage(false);
     router.push(`/?tab=inbox&user=${encodeURIComponent(user.customer.id)}`);
@@ -216,6 +231,7 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
       const readUser = hasUnreadCustomerMessage ? await markInboxRead(user.customer.id) : updated;
       moveUserToTop(readUser);
       setSelected(readUser);
+      requestConversationLatestScroll();
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "โหลดบทสนทนาไม่สำเร็จ");
     }
