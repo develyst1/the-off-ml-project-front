@@ -865,6 +865,13 @@ function CaseDetail({
     && message.deliveryStatus?.toUpperCase() !== "FAILED"
     && message.messageType !== "SYSTEM_EVENT"
   ));
+  const getAnalysisMessageIdentity = (message: typeof item.conversation[number]) => {
+    for (const key of ["sourceInboxMessageId", "inboxMessageId"] as const) {
+      const value = message.metadata?.[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+    return message.id;
+  };
   const latestConversationAt = Math.max(0, ...eligibleConversationMessages.map((message) => {
     const assignedAt = typeof message.metadata?.assignedAt === "string" ? message.metadata.assignedAt : undefined;
     return Math.max(
@@ -877,7 +884,7 @@ function CaseDetail({
   }));
   const analyzedMessageIds = item.currentAnalysis?.sourceMessageIds;
   const hasNewConversationMessage = Array.isArray(analyzedMessageIds)
-    ? eligibleConversationMessages.some((message) => !analyzedMessageIds.includes(message.id))
+    ? eligibleConversationMessages.some((message) => !analyzedMessageIds.includes(getAnalysisMessageIdentity(message)))
     : Number.isFinite(analysisAt) && latestConversationAt > analysisAt;
   const hasUnanalyzedConversation = Boolean(item.currentAnalysis) && hasNewConversationMessage;
   const hasTeamsTechReply = item.conversation.some((message) => (
