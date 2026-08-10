@@ -875,7 +875,11 @@ function CaseDetail({
       new Date(assignedAt ?? 0).getTime(),
     );
   }));
-  const hasUnanalyzedConversation = Number.isFinite(analysisAt) && latestConversationAt > analysisAt;
+  const analyzedMessageIds = item.currentAnalysis?.sourceMessageIds;
+  const hasNewConversationMessage = Array.isArray(analyzedMessageIds)
+    ? eligibleConversationMessages.some((message) => !analyzedMessageIds.includes(message.id))
+    : Number.isFinite(analysisAt) && latestConversationAt > analysisAt;
+  const hasUnanalyzedConversation = Boolean(item.currentAnalysis) && hasNewConversationMessage;
   const hasTeamsTechReply = item.conversation.some((message) => (
     message.senderType === "TECH"
     && message.channel === "ms_teams"
@@ -2586,6 +2590,31 @@ function AutomationSettings({
   );
 }
 
+function mergeCaseDetail(previous: SupportCase | null, incoming: SupportCase): SupportCase {
+  if (!previous || previous.id !== incoming.id) return incoming;
+
+  const previousAnalysis = previous.currentAnalysis;
+  const incomingAnalysis = incoming.currentAnalysis;
+  const currentAnalysis = !incomingAnalysis
+    ? previousAnalysis
+    : !previousAnalysis
+      ? incomingAnalysis
+      : incomingAnalysis.analysisVersion > previousAnalysis.analysisVersion
+        || (incomingAnalysis.analysisVersion === previousAnalysis.analysisVersion
+          && new Date(incomingAnalysis.createdAt ?? 0).getTime() >= new Date(previousAnalysis.createdAt ?? 0).getTime())
+          ? incomingAnalysis
+          : previousAnalysis;
+  const messagesById = new Map(previous.conversation.map((message) => [message.id, message]));
+  for (const message of incoming.conversation) messagesById.set(message.id, message);
+
+  return {
+    ...previous,
+    ...incoming,
+    currentAnalysis,
+    conversation: [...messagesById.values()],
+  };
+}
+
 export default function OffMlProjectDashboardContent({
   caseId,
   initialTab,
@@ -2851,8 +2880,8 @@ export default function OffMlProjectDashboardContent({
   const handleRefreshSelectedCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await getCase(selectedCase.id);
-    setSelectedCase(updatedCase);
-    setCases((current) => current.map((item) => item.id === updatedCase.id ? updatedCase : item));
+    setSelectedCase((current) => mergeCaseDetail(current, updatedCase));
+    setCases((current) => current.map((item) => item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item));
   };
 
   const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { understandingIncorrect: boolean; solutionIncorrect: boolean; explanation: string }) => {
