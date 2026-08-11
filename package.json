@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/copy-standalone-assets.mjs",
+    "test": "bun test",
     "start": "next start",
     "lint": "eslint ."
   },

@@ -40,6 +40,7 @@ import {
 } from "@mantine/core";
 import { AppIcon } from "@/components/common";
 import type { IconName } from "@/components/common/AppIcon";
+import { mergeCaseDetail } from "./case-detail-state";
 import {
   getAnalyticsSummary,
   getAutoAnswerLogs,
@@ -2138,7 +2139,7 @@ function AutomationSettings({
     if (value.status === "INSUFFICIENT_DATA") {
       return `${value.sampleCount} / ${learnedReliability.minimumSample} ตัวอย่าง · ข้อมูลยังไม่เพียงพอ`;
     }
-    return `${learnedReliabilityPercent(value.reliability) ?? 0}%`;
+    return `${learnedReliabilityPercent(value.reliability) ?? 0}% · ${value.sampleCount} ตัวอย่าง`;
   };
   const learnedReliabilityReason = !learnedReliability
     ? "ไม่สามารถยืนยัน Reliability ได้ ระบบจะไม่ตอบอัตโนมัติ"
@@ -2650,31 +2651,6 @@ function AutomationSettings({
   );
 }
 
-function mergeCaseDetail(previous: SupportCase | null, incoming: SupportCase): SupportCase {
-  if (!previous || previous.id !== incoming.id) return incoming;
-
-  const previousAnalysis = previous.currentAnalysis;
-  const incomingAnalysis = incoming.currentAnalysis;
-  const currentAnalysis = !incomingAnalysis
-    ? previousAnalysis
-    : !previousAnalysis
-      ? incomingAnalysis
-      : incomingAnalysis.analysisVersion > previousAnalysis.analysisVersion
-        || (incomingAnalysis.analysisVersion === previousAnalysis.analysisVersion
-          && new Date(incomingAnalysis.createdAt ?? 0).getTime() >= new Date(previousAnalysis.createdAt ?? 0).getTime())
-          ? incomingAnalysis
-          : previousAnalysis;
-  const messagesById = new Map(previous.conversation.map((message) => [message.id, message]));
-  for (const message of incoming.conversation) messagesById.set(message.id, message);
-
-  return {
-    ...previous,
-    ...incoming,
-    currentAnalysis,
-    conversation: [...messagesById.values()],
-  };
-}
-
 export default function OffMlProjectDashboardContent({
   caseId,
   initialTab,
@@ -2868,29 +2844,29 @@ export default function OffMlProjectDashboardContent({
   const handleAcceptCase = async () => {
     if (!selectedCase) return;
     const updatedCase = await acceptCase(selectedCase.id);
-    setSelectedCase(updatedCase);
-    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+    setSelectedCase((current) => mergeCaseDetail(current, updatedCase));
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item)));
   };
 
   const handleRequestInfo = async (text: string, sourceMessageId?: string) => {
     if (!selectedCase) return;
     const updatedCase = await requestAdditionalInfo(selectedCase.id, text, sourceMessageId);
-    setSelectedCase(updatedCase);
-    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+    setSelectedCase((current) => mergeCaseDetail(current, updatedCase));
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item)));
   };
 
   const handleReply = async (text: string) => {
     if (!selectedCase) return;
     const updatedCase = await replyToCustomer(selectedCase.id, text);
-    setSelectedCase(updatedCase);
-    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+    setSelectedCase((current) => mergeCaseDetail(current, updatedCase));
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item)));
   };
 
   const handleCloseCase = async (text: string, closedWithoutTechConfirmation?: boolean, closeSummary?: { cause: string; resolution: string; prevention: string }) => {
     if (!selectedCase) return;
     const updatedCase = await closeCaseWithReply(selectedCase.id, text, closedWithoutTechConfirmation, closeSummary);
-    setSelectedCase(updatedCase);
-    setCases((current) => current.map((item) => (item.id === updatedCase.id ? updatedCase : item)));
+    setSelectedCase((current) => mergeCaseDetail(current, updatedCase));
+    setCases((current) => current.map((item) => (item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item)));
   };
 
   const handleComposeAi = async (mode: AiComposeMode, supportInstruction?: string, requestedInformation?: string) => {
