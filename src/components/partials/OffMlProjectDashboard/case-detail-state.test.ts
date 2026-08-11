@@ -24,13 +24,48 @@ test("keeps the current analysis when a realtime reply response is partial", () 
 });
 
 test("replaces the current analysis only when a newer version arrives", () => {
-  const previous = makeCase();
+  const previous = makeCase({
+    caseUnderstandingFeedback: "INCORRECT",
+    aiFeedback: {
+      analysisId: "analysis-1",
+      analysisVersion: 1,
+      issueUnderstanding: "INCORRECT",
+      issueUnderstandingReason: "หมายเหตุของ version 1",
+    },
+  });
   const incoming = makeCase({
     currentAnalysis: { id: "analysis-2", analysisVersion: 2, createdAt: "2026-08-11T00:01:00.000Z", sourceMessageIds: ["message-1", "message-2"] },
+    caseUnderstandingFeedback: undefined,
+    aiFeedback: { analysisId: "analysis-2", analysisVersion: 2 },
   });
 
   const merged = mergeCaseDetail(previous, incoming);
 
   assert.equal(merged.currentAnalysis?.id, "analysis-2");
   assert.equal(merged.currentAnalysis?.analysisVersion, 2);
+  assert.equal(merged.caseUnderstandingFeedback, undefined);
+  assert.equal(merged.aiFeedback?.issueUnderstandingReason, undefined);
+});
+
+test("does not let a stale feedback snapshot overwrite the current analysis", () => {
+  const previous = makeCase({
+    currentAnalysis: { id: "analysis-2", analysisVersion: 2, createdAt: "2026-08-11T00:01:00.000Z" },
+    caseUnderstandingFeedback: "CORRECT",
+    aiFeedback: { analysisId: "analysis-2", analysisVersion: 2, issueUnderstanding: "CORRECT" },
+  });
+  const incoming = makeCase({
+    caseUnderstandingFeedback: "INCORRECT",
+    aiFeedback: {
+      analysisId: "analysis-1",
+      analysisVersion: 1,
+      issueUnderstanding: "INCORRECT",
+      issueUnderstandingReason: "หมายเหตุเก่า",
+    },
+  });
+
+  const merged = mergeCaseDetail(previous, incoming);
+
+  assert.equal(merged.currentAnalysis?.id, "analysis-2");
+  assert.equal(merged.caseUnderstandingFeedback, "CORRECT");
+  assert.equal(merged.aiFeedback?.issueUnderstandingReason, undefined);
 });

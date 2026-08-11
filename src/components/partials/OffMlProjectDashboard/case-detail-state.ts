@@ -16,11 +16,25 @@ export function mergeCaseDetail(previous: SupportCase | null, incoming: SupportC
           : previousAnalysis;
   const messagesById = new Map(previous.conversation.map((message) => [message.id, message]));
   for (const message of incoming.conversation) messagesById.set(message.id, message);
+  const matchesCurrentAnalysis = (feedback: SupportCase["aiFeedback"]) => Boolean(
+    feedback
+    && currentAnalysis
+    && feedback.analysisId === currentAnalysis.id
+    && feedback.analysisVersion === currentAnalysis.analysisVersion,
+  );
+  const aiFeedback = matchesCurrentAnalysis(incoming.aiFeedback)
+    ? incoming.aiFeedback
+    : matchesCurrentAnalysis(previous.aiFeedback)
+      ? previous.aiFeedback
+      : undefined;
 
   return {
     ...previous,
     ...incoming,
     currentAnalysis,
+    aiFeedback,
+    caseUnderstandingFeedback: aiFeedback?.issueUnderstanding,
+    solutionSelectionFeedback: aiFeedback?.solutionSelection,
     conversation: [...messagesById.values()],
   };
 }

@@ -552,12 +552,12 @@ export async function saveCaseAiFeedback(caseId: string, input: {
   analysisId: string;
   analysisVersion: number;
   feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION";
-  result: "CORRECT" | "INCORRECT";
+  value: "CORRECT" | "INCORRECT";
   reason?: string;
 }): Promise<{ feedback: { result: "CORRECT" | "INCORRECT" }; aiFeedback: NonNullable<SupportCase["aiFeedback"]> }> {
   return request<{ feedback: { result: "CORRECT" | "INCORRECT" }; aiFeedback: NonNullable<SupportCase["aiFeedback"]> }>(`/cases/${caseId}/ai-feedback`, {
     method: "PATCH",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ caseId, ...input }),
   });
 }
 

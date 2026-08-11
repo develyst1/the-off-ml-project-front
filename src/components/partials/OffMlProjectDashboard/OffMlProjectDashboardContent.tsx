@@ -761,7 +761,7 @@ function CaseDetail({
   onRewriteAi: (mode: AiRewriteMode, text: string) => Promise<{ rewrittenMessage: string; rewrittenMessageId?: string; usedFallback?: boolean }>;
   onReopenCase: (reason: string) => Promise<void>;
   onRequestInfo: (text: string, sourceMessageId?: string) => Promise<void>;
-  onSaveAiFeedback: (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; result: "CORRECT" | "INCORRECT" }) => Promise<void>;
+  onSaveAiFeedback: (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; value: "CORRECT" | "INCORRECT"; reason?: string }) => Promise<void>;
   onRefreshSolution: () => Promise<void>;
   onRefreshCase: () => Promise<void>;
   onBackToInbox: () => void;
@@ -772,6 +772,12 @@ function CaseDetail({
   const [actionNotice, setActionNotice] = useState<string>();
   const [feedbackSaving, setFeedbackSaving] = useState<Partial<Record<"caseUnderstandingFeedback" | "solutionSelectionFeedback", boolean>>>({});
   const [feedbackError, setFeedbackError] = useState<string>();
+  const [feedbackNoteDraft, setFeedbackNoteDraft] = useState("");
+  const [feedbackNoteTarget, setFeedbackNoteTarget] = useState<{
+    field: "caseUnderstandingFeedback" | "solutionSelectionFeedback";
+    analysisId: string;
+    analysisVersion: number;
+  } | null>(null);
   const [isRefreshingSolution, setIsRefreshingSolution] = useState(false);
   const [analysisToastVisible, setAnalysisToastVisible] = useState(false);
   const [requestInfoDraftMessageId, setRequestInfoDraftMessageId] = useState<string>();
@@ -922,25 +928,63 @@ function CaseDetail({
               ? "ได้รับคำตอบจากทีม Tech แล้ว และส่งคำตอบกลับผู้ใช้งานทาง LINE แล้ว"
               : "ได้รับคำตอบจากทีม Tech แล้ว ตอนนี้กำลังวิเคราะห์วิธีแก้ปัญหา"
           : "รอคำตอบจากทีม Tech Support";
-  const saveAiFeedback = async (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback", value: "CORRECT" | "INCORRECT") => {
+  const saveAiFeedback = async (
+    field: "caseUnderstandingFeedback" | "solutionSelectionFeedback",
+    value: "CORRECT" | "INCORRECT",
+    reason?: string,
+    analysis = item.currentAnalysis,
+  ) => {
     if (feedbackSaving[field]) return;
-    if (!item?.currentAnalysis) {
+    if (!analysis || !item.currentAnalysis
+      || analysis.id !== item.currentAnalysis.id
+      || analysis.analysisVersion !== item.currentAnalysis.analysisVersion) {
       setFeedbackError("ยังไม่มีผลวิเคราะห์ที่สามารถประเมินได้");
-      return;
+      return false;
     }
     setFeedbackSaving((current) => ({ ...current, [field]: true }));
     setFeedbackError(undefined);
     try {
       await onSaveAiFeedback({
-        analysisId: item.currentAnalysis.id,
-        analysisVersion: item.currentAnalysis.analysisVersion,
+        analysisId: analysis.id,
+        analysisVersion: analysis.analysisVersion,
         feedbackType: field === "caseUnderstandingFeedback" ? "ISSUE_UNDERSTANDING" : "SOLUTION_SELECTION",
-        result: value,
+        value,
+        reason: value === "INCORRECT" ? reason?.trim() || undefined : undefined,
       });
+      return true;
     } catch (error) {
       setFeedbackError(error instanceof Error ? error.message : "บันทึกผลการตรวจของทีม Tech ไม่สำเร็จ");
+      return false;
     } finally {
       setFeedbackSaving((current) => ({ ...current, [field]: false }));
+    }
+  };
+  const openFeedbackNote = (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback") => {
+    if (!item.currentAnalysis) {
+      setFeedbackError("ยังไม่มีผลวิเคราะห์ที่สามารถประเมินได้");
+      return;
+    }
+    setFeedbackError(undefined);
+    setFeedbackNoteDraft(field === "caseUnderstandingFeedback"
+      ? item.aiFeedback?.issueUnderstandingReason ?? ""
+      : item.aiFeedback?.solutionSelectionReason ?? "");
+    setFeedbackNoteTarget({
+      field,
+      analysisId: item.currentAnalysis.id,
+      analysisVersion: item.currentAnalysis.analysisVersion,
+    });
+  };
+  const submitIncorrectFeedback = async () => {
+    if (!feedbackNoteTarget) return;
+    const completed = await saveAiFeedback(
+      feedbackNoteTarget.field,
+      "INCORRECT",
+      feedbackNoteDraft,
+      { id: feedbackNoteTarget.analysisId, analysisVersion: feedbackNoteTarget.analysisVersion },
+    );
+    if (completed) {
+      setFeedbackNoteTarget(null);
+      setFeedbackNoteDraft("");
     }
   };
   const latestTeamsTechMessage = [...item.conversation]
@@ -1301,6 +1345,9 @@ function CaseDetail({
                 <Text c={item.caseUnderstandingFeedback === "CORRECT" ? "green" : item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "dimmed"} size="xs">
                   {item.caseUnderstandingFeedback === "CORRECT" ? "ทีม Tech ระบุว่าเข้าใจเคสถูกต้อง" : item.caseUnderstandingFeedback === "INCORRECT" ? "ทีม Tech ระบุว่าเข้าใจเคสไม่ถูกต้อง" : "ยังไม่ได้ตรวจสอบ"}
                 </Text>
+                {item.caseUnderstandingFeedback === "INCORRECT" && item.aiFeedback?.issueUnderstandingReason
+                  ? <Text c="dimmed" mt={2} size="xs">หมายเหตุ: {item.aiFeedback.issueUnderstandingReason}</Text>
+                  : null}
               </Box>
               <Group gap={4}>
                 <Tooltip label="เข้าใจเคสถูกต้อง" withArrow>
@@ -1309,7 +1356,7 @@ function CaseDetail({
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="เข้าใจเคสไม่ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เข้าใจเคสไม่ถูกต้อง" color={item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => void saveAiFeedback("caseUnderstandingFeedback", "INCORRECT")} size="sm" variant={item.caseUnderstandingFeedback === "INCORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เข้าใจเคสไม่ถูกต้อง" color={item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => openFeedbackNote("caseUnderstandingFeedback")} size="sm" variant={item.caseUnderstandingFeedback === "INCORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-down" size={15} />
                   </ActionIcon>
                 </Tooltip>
@@ -1327,6 +1374,9 @@ function CaseDetail({
                 <Text c={item.solutionSelectionFeedback === "CORRECT" ? "green" : item.solutionSelectionFeedback === "INCORRECT" ? "red" : "dimmed"} size="xs">
                   {!hasSuggestedSolution ? "ยังไม่มีวิธีแก้จาก AI ให้ตรวจสอบ" : item.solutionSelectionFeedback === "CORRECT" ? "ทีม Tech ระบุว่าเลือกวิธีแก้ถูกต้อง" : item.solutionSelectionFeedback === "INCORRECT" ? "ทีม Tech ระบุว่าเลือกวิธีแก้ไม่ถูกต้อง" : "ยังไม่ได้ตรวจสอบ"}
                 </Text>
+                {item.solutionSelectionFeedback === "INCORRECT" && item.aiFeedback?.solutionSelectionReason
+                  ? <Text c="dimmed" mt={2} size="xs">หมายเหตุ: {item.aiFeedback.solutionSelectionReason}</Text>
+                  : null}
               </Box>
               <Group gap={4}>
                 <Tooltip label="เลือกวิธีแก้ถูกต้อง" withArrow>
@@ -1335,7 +1385,7 @@ function CaseDetail({
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="เลือกวิธีแก้ไม่ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เลือกวิธีแก้ไม่ถูกต้อง" color={item.solutionSelectionFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => void saveAiFeedback("solutionSelectionFeedback", "INCORRECT")} size="sm" variant={item.solutionSelectionFeedback === "INCORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เลือกวิธีแก้ไม่ถูกต้อง" color={item.solutionSelectionFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => openFeedbackNote("solutionSelectionFeedback")} size="sm" variant={item.solutionSelectionFeedback === "INCORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-down" size={15} />
                   </ActionIcon>
                 </Tooltip>
@@ -1550,6 +1600,30 @@ function CaseDetail({
           >
             สร้างแทนที่
           </Button>
+        </Group>
+      </Modal>
+      <Modal
+        opened={Boolean(feedbackNoteTarget)}
+        onClose={() => {
+          if (feedbackNoteTarget && !feedbackSaving[feedbackNoteTarget.field]) {
+            setFeedbackNoteTarget(null);
+            setFeedbackNoteDraft("");
+          }
+        }}
+        title={feedbackNoteTarget?.field === "caseUnderstandingFeedback" ? "AI เข้าใจเคสไม่ถูกต้อง" : "AI เลือกวิธีแก้ไม่ถูกต้อง"}
+      >
+        <Textarea
+          autosize
+          label="หมายเหตุ (ไม่บังคับ)"
+          minRows={3}
+          onChange={(event) => setFeedbackNoteDraft(event.currentTarget.value)}
+          placeholder="ระบุสิ่งที่ AI เข้าใจหรือเลือกไม่ถูกต้อง เพื่อใช้เป็น Feedback Memory"
+          value={feedbackNoteDraft}
+        />
+        {feedbackError ? <Alert color="red" mt="md" title="บันทึกผลการตรวจไม่สำเร็จ">{feedbackError}</Alert> : null}
+        <Group justify="flex-end" mt="md">
+          <Button disabled={Boolean(feedbackNoteTarget && feedbackSaving[feedbackNoteTarget.field])} onClick={() => setFeedbackNoteTarget(null)} variant="default">ยกเลิก</Button>
+          <Button color="red" loading={Boolean(feedbackNoteTarget && feedbackSaving[feedbackNoteTarget.field])} onClick={() => void submitIncorrectFeedback()}>บันทึกว่าไม่ถูกต้อง</Button>
         </Group>
       </Modal>
       <Modal
@@ -2889,7 +2963,7 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => (item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item)));
   };
 
-  const handleSaveAiFeedback = async (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; result: "CORRECT" | "INCORRECT" }) => {
+  const handleSaveAiFeedback = async (input: { analysisId: string; analysisVersion: number; feedbackType: "ISSUE_UNDERSTANDING" | "SOLUTION_SELECTION"; value: "CORRECT" | "INCORRECT"; reason?: string }) => {
     if (!selectedCase) return;
     const saved = await saveCaseAiFeedback(selectedCase.id, input);
     const updatedCase = { ...selectedCase, aiFeedback: saved.aiFeedback,

@@ -68,8 +68,12 @@ export interface SupportCase {
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
   currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; sourceMessageIds?: string[] };
   aiFeedback?: {
+    analysisId?: string;
+    analysisVersion?: number;
     issueUnderstanding?: "CORRECT" | "INCORRECT";
+    issueUnderstandingReason?: string;
     solutionSelection?: "CORRECT" | "INCORRECT";
+    solutionSelectionReason?: string;
   };
   assignee?: string | null;
   lastActivityAt: string;
@@ -227,8 +231,12 @@ export interface OffMlProjectCaseResponse {
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
   currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; sourceMessageIds?: string[] };
   aiFeedback?: {
+    analysisId?: string;
+    analysisVersion?: number;
     issueUnderstanding?: "CORRECT" | "INCORRECT";
+    issueUnderstandingReason?: string;
     solutionSelection?: "CORRECT" | "INCORRECT";
+    solutionSelectionReason?: string;
   };
   assigneeName?: string;
   hasUnreadCustomerMessage?: boolean;
