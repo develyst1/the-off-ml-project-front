@@ -7,6 +7,9 @@ import { UIProvider } from "@/components/providers/UIProvider";
 export const metadata: Metadata = {
   title: "Off ML Project",
   description: "AI Tech Support Assistant for LINE and MS Teams workflows",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
