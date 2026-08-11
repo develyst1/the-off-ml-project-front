@@ -330,4 +330,24 @@ export interface AutomationSettings {
   caseDiscriminationThreshold: number;
   emergencyDisabledAt?: string;
   updatedAt: string;
+  learnedReliability: LearnedReliabilitySummary | null;
+  learnedReliabilityDecision?: {
+    allowed: boolean;
+    reason?: string;
+  };
+}
+
+export interface LearnedReliabilityDimension {
+  correctCount: number;
+  incorrectCount: number;
+  sampleCount: number;
+  reliability: number | null;
+  status: "NO_DATA" | "INSUFFICIENT_DATA" | "READY";
+}
+
+export interface LearnedReliabilitySummary {
+  threshold: number;
+  minimumSample: number;
+  issueUnderstanding: LearnedReliabilityDimension;
+  solutionSelection: LearnedReliabilityDimension;
 }

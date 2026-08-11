@@ -2129,6 +2129,26 @@ function AutomationSettings({
   const hasActiveLogFilter = Boolean(logSearch || logEventType || logStatus || logDateFrom || logDateTo);
   const hasLogData = logsPage.totalItems > 0;
   const showLogFilters = isLoadingLogs || hasLogData || hasActiveLogFilter;
+  const learnedReliability = settings?.learnedReliability;
+  const learnedReliabilityReady = Boolean(settings?.learnedReliabilityDecision?.allowed);
+  const learnedReliabilityPercent = (value: number | null) => value === null ? null : Math.round(value * 100);
+  const learnedReliabilityText = (dimension: "issueUnderstanding" | "solutionSelection") => {
+    const value = learnedReliability?.[dimension];
+    if (!value || value.status === "NO_DATA") return "ยังไม่มีข้อมูลเพียงพอ";
+    if (value.status === "INSUFFICIENT_DATA") {
+      return `${value.sampleCount} / ${learnedReliability.minimumSample} ตัวอย่าง · ข้อมูลยังไม่เพียงพอ`;
+    }
+    return `${learnedReliabilityPercent(value.reliability) ?? 0}%`;
+  };
+  const learnedReliabilityReason = !learnedReliability
+    ? "ไม่สามารถยืนยัน Reliability ได้ ระบบจะไม่ตอบอัตโนมัติ"
+    : learnedReliabilityReady
+      ? "ผ่าน Reliability ทั้งสองด้าน และยังต้องผ่าน Guardrail เดิมของแต่ละเคส"
+      : settings?.learnedReliabilityDecision?.reason === "UNDERSTANDING_RELIABILITY_BELOW_THRESHOLD"
+        ? "ความน่าเชื่อถือในการเข้าใจเคสต่ำกว่า 90%"
+        : settings?.learnedReliabilityDecision?.reason === "SOLUTION_RELIABILITY_BELOW_THRESHOLD"
+          ? "ความน่าเชื่อถือในการเลือกวิธีแก้ต่ำกว่า 90%"
+          : "ข้อมูล Reliability ยังไม่เพียงพอสำหรับ Auto-answer";
 
   return (
     <Stack className="automationPage" gap="md">
@@ -2164,6 +2184,39 @@ function AutomationSettings({
             <Title order={2}>{settings?.caseDiscriminationThreshold ?? 98}%</Title>
           </Paper>
         </SimpleGrid>
+        <Paper bg="gray.0" mt="md" p="md" radius="md">
+          <Group justify="space-between" mb="sm">
+            <Box>
+              <Text fw={700}>Learned Reliability</Text>
+              <Text c="dimmed" size="xs">Guardrail ชั้นที่ 2 · Threshold {learnedReliability?.threshold ? `${Math.round(learnedReliability.threshold * 100)}%` : "90%"} (อ่านอย่างเดียว)</Text>
+            </Box>
+            <Badge color={learnedReliabilityReady ? "green" : "yellow"} variant="light">
+              {learnedReliabilityReady ? "ผ่าน Reliability" : "บล็อก Auto-answer"}
+            </Badge>
+          </Group>
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            {([
+              ["issueUnderstanding", "การเข้าใจเคส"],
+              ["solutionSelection", "การเลือกวิธีแก้"],
+            ] as const).map(([key, label]) => {
+              const dimension = learnedReliability?.[key];
+              const percent = learnedReliabilityPercent(dimension?.reliability ?? null) ?? 0;
+              return (
+                <Box key={key}>
+                  <Group justify="space-between" gap="xs">
+                    <Text size="sm">{label}</Text>
+                    <Text fw={700} size="sm">{learnedReliabilityText(key)}</Text>
+                  </Group>
+                  <Progress color={dimension?.status === "READY" && percent >= 90 ? "green" : "yellow"} mt={4} value={percent} />
+                  <Text c="dimmed" size="xs">{dimension?.status ?? "UNAVAILABLE"}</Text>
+                </Box>
+              );
+            })}
+          </SimpleGrid>
+          <Text c={learnedReliabilityReady ? "dimmed" : "orange.8"} mt="sm" size="sm">
+            Auto-answer: {learnedReliabilityReady ? "ผ่าน Reliability ทั้งสองด้าน" : "Blocked"} · {learnedReliabilityReason}
+          </Text>
+        </Paper>
         <SimpleGrid className="automationSettingsMeta" cols={{ base: 1, sm: 2 }} mt="md">
           <Box>
             <Text c="dimmed" size="xs">อัปเดตล่าสุดเมื่อ</Text>
