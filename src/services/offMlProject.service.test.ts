@@ -89,6 +89,45 @@ test("sends the complete Auto-answer review contract", async () => {
   });
 });
 
+test("sends both Quality Review dimensions for a mixed formal result", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestInit: RequestInit | undefined;
+  globalThis.fetch = (async (_input, init) => {
+    requestInit = init;
+    return new Response(JSON.stringify({ data: { caseId: "case-mixed", id: "match_case-mixed" } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    await reviewConfidenceSuggestion({
+      caseId: "case-mixed",
+      id: "match_case-mixed",
+      analysisId: "analysis-mixed",
+      analysisVersion: 3,
+      reviewStage: "QUALITY",
+      solutionId: "solution-mixed",
+      understandingResult: "CORRECT",
+      solutionResult: "INCORRECT",
+      reason: "Solution does not match the reviewed issue",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+    caseId: "case-mixed",
+    analysisId: "analysis-mixed",
+    analysisVersion: 3,
+    reviewStage: "QUALITY",
+    solutionId: "solution-mixed",
+    understandingResult: "CORRECT",
+    solutionResult: "INCORRECT",
+    reason: "Solution does not match the reviewed issue",
+  });
+});
+
 test("preserves HTTP 409 for stale Confidence Review handling", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => new Response(JSON.stringify({

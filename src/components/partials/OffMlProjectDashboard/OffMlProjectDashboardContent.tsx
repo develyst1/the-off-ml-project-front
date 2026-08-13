@@ -23,6 +23,7 @@ import {
   Pagination,
   Paper,
   Progress,
+  Radio,
   ScrollArea,
   Select,
   Skeleton,
@@ -1697,14 +1698,18 @@ function ConfidenceReview({
   error?: string;
   isLoading: boolean;
   onRetry: () => void;
-  onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { understandingIncorrect: boolean; solutionIncorrect: boolean; explanation: string }) => Promise<void>;
+  onReview: (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: {
+    understandingResult?: "CORRECT" | "INCORRECT";
+    solutionResult?: "CORRECT" | "INCORRECT";
+    explanation: string;
+  }) => Promise<void>;
   suggestions: ConfidenceSuggestion[];
 }) {
   const REVIEW_PAGE_SIZE = 10;
   const [reviewedSuggestions, setReviewedSuggestions] = useState<Record<string, "approved" | "rejected">>({});
   const [rejectedSuggestion, setRejectedSuggestion] = useState<ConfidenceSuggestion | null>(null);
-  const [understandingIncorrect, setUnderstandingIncorrect] = useState(false);
-  const [solutionIncorrect, setSolutionIncorrect] = useState(false);
+  const [understandingReviewResult, setUnderstandingReviewResult] = useState<"CORRECT" | "INCORRECT" | undefined>();
+  const [solutionReviewResult, setSolutionReviewResult] = useState<"CORRECT" | "INCORRECT" | undefined>();
   const [rejectionExplanation, setRejectionExplanation] = useState("");
   const [reviewPage, setReviewPage] = useState(1);
   const [savingSuggestionId, setSavingSuggestionId] = useState<string>();
@@ -1728,16 +1733,49 @@ function ConfidenceReview({
     }
   };
 
-  const submitRejection = async () => {
-    if (!rejectedSuggestion || savingSuggestionId || (!understandingIncorrect && !solutionIncorrect)) return;
+  const openReviewModal = (item: ConfidenceSuggestion) => {
+    setReviewActionError(undefined);
+    setRejectedSuggestion(item);
+    setUnderstandingReviewResult(item.reviewStage === "QUALITY" ? item.understandingResult : undefined);
+    setSolutionReviewResult(item.reviewStage === "QUALITY" ? item.solutionResult : undefined);
+    setRejectionExplanation(item.reviewStage === "QUALITY" ? item.reviewReason ?? "" : "");
+  };
+
+  const closeReviewModal = () => {
+    if (savingSuggestionId) return;
+    setRejectedSuggestion(null);
+    setUnderstandingReviewResult(undefined);
+    setSolutionReviewResult(undefined);
+    setRejectionExplanation("");
+  };
+
+  const submitReview = async () => {
+    if (!rejectedSuggestion || savingSuggestionId) return;
+    const isQualityReview = rejectedSuggestion.reviewStage === "QUALITY";
+    const hasRequiredQualityResults = Boolean(
+      understandingReviewResult
+      && (rejectedSuggestion.hasSuggestedSolution === false || solutionReviewResult),
+    );
+    const hasAutoAnswerRejection = understandingReviewResult === "INCORRECT" || solutionReviewResult === "INCORRECT";
+    if ((isQualityReview && !hasRequiredQualityResults) || (!isQualityReview && !hasAutoAnswerRejection)) return;
+
+    const result = isQualityReview
+      && understandingReviewResult === "CORRECT"
+      && (rejectedSuggestion.hasSuggestedSolution === false || solutionReviewResult === "CORRECT")
+      ? "approved"
+      : "rejected";
     setSavingSuggestionId(rejectedSuggestion.id);
     setReviewActionError(undefined);
     try {
-      await onReview(rejectedSuggestion, "rejected", { understandingIncorrect, solutionIncorrect, explanation: rejectionExplanation });
-      setReviewedSuggestions((current) => ({ ...current, [rejectedSuggestion.id]: "rejected" }));
+      await onReview(rejectedSuggestion, result, {
+        understandingResult: understandingReviewResult,
+        solutionResult: rejectedSuggestion.hasSuggestedSolution === false ? undefined : solutionReviewResult,
+        explanation: rejectionExplanation,
+      });
+      setReviewedSuggestions((current) => ({ ...current, [rejectedSuggestion.id]: result }));
       setRejectedSuggestion(null);
-      setUnderstandingIncorrect(false);
-      setSolutionIncorrect(false);
+      setUnderstandingReviewResult(undefined);
+      setSolutionReviewResult(undefined);
       setRejectionExplanation("");
     } catch (error) {
       setReviewActionError(error instanceof Error ? error.message : "บันทึกผล Confidence Review ไม่สำเร็จ");
@@ -1845,12 +1883,20 @@ function ConfidenceReview({
             การยืนยันของทีมจะถูกใช้คำนวณ Learned Reliability สำหรับการเข้าใจเคสและการเลือกวิธีแก้
           </Text>
           <Group justify="flex-end" mt="sm">
-            <Button color="red" disabled={Boolean(savingSuggestionId)} onClick={() => { setReviewActionError(undefined); setRejectedSuggestion(item); }} size="sm" variant="light">
-              {item.reviewStage === "AUTO_ANSWER" ? "ไม่อนุมัติ" : "ไม่ถูกต้อง"}
-            </Button>
-            <Button disabled={Boolean(savingSuggestionId)} loading={savingSuggestionId === item.id} onClick={() => void reviewSuggestion(item, "approved")} size="sm">
-              {item.reviewStage === "AUTO_ANSWER" ? "อนุมัติให้ตอบอัตโนมัติ" : "ยืนยันความถูกต้อง"}
-            </Button>
+            {item.reviewStage === "AUTO_ANSWER" ? (
+              <>
+                <Button color="red" disabled={Boolean(savingSuggestionId)} onClick={() => openReviewModal(item)} size="sm" variant="light">
+                  ไม่อนุมัติ
+                </Button>
+                <Button disabled={Boolean(savingSuggestionId)} loading={savingSuggestionId === item.id} onClick={() => void reviewSuggestion(item, "approved")} size="sm">
+                  อนุมัติให้ตอบอัตโนมัติ
+                </Button>
+              </>
+            ) : (
+              <Button disabled={Boolean(savingSuggestionId)} loading={savingSuggestionId === item.id} onClick={() => openReviewModal(item)} size="sm">
+                ตรวจและบันทึกผล
+              </Button>
+            )}
           </Group>
         </Card>
           ))}
@@ -1862,20 +1908,78 @@ function ConfidenceReview({
           ) : null}
         </Stack>
       )}
-      <Modal closeOnClickOutside={!savingSuggestionId} opened={Boolean(rejectedSuggestion)} onClose={() => { if (!savingSuggestionId) setRejectedSuggestion(null); }} title="ระบุด้านที่ AI ไม่ถูกต้อง">
-        <Stack gap="xs">
-          <Checkbox checked={understandingIncorrect} label="AI เข้าใจเคสไม่ถูกต้อง" onChange={(event) => setUnderstandingIncorrect(event.currentTarget.checked)} />
-          <Checkbox
-            checked={solutionIncorrect}
-            disabled={rejectedSuggestion?.hasSuggestedSolution === false}
-            label="AI เลือกวิธีแก้ไม่ถูกต้อง"
-            onChange={(event) => setSolutionIncorrect(event.currentTarget.checked)}
-          />
-        </Stack>
-        <Textarea label="คำอธิบายเพิ่มเติม" minRows={2} mt="sm" onChange={(event) => setRejectionExplanation(event.currentTarget.value)} value={rejectionExplanation} />
+      <Modal
+        closeOnClickOutside={!savingSuggestionId}
+        opened={Boolean(rejectedSuggestion)}
+        onClose={closeReviewModal}
+        title={rejectedSuggestion?.reviewStage === "QUALITY" ? "ตรวจและบันทึกผล" : "ระบุด้านที่ AI ไม่ถูกต้อง"}
+      >
+        {rejectedSuggestion?.reviewStage === "QUALITY" ? (
+          <Stack gap="md">
+            <Radio.Group
+              label="AI เข้าใจเคส"
+              onChange={(value) => setUnderstandingReviewResult(value as "CORRECT" | "INCORRECT")}
+              value={understandingReviewResult}
+              withAsterisk
+            >
+              <Group mt="xs">
+                <Radio label="ถูกต้อง" value="CORRECT" />
+                <Radio label="ไม่ถูกต้อง" value="INCORRECT" />
+              </Group>
+            </Radio.Group>
+            {rejectedSuggestion.hasSuggestedSolution === false ? (
+              <Box>
+                <Text fw={500} size="sm">AI เลือก Solution</Text>
+                <Text c="dimmed" size="sm">ไม่มี Solution ให้ประเมิน</Text>
+              </Box>
+            ) : (
+              <Radio.Group
+                label="AI เลือก Solution"
+                onChange={(value) => setSolutionReviewResult(value as "CORRECT" | "INCORRECT")}
+                value={solutionReviewResult}
+                withAsterisk
+              >
+                <Group mt="xs">
+                  <Radio label="ถูกต้อง" value="CORRECT" />
+                  <Radio label="ไม่ถูกต้อง" value="INCORRECT" />
+                </Group>
+              </Radio.Group>
+            )}
+          </Stack>
+        ) : (
+          <Stack gap="xs">
+            <Checkbox
+              checked={understandingReviewResult === "INCORRECT"}
+              label="AI เข้าใจเคสไม่ถูกต้อง"
+              onChange={(event) => setUnderstandingReviewResult(event.currentTarget.checked ? "INCORRECT" : undefined)}
+            />
+            <Checkbox
+              checked={solutionReviewResult === "INCORRECT"}
+              disabled={rejectedSuggestion?.hasSuggestedSolution === false}
+              label="AI เลือกวิธีแก้ไม่ถูกต้อง"
+              onChange={(event) => setSolutionReviewResult(event.currentTarget.checked ? "INCORRECT" : undefined)}
+            />
+          </Stack>
+        )}
+        <Textarea
+          label="คำอธิบายเพิ่มเติม"
+          minRows={2}
+          mt="sm"
+          onChange={(event) => setRejectionExplanation(event.currentTarget.value)}
+          value={rejectionExplanation}
+        />
         <Group justify="flex-end" mt="md">
-          <Button disabled={Boolean(savingSuggestionId)} onClick={() => setRejectedSuggestion(null)} variant="default">ยกเลิก</Button>
-          <Button color="red" disabled={!understandingIncorrect && !solutionIncorrect} loading={Boolean(savingSuggestionId)} onClick={() => void submitRejection()}>บันทึกผลตรวจ</Button>
+          <Button disabled={Boolean(savingSuggestionId)} onClick={closeReviewModal} variant="default">ยกเลิก</Button>
+          <Button
+            color={understandingReviewResult === "INCORRECT" || solutionReviewResult === "INCORRECT" ? "red" : "blue"}
+            disabled={rejectedSuggestion?.reviewStage === "QUALITY"
+              ? !understandingReviewResult || (rejectedSuggestion.hasSuggestedSolution !== false && !solutionReviewResult)
+              : understandingReviewResult !== "INCORRECT" && solutionReviewResult !== "INCORRECT"}
+            loading={Boolean(savingSuggestionId)}
+            onClick={() => void submitReview()}
+          >
+            บันทึกผลตรวจ
+          </Button>
         </Group>
       </Modal>
     </Stack>
@@ -3015,16 +3119,17 @@ export default function OffMlProjectDashboardContent({
     setCases((current) => current.map((item) => item.id === updatedCase.id ? mergeCaseDetail(item, updatedCase) : item));
   };
 
-  const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: { understandingIncorrect: boolean; solutionIncorrect: boolean; explanation: string }) => {
+  const handleReviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected", feedback?: {
+    understandingResult?: "CORRECT" | "INCORRECT";
+    solutionResult?: "CORRECT" | "INCORRECT";
+    explanation: string;
+  }) => {
     if (!item.analysisId || !item.analysisVersion) {
       throw new Error("ยังไม่มีผลวิเคราะห์ที่สามารถประเมินได้");
     }
-    const understandingResult = result === "approved"
-      ? "CORRECT"
-      : feedback?.understandingIncorrect ? "INCORRECT" : undefined;
-    const solutionResult = result === "approved"
-      ? (item.hasSuggestedSolution === false ? undefined : "CORRECT")
-      : feedback?.solutionIncorrect ? "INCORRECT" : undefined;
+    const understandingResult = feedback?.understandingResult ?? (result === "approved" ? "CORRECT" : undefined);
+    const solutionResult = feedback?.solutionResult
+      ?? (result === "approved" && item.hasSuggestedSolution !== false ? "CORRECT" : undefined);
     if (!understandingResult && !solutionResult) {
       throw new Error("กรุณาเลือกด้านที่ AI วิเคราะห์ไม่ถูกต้องอย่างน้อย 1 ด้าน");
     }

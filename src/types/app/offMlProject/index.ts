@@ -272,6 +272,9 @@ export interface ConfidenceSuggestion {
   analysisId?: string;
   analysisVersion?: number;
   hasSuggestedSolution?: boolean;
+  understandingResult?: "CORRECT" | "INCORRECT";
+  solutionResult?: "CORRECT" | "INCORRECT";
+  reviewReason?: string;
 }
 
 export interface AutoAnswerSolution {
