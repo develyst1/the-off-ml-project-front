@@ -18,6 +18,13 @@ type ApiResponse<T> = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_OFF_ML_PROJECT_API_BASE_URL ?? "http://localhost:4000";
 
+export class OffMlProjectApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "OffMlProjectApiError";
+  }
+}
+
 export function getRealtimeEventsUrl(): string | undefined {
   const configuredBaseUrl = API_BASE_URL.trim();
   if (!configuredBaseUrl) return "/realtime/events";
@@ -50,7 +57,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => undefined) as { error?: string; message?: string } | undefined;
-    throw new Error(error?.message || error?.error || `Off ML Project API error ${response.status}`);
+    throw new OffMlProjectApiError(error?.message || error?.error || `Off ML Project API error ${response.status}`, response.status);
   }
 
   const body = (await response.json()) as ApiResponse<T>;
@@ -575,6 +582,9 @@ export async function reviewConfidenceSuggestion(input: {
   id: string;
   analysisId: string;
   analysisVersion: number;
+  reviewStage: "QUALITY" | "AUTO_ANSWER";
+  solutionId?: string;
+  decision?: "APPROVED" | "REJECTED";
   understandingResult?: "CORRECT" | "INCORRECT";
   solutionResult?: "CORRECT" | "INCORRECT";
   reason?: string;
@@ -585,6 +595,9 @@ export async function reviewConfidenceSuggestion(input: {
       caseId: input.caseId,
       analysisId: input.analysisId,
       analysisVersion: input.analysisVersion,
+      reviewStage: input.reviewStage,
+      solutionId: input.solutionId,
+      decision: input.decision,
       understandingResult: input.understandingResult,
       solutionResult: input.solutionResult,
       reason: input.reason,

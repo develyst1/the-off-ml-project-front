@@ -49,6 +49,7 @@ import {
   getCase,
   getCases,
   getConfidenceSuggestions,
+  OffMlProjectApiError,
   composeAiMessage,
   acceptCase,
   reviewConfidenceSuggestion,
@@ -1706,31 +1707,51 @@ function ConfidenceReview({
   const [solutionIncorrect, setSolutionIncorrect] = useState(false);
   const [rejectionExplanation, setRejectionExplanation] = useState("");
   const [reviewPage, setReviewPage] = useState(1);
+  const [savingSuggestionId, setSavingSuggestionId] = useState<string>();
+  const [reviewActionError, setReviewActionError] = useState<string>();
 
   const reviewPageCount = Math.max(1, Math.ceil(suggestions.length / REVIEW_PAGE_SIZE));
   const safeReviewPage = Math.min(reviewPage, reviewPageCount);
   const visibleSuggestions = suggestions.slice((safeReviewPage - 1) * REVIEW_PAGE_SIZE, safeReviewPage * REVIEW_PAGE_SIZE);
 
   const reviewSuggestion = async (item: ConfidenceSuggestion, result: "approved" | "rejected") => {
-    await onReview(item, result);
-    setReviewedSuggestions((current) => ({ ...current, [item.id]: result }));
+    if (savingSuggestionId) return;
+    setSavingSuggestionId(item.id);
+    setReviewActionError(undefined);
+    try {
+      await onReview(item, result);
+      setReviewedSuggestions((current) => ({ ...current, [item.id]: result }));
+    } catch (error) {
+      setReviewActionError(error instanceof Error ? error.message : "บันทึกผล Confidence Review ไม่สำเร็จ");
+    } finally {
+      setSavingSuggestionId(undefined);
+    }
   };
 
   const submitRejection = async () => {
-    if (!rejectedSuggestion || (!understandingIncorrect && !solutionIncorrect)) return;
-    await onReview(rejectedSuggestion, "rejected", { understandingIncorrect, solutionIncorrect, explanation: rejectionExplanation });
-    setReviewedSuggestions((current) => ({ ...current, [rejectedSuggestion.id]: "rejected" }));
-    setRejectedSuggestion(null);
-    setUnderstandingIncorrect(false);
-    setSolutionIncorrect(false);
-    setRejectionExplanation("");
+    if (!rejectedSuggestion || savingSuggestionId || (!understandingIncorrect && !solutionIncorrect)) return;
+    setSavingSuggestionId(rejectedSuggestion.id);
+    setReviewActionError(undefined);
+    try {
+      await onReview(rejectedSuggestion, "rejected", { understandingIncorrect, solutionIncorrect, explanation: rejectionExplanation });
+      setReviewedSuggestions((current) => ({ ...current, [rejectedSuggestion.id]: "rejected" }));
+      setRejectedSuggestion(null);
+      setUnderstandingIncorrect(false);
+      setSolutionIncorrect(false);
+      setRejectionExplanation("");
+    } catch (error) {
+      setReviewActionError(error instanceof Error ? error.message : "บันทึกผล Confidence Review ไม่สำเร็จ");
+    } finally {
+      setSavingSuggestionId(undefined);
+    }
   };
 
   return (
     <Stack className="confidenceReviewPage" gap="md">
       <Alert className="confidenceReviewNotice" color="blue" icon={<AppIcon name="brain" />} radius="md" variant="light">
-        ตรวจความถูกต้องของคำแนะนำ AI เพื่อปรับ Confidence
+        ตรวจความถูกต้องของคำแนะนำ AI เพื่อบันทึกผลตรวจและปรับ Learned Reliability
       </Alert>
+      {reviewActionError ? <Alert color="red" title="บันทึกผลตรวจไม่สำเร็จ" variant="light">{reviewActionError}</Alert> : null}
       {isLoading ? (
         <Stack gap="sm">
           {[0, 1].map((item) => (
@@ -1821,13 +1842,13 @@ function ConfidenceReview({
             {item.reviewHint}
           </Text>
           <Text c="dimmed" mt="xs" size="xs">
-            การยืนยันของทีมจะช่วยปรับความมั่นใจของ AI สำหรับการเข้าใจเคสและการเลือกวิธีแก้ในอนาคต
+            การยืนยันของทีมจะถูกใช้คำนวณ Learned Reliability สำหรับการเข้าใจเคสและการเลือกวิธีแก้
           </Text>
           <Group justify="flex-end" mt="sm">
-            <Button color="red" onClick={() => setRejectedSuggestion(item)} size="sm" variant="light">
+            <Button color="red" disabled={Boolean(savingSuggestionId)} onClick={() => { setReviewActionError(undefined); setRejectedSuggestion(item); }} size="sm" variant="light">
               {item.reviewStage === "AUTO_ANSWER" ? "ไม่อนุมัติ" : "ไม่ถูกต้อง"}
             </Button>
-            <Button onClick={() => void reviewSuggestion(item, "approved")} size="sm">
+            <Button disabled={Boolean(savingSuggestionId)} loading={savingSuggestionId === item.id} onClick={() => void reviewSuggestion(item, "approved")} size="sm">
               {item.reviewStage === "AUTO_ANSWER" ? "อนุมัติให้ตอบอัตโนมัติ" : "ยืนยันความถูกต้อง"}
             </Button>
           </Group>
@@ -1841,7 +1862,7 @@ function ConfidenceReview({
           ) : null}
         </Stack>
       )}
-      <Modal opened={Boolean(rejectedSuggestion)} onClose={() => setRejectedSuggestion(null)} title="ระบุด้านที่ AI ไม่ถูกต้อง">
+      <Modal closeOnClickOutside={!savingSuggestionId} opened={Boolean(rejectedSuggestion)} onClose={() => { if (!savingSuggestionId) setRejectedSuggestion(null); }} title="ระบุด้านที่ AI ไม่ถูกต้อง">
         <Stack gap="xs">
           <Checkbox checked={understandingIncorrect} label="AI เข้าใจเคสไม่ถูกต้อง" onChange={(event) => setUnderstandingIncorrect(event.currentTarget.checked)} />
           <Checkbox
@@ -1853,8 +1874,8 @@ function ConfidenceReview({
         </Stack>
         <Textarea label="คำอธิบายเพิ่มเติม" minRows={2} mt="sm" onChange={(event) => setRejectionExplanation(event.currentTarget.value)} value={rejectionExplanation} />
         <Group justify="flex-end" mt="md">
-          <Button onClick={() => setRejectedSuggestion(null)} variant="default">ยกเลิก</Button>
-          <Button color="red" disabled={!understandingIncorrect && !solutionIncorrect} onClick={() => void submitRejection()}>บันทึกผลตรวจ</Button>
+          <Button disabled={Boolean(savingSuggestionId)} onClick={() => setRejectedSuggestion(null)} variant="default">ยกเลิก</Button>
+          <Button color="red" disabled={!understandingIncorrect && !solutionIncorrect} loading={Boolean(savingSuggestionId)} onClick={() => void submitRejection()}>บันทึกผลตรวจ</Button>
         </Group>
       </Modal>
     </Stack>
@@ -3007,15 +3028,28 @@ export default function OffMlProjectDashboardContent({
     if (!understandingResult && !solutionResult) {
       throw new Error("กรุณาเลือกด้านที่ AI วิเคราะห์ไม่ถูกต้องอย่างน้อย 1 ด้าน");
     }
-    await reviewConfidenceSuggestion({
-      caseId: item.caseId,
-      id: item.id,
-      analysisId: item.analysisId,
-      analysisVersion: item.analysisVersion,
-      understandingResult,
-      solutionResult,
-      reason: feedback?.explanation,
-    });
+    try {
+      await reviewConfidenceSuggestion({
+        caseId: item.caseId,
+        id: item.id,
+        analysisId: item.analysisId,
+        analysisVersion: item.analysisVersion,
+        reviewStage: item.reviewStage,
+        solutionId: item.suggestedSolutionId || undefined,
+        decision: item.reviewStage === "AUTO_ANSWER"
+          ? result === "approved" ? "APPROVED" : "REJECTED"
+          : undefined,
+        understandingResult,
+        solutionResult,
+        reason: feedback?.explanation,
+      });
+    } catch (error) {
+      if (error instanceof OffMlProjectApiError && error.status === 409) {
+        await loadDashboardData();
+        throw new Error("ข้อมูล Confidence Review เปลี่ยนแล้ว ระบบโหลดรายการล่าสุดให้แล้ว กรุณาตรวจสอบอีกครั้ง");
+      }
+      throw error;
+    }
     await Promise.all([loadCases(), loadDashboardData()]);
     setActiveTab("confidence");
   };
