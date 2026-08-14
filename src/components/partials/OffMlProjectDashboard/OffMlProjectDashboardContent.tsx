@@ -390,7 +390,7 @@ function CaseInbox({
 
   const filteredCases = cases
     .filter((item) => {
-      const searchable = [item.caseNumber, item.customerName, item.problemSummary, item.initialCustomerMessage, item.latestCustomerMessage, item.categoryKey, item.category]
+      const searchable = [item.caseNumber, item.customerName, item.problemSummary, item.initialCustomerMessage, item.latestCustomerMessage, item.categoryKey, item.category, item.technicalTopic]
         .join(" ")
         .toLocaleLowerCase();
       if (search.trim() && !searchable.includes(search.trim().toLocaleLowerCase())) return false;
@@ -646,7 +646,10 @@ function CaseInbox({
                     ) : null}
                   </Table.Td>
                   <Table.Td ta="center">
-                    <Badge variant="light">{categoryLabelInThai(item.category)}</Badge>
+                    <Stack align="center" gap={3}>
+                      <Badge variant="light">{categoryLabelInThai(item.category)}</Badge>
+                      {item.technicalTopic ? <Text c="dimmed" lineClamp={2} size="xs">หัวข้อ: {item.technicalTopic}</Text> : null}
+                    </Stack>
                   </Table.Td>
                   <Table.Td>
                     {item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE" ? <Text c="dimmed">-</Text> : (
@@ -1327,6 +1330,7 @@ function CaseDetail({
               <Badge color="blue" mt={6} variant="light">
                 {categoryLabelInThai(item.category)}
               </Badge>
+              {item.technicalTopic ? <Text c="dimmed" mt={4} size="sm">หัวข้อปัญหา: {item.technicalTopic}</Text> : null}
             </Box>
           </SimpleGrid>
           <Divider my="sm" />
@@ -1481,6 +1485,12 @@ function CaseDetail({
                           {categoryLabelInThai(item.category)}
                         </Badge>
                       </Group>
+                      {item.technicalTopic ? (
+                        <Group justify="space-between">
+                          <Text c="dimmed" size="sm">หัวข้อปัญหา</Text>
+                          <Text fw={700} size="sm">{item.technicalTopic}</Text>
+                        </Group>
+                      ) : null}
                       <Group justify="space-between">
                         <Text c="dimmed" size="sm">
                           ความมั่นใจของ AI
@@ -1850,6 +1860,7 @@ function ConfidenceReview({
               <Badge color="blue" variant="light">{categoryLabelInThai(item.category)}</Badge>
             </Group>
           </Group>
+          {item.technicalTopic ? <Text c="dimmed" mt={4} size="sm">หัวข้อปัญหา: {item.technicalTopic}</Text> : null}
           <SimpleGrid cols={{ base: 1, md: 2 }} mt="sm">
             <Paper bg="gray.0" p="md" radius="md">
               <Text c="dimmed" fw={700} size="sm">Solution ที่ AI แนะนำ</Text>

@@ -119,6 +119,20 @@ function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCa
     .sort((left, right) => right.analysisVersion - left.analysisVersion || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
 }
 
+export function technicalTopicFromAnalysis(
+  analysis: OffMlProjectCaseResponse["analyses"][number] | undefined,
+  explicitTopic?: string,
+) {
+  const rawJson = analysis?.rawJson;
+  const rawTopic = rawJson && typeof rawJson === "object" && !Array.isArray(rawJson)
+    ? (rawJson as { technicalTopic?: unknown }).technicalTopic
+    : undefined;
+  const topic = typeof explicitTopic === "string" && explicitTopic.trim() ? explicitTopic : rawTopic;
+  if (typeof topic !== "string") return undefined;
+  const normalized = topic.trim().replace(/\s+/g, " ");
+  return normalized && /[\u0E01-\u0E5B]/u.test(normalized) ? normalized.slice(0, 100).trimEnd() : undefined;
+}
+
 function teamActionsFromAnalysis(analysis: OffMlProjectCaseResponse["analyses"][number] | undefined) {
   const rawJson = analysis?.rawJson;
   if (!rawJson || typeof rawJson !== "object" || Array.isArray(rawJson)) return [];
@@ -267,6 +281,9 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const resolvedCategory = caseItem.aiStatus === "AI_FAILED"
     ? { key: "OTHER", label: "ยังไม่ระบุหมวดหมู่" }
     : categoryMetaInThai(customerAnalysis?.category ?? caseItem.category);
+  const technicalTopic = caseItem.aiStatus === "AI_FAILED"
+    ? undefined
+    : technicalTopicFromAnalysis(customerAnalysis, caseItem.currentAnalysis?.technicalTopic);
 
   return {
     id: caseItem.id,
@@ -321,6 +338,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
     isSlaBreached,
     category: resolvedCategory.label,
     categoryKey: resolvedCategory.key,
+    technicalTopic,
     aiConfidence: caseItem.aiStatus === "AI_FAILED" ? 0 : customerAnalysis?.confidence ?? caseItem.confidenceScore ?? 0,
     status: caseItem.status,
     createdAt: formatDateTime(caseItem.createdAt),

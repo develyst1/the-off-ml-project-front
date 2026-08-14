@@ -6,6 +6,7 @@ import {
   OffMlProjectApiError,
   reviewConfidenceSuggestion,
   saveCaseAiFeedback,
+  technicalTopicFromAnalysis,
 } from "./offMlProject.service";
 
 test("sends the complete Case Detail feedback identity, value, and note", async () => {
@@ -162,7 +163,7 @@ test("normalizes category labels returned by Confidence Review and Automation", 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input) => {
     const data = String(input).includes("/confidence/suggestions")
-      ? [{ id: "suggestion-category", category: "SOFTWARE_APPLICATION" }]
+      ? [{ id: "suggestion-category", category: "SOFTWARE_APPLICATION", technicalTopic: "ชนิดไฟล์ไม่รองรับ" }]
       : [{ id: "solution-category", category: "UNMAPPED_FUTURE_CATEGORY" }];
     return new Response(JSON.stringify({ data }), {
       status: 200,
@@ -174,8 +175,25 @@ test("normalizes category labels returned by Confidence Review and Automation", 
     const suggestions = await getConfidenceSuggestions();
     const solutions = await getAutoAnswerSolutions();
     assert.equal(suggestions[0]?.category, "ปัญหาซอฟต์แวร์");
+    assert.equal(suggestions[0]?.technicalTopic, "ชนิดไฟล์ไม่รองรับ");
     assert.equal(solutions[0]?.category, "อื่นๆ");
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("reads only a presentable Thai technical topic from analysis JSON", () => {
+  const baseAnalysis = {
+    id: "analysis-row-topic",
+    analysisId: "analysis-topic",
+    caseId: "case-topic",
+    analysisVersion: 1,
+    analysisType: "customer_message" as const,
+    confidence: 90,
+    createdAt: "2026-08-14T08:00:00.000Z",
+  };
+
+  assert.equal(technicalTopicFromAnalysis({ ...baseAnalysis, rawJson: { technicalTopic: "รหัสผ่านหมดอายุ" } }), "รหัสผ่านหมดอายุ");
+  assert.equal(technicalTopicFromAnalysis({ ...baseAnalysis, rawJson: { technicalTopic: "PASSWORD_EXPIRED" } }), undefined);
+  assert.equal(technicalTopicFromAnalysis({ ...baseAnalysis, rawJson: {} }), undefined);
 });

@@ -66,7 +66,7 @@ export interface SupportCase {
   confidenceReviewedBy?: string;
   caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
-  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; sourceMessageIds?: string[] };
+  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; technicalTopic?: string; sourceMessageIds?: string[] };
   aiFeedback?: {
     analysisId?: string;
     analysisVersion?: number;
@@ -81,6 +81,7 @@ export interface SupportCase {
   isSlaBreached: boolean;
   category: string;
   categoryKey: string;
+  technicalTopic?: string;
   aiConfidence: number;
   status: CaseStatus;
   createdAt: string;
@@ -229,7 +230,7 @@ export interface OffMlProjectCaseResponse {
   confidenceReviewedBy?: string;
   caseUnderstandingFeedback?: "CORRECT" | "INCORRECT";
   solutionSelectionFeedback?: "CORRECT" | "INCORRECT";
-  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; sourceMessageIds?: string[] };
+  currentAnalysis?: { id: string; analysisVersion: number; createdAt?: string; summary?: string; technicalTopic?: string; sourceMessageIds?: string[] };
   aiFeedback?: {
     analysisId?: string;
     analysisVersion?: number;
@@ -262,6 +263,7 @@ export interface ConfidenceSuggestion {
   customerName: string;
   suggestedSolutionId: string;
   category: string;
+  technicalTopic?: string;
   originalText: string;
   solutionText: string;
   caseUnderstandingConfidence: number;
