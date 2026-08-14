@@ -1865,7 +1865,9 @@ function ConfidenceReview({
             <Paper bg="gray.0" p="md" radius="md">
               <Text c="dimmed" fw={700} size="sm">Solution ที่ AI แนะนำ</Text>
               <Text>{item.solutionText}</Text>
-              <Text c="dimmed" mt="xs" size="xs">อ้างอิง {item.suggestedSolutionId}</Text>
+              {item.suggestedSolutionId
+                ? <Text c="dimmed" mt="xs" size="xs">อ้างอิง {item.suggestedSolutionId}</Text>
+                : <Text c="dimmed" mt="xs" size="xs">ยังไม่มี Solution อ้างอิง</Text>}
             </Paper>
             <Stack gap="sm">
               <Box>
@@ -1878,9 +1880,11 @@ function ConfidenceReview({
               <Box>
                 <Group justify="space-between">
                   <Text size="sm">ความมั่นใจในการแยกเคสและเลือกวิธีแก้</Text>
-                  <Text fw={700} size="sm">{item.caseDiscriminationConfidence}%</Text>
+                  <Text c={item.caseDiscriminationConfidence === undefined ? "dimmed" : undefined} fw={700} size="sm">
+                    {item.caseDiscriminationConfidence === undefined ? "ยังไม่มีข้อมูล" : `${item.caseDiscriminationConfidence}%`}
+                  </Text>
                 </Group>
-                <Progress value={item.caseDiscriminationConfidence} />
+                <Progress color={item.caseDiscriminationConfidence === undefined ? "gray" : undefined} value={item.caseDiscriminationConfidence ?? 0} />
               </Box>
             </Stack>
           </SimpleGrid>

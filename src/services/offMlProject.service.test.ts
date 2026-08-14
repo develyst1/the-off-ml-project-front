@@ -176,6 +176,7 @@ test("normalizes category labels returned by Confidence Review and Automation", 
     const solutions = await getAutoAnswerSolutions();
     assert.equal(suggestions[0]?.category, "ปัญหาซอฟต์แวร์");
     assert.equal(suggestions[0]?.technicalTopic, "ชนิดไฟล์ไม่รองรับ");
+    assert.equal(suggestions[0]?.caseDiscriminationConfidence, undefined);
     assert.equal(solutions[0]?.category, "อื่นๆ");
   } finally {
     globalThis.fetch = originalFetch;
