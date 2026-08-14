@@ -4,10 +4,12 @@ import {
   getAutoAnswerSolutions,
   getConfidenceSuggestions,
   OffMlProjectApiError,
+  mapCaseResponse,
   reviewConfidenceSuggestion,
   saveCaseAiFeedback,
   technicalTopicFromAnalysis,
 } from "./offMlProject.service";
+import type { OffMlProjectCaseResponse } from "@/types/app/offMlProject";
 
 test("sends the complete Case Detail feedback identity, value, and note", async () => {
   const originalFetch = globalThis.fetch;
@@ -197,4 +199,74 @@ test("reads only a presentable Thai technical topic from analysis JSON", () => {
   assert.equal(technicalTopicFromAnalysis({ ...baseAnalysis, rawJson: { technicalTopic: "รหัสผ่านหมดอายุ" } }), "รหัสผ่านหมดอายุ");
   assert.equal(technicalTopicFromAnalysis({ ...baseAnalysis, rawJson: { technicalTopic: "PASSWORD_EXPIRED" } }), undefined);
   assert.equal(technicalTopicFromAnalysis({ ...baseAnalysis, rawJson: {} }), undefined);
+});
+
+test("does not display a Tech solution extracted from a closing message", () => {
+  const createdAt = "2026-08-14T08:00:00.000Z";
+  const response: OffMlProjectCaseResponse = {
+    id: "case-close-solution",
+    caseNumber: "OFF-2026-00082",
+    customerId: "customer-close-solution",
+    status: "closed",
+    createdAt,
+    updatedAt: createdAt,
+    customer: {
+      id: "customer-close-solution",
+      lineUserId: "U-close-solution",
+      displayName: "ผู้ใช้งานทดสอบ",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    messages: [
+      {
+        id: "customer-message",
+        caseId: "case-close-solution",
+        direction: "INBOUND",
+        channel: "line",
+        originalText: "เครื่องพิมพ์ Offline ไม่สามารถพิมพ์เอกสารได้",
+        senderType: "CUSTOMER",
+        messageType: "CUSTOMER_MESSAGE",
+        createdAt,
+      },
+      {
+        id: "close-message",
+        caseId: "case-close-solution",
+        direction: "INTERNAL",
+        channel: "system",
+        originalText: "ปิดเคส OFF-2026-00082",
+        senderType: "SYSTEM",
+        messageType: "CASE_CLOSED",
+        createdAt: "2026-08-14T08:05:00.000Z",
+      },
+    ],
+    analyses: [
+      {
+        id: "customer-analysis-row",
+        analysisId: "customer-analysis",
+        caseId: "case-close-solution",
+        messageId: "customer-message",
+        analysisVersion: 1,
+        analysisType: "customer_message",
+        summary: "เครื่องพิมพ์ Offline",
+        confidence: 85,
+        rawJson: { extractedSolution: "ตรวจสอบไฟและการเชื่อมต่อของเครื่องพิมพ์" },
+        createdAt,
+      },
+      {
+        id: "closing-analysis-row",
+        analysisId: "closing-analysis",
+        caseId: "case-close-solution",
+        messageId: "close-message",
+        analysisVersion: 2,
+        analysisType: "tech_solution",
+        summary: "ผู้ตรวจปริ้นท์จากเคส OFF-2026-00082 และปิดเคส",
+        confidence: 90,
+        rawJson: {},
+        createdAt: "2026-08-14T08:05:00.000Z",
+      },
+    ],
+    solutions: [],
+  };
+
+  assert.equal(mapCaseResponse(response).supportSolution, "ตรวจสอบไฟและการเชื่อมต่อของเครื่องพิมพ์");
 });

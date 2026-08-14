@@ -119,6 +119,28 @@ function latestAnalysis(caseItem: OffMlProjectCaseResponse, type: OffMlProjectCa
     .sort((left, right) => right.analysisVersion - left.analysisVersion || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
 }
 
+function latestPresentableTechSolutionAnalysis(caseItem: OffMlProjectCaseResponse) {
+  return [...caseItem.analyses]
+    .filter((analysis) => {
+      if (analysis.analysisType !== "tech_solution") return false;
+      const sourceMessage = analysis.messageId
+        ? caseItem.messages.find((message) => message.id === analysis.messageId)
+        : undefined;
+      if (sourceMessage?.messageType === "CASE_CLOSED") return false;
+
+      const sourceReview = analysis.messageId
+        ? caseItem.analyses.find((candidate) => (
+          candidate.analysisType === "tech_message_review"
+          && candidate.messageId === analysis.messageId
+        ))
+        : undefined;
+      const reviewJson = sourceReview?.rawJson;
+      return !(reviewJson && typeof reviewJson === "object" && !Array.isArray(reviewJson)
+        && (reviewJson as { messageType?: unknown }).messageType === "CLOSE_CASE");
+    })
+    .sort((left, right) => right.analysisVersion - left.analysisVersion || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+}
+
 export function technicalTopicFromAnalysis(
   analysis: OffMlProjectCaseResponse["analyses"][number] | undefined,
   explicitTopic?: string,
@@ -221,7 +243,7 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   )))[0]?.originalText;
   const outboundReply = firstText(caseItem, "BOT");
   const customerAnalysis = latestAnalysis(caseItem, "customer_message");
-  const techAnalysis = latestAnalysis(caseItem, "tech_solution");
+  const techAnalysis = latestPresentableTechSolutionAnalysis(caseItem);
   const customerExtractedSolution = typeof (customerAnalysis?.rawJson as { extractedSolution?: unknown } | undefined)?.extractedSolution === "string"
     ? (customerAnalysis?.rawJson as { extractedSolution: string }).extractedSolution.trim()
     : undefined;
