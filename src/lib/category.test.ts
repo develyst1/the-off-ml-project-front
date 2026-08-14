@@ -1,20 +1,19 @@
-import { describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
+import test from "node:test";
 import { categoryLabelInThai, categoryMetaInThai } from "./category";
 
-describe("Thai category presentation", () => {
-  test("maps canonical and legacy internal values to Thai", () => {
-    expect(categoryLabelInThai("SOFTWARE_APPLICATION")).toBe("ปัญหาซอฟต์แวร์");
-    expect(categoryLabelInThai("NETWORK_CONNECTIVITY")).toBe("ปัญหาการเชื่อมต่อเครือข่าย");
-    expect(categoryLabelInThai("PASSWORD_RESET")).toBe("ปัญหาการเข้าสู่ระบบ");
-    expect(categoryLabelInThai("BLUE_SCREEN")).toBe("ปัญหาฮาร์ดแวร์");
-  });
+test("maps canonical and legacy internal values to Thai", () => {
+  assert.equal(categoryLabelInThai("SOFTWARE_APPLICATION"), "ปัญหาซอฟต์แวร์");
+  assert.equal(categoryLabelInThai("NETWORK_CONNECTIVITY"), "ปัญหาการเชื่อมต่อเครือข่าย");
+  assert.equal(categoryLabelInThai("PASSWORD_RESET"), "ปัญหาการเข้าสู่ระบบ");
+  assert.equal(categoryLabelInThai("BLUE_SCREEN"), "ปัญหาฮาร์ดแวร์");
+});
 
-  test("never exposes unknown raw values as labels", () => {
-    expect(categoryMetaInThai("UNMAPPED_FUTURE_CATEGORY")).toEqual({
-      key: "AI_UNMAPPED_FUTURE_CATEGORY",
-      label: "อื่นๆ",
-    });
-    expect(categoryLabelInThai("AI_UNMAPPED_FUTURE_CATEGORY")).toBe("อื่นๆ");
-    expect(categoryLabelInThai(undefined)).toBe("อื่นๆ");
+test("never exposes unknown raw values as labels", () => {
+  assert.deepEqual(categoryMetaInThai("UNMAPPED_FUTURE_CATEGORY"), {
+    key: "AI_UNMAPPED_FUTURE_CATEGORY",
+    label: "อื่นๆ",
   });
+  assert.equal(categoryLabelInThai("AI_UNMAPPED_FUTURE_CATEGORY"), "อื่นๆ");
+  assert.equal(categoryLabelInThai(undefined), "อื่นๆ");
 });
