@@ -79,6 +79,7 @@ import type {
 import { CaseConversation } from "./Conversation/CaseConversation";
 import { OFF_ML_PROJECT_TABS } from "./OffMlProjectDashboard.config";
 import InboxWorkspace from "./InboxWorkspace";
+import { categoryLabelInThai } from "@/lib/category";
 
 const statusMeta: Record<CaseStatus, { label: string; color: string }> = {
   new: { label: "เคสใหม่", color: "gray" },
@@ -120,12 +121,7 @@ function getStatusMeta(status: CaseStatus) {
 const WAITING_TECH_STATUS = statusMeta.awaiting_tech.label;
 
 function displayCategory(category?: string | null) {
-  const value = category?.trim();
-  if (!value || value === "-" || value.toLowerCase() === "undefined" || value.toLowerCase() === "null") {
-    return "ยังไม่ระบุหมวดหมู่";
-  }
-
-  return value;
+  return categoryLabelInThai(category);
 }
 
 function normalizeAnalyticsCategoryKey(keyValue?: string | null, labelValue?: string | null) {
@@ -577,7 +573,7 @@ function CaseInbox({
             <Group gap="xs" wrap="wrap">
               {search ? <Button onClick={() => { setSearch(DEFAULT_CASE_INBOX_FILTERS.search); setCasePage(1); }} size="compact-xs" variant="light">ค้นหา: {search} ×</Button> : null}
               {statusFilter ? <Button onClick={() => { setStatusFilter(null); setCasePage(1); }} size="compact-xs" variant="light">สถานะ: {getStatusMeta(statusFilter as CaseStatus).label} ×</Button> : null}
-              {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); updateInboxQuery({ category: null }); }} size="compact-xs" variant="light">หมวดหมู่: {categories.find((category) => category.value === categoryFilter)?.label ?? categoryFilter} ×</Button> : null}
+              {categoryFilter ? <Button onClick={() => { setCategoryFilter(null); setCasePage(1); updateInboxQuery({ category: null }); }} size="compact-xs" variant="light">หมวดหมู่: {categories.find((category) => category.value === categoryFilter)?.label ?? categoryLabelInThai(categoryFilter)} ×</Button> : null}
               {activeKpi ? <Button color={activeKpi === "sla" ? "red" : undefined} onClick={() => handleSummaryFilter(activeKpi)} size="compact-xs" variant="light">{activeKpi === "waiting-tech" ? "สถานะ: รอตรวจสอบ" : activeKpi === "awaiting-confirmation" ? "สถานะ: รอทีมยืนยันคำแนะนำ AI" : activeKpi === "closed-this-month" ? "สถานะ: ปิดแล้วเดือนนี้" : "สถานะ: เกิน SLA"} ×</Button> : null}
               {confidenceFilter !== "all" ? <Button onClick={() => { setConfidenceFilter(DEFAULT_CASE_INBOX_FILTERS.confidence); setCasePage(1); }} size="compact-xs" variant="light">Confidence: {confidenceFilter} ×</Button> : null}
               {timeFilter !== "all" ? <Button onClick={() => { setTimeFilter(DEFAULT_CASE_INBOX_FILTERS.time); setTimeFilterReference(null); setCustomDateFrom(""); setCustomDateTo(""); setCasePage(1); }} size="compact-xs" variant="light">ช่วงเวลา: {timeFilter === "today" ? "วันนี้" : timeFilter === "custom" ? "กำหนดเอง" : timeFilterLabel(timeFilter)} ×</Button> : null}
@@ -649,7 +645,7 @@ function CaseInbox({
                     ) : null}
                   </Table.Td>
                   <Table.Td ta="center">
-                    <Badge variant="light">{item.category}</Badge>
+                    <Badge variant="light">{categoryLabelInThai(item.category)}</Badge>
                   </Table.Td>
                   <Table.Td>
                     {item.analysisStatus === "AI_FAILED" || item.analysisStatus === "NO_CUSTOMER_MESSAGE" ? <Text c="dimmed">-</Text> : (
@@ -1328,7 +1324,7 @@ function CaseDetail({
                 หมวดหมู่
               </Text>
               <Badge color="blue" mt={6} variant="light">
-                {item.category}
+                {categoryLabelInThai(item.category)}
               </Badge>
             </Box>
           </SimpleGrid>
@@ -1481,7 +1477,7 @@ function CaseDetail({
                           หมวดหมู่
                         </Text>
                         <Badge color="blue" variant="light">
-                          {item.category}
+                          {categoryLabelInThai(item.category)}
                         </Badge>
                       </Group>
                       <Group justify="space-between">
@@ -1850,7 +1846,7 @@ function ConfidenceReview({
               <Badge color={item.reviewStatus === "LOW_CONFIDENCE" ? "orange" : item.reviewStatus === "NEGATIVE_FEEDBACK" ? "red" : "gray"} variant="light">
                 {item.reviewStatus === "LOW_CONFIDENCE" ? "ความมั่นใจต่ำ" : item.reviewStatus === "NEGATIVE_FEEDBACK" ? "มี Feedback ไม่ถูกต้อง" : "ยังไม่ได้ตรวจสอบ"}
               </Badge>
-              <Badge color="blue" variant="light">{item.category}</Badge>
+              <Badge color="blue" variant="light">{categoryLabelInThai(item.category)}</Badge>
             </Group>
           </Group>
           <SimpleGrid cols={{ base: 1, md: 2 }} mt="sm">
@@ -2469,7 +2465,7 @@ function AutomationSettings({
               <Table.Tbody>
                 {solutions.map((item) => (
                   <Table.Tr key={item.id}>
-                    <Table.Td>{item.category}</Table.Td>
+                    <Table.Td>{categoryLabelInThai(item.category)}</Table.Td>
                     <Table.Td>{item.caseUnderstandingConfidence}%</Table.Td>
                     <Table.Td>{item.caseDiscriminationConfidence}%</Table.Td>
                     <Table.Td>{item.solutionText}</Table.Td>

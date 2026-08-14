@@ -11,6 +11,7 @@
   OffMlProjectCaseResponse,
   SupportCase,
 } from "@/types/app/offMlProject";
+import { categoryLabelInThai, categoryMetaInThai } from "@/lib/category";
 
 type ApiResponse<T> = {
   data: T;
@@ -83,43 +84,6 @@ function latestByCreatedAt<T extends { createdAt: string }>(items: T[]) {
     const rightTime = new Date(right.createdAt).getTime();
     return rightTime - leftTime;
   });
-}
-
-const categoryMeta: Record<string, { key: string; label: string }> = {
-  NETWORK_CONNECTION: { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
-  NETWORK_ISSUE: { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
-  NETWORK_CONNECTIVITY: { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
-  "ปัญหาการเชื่อมต่อเครือข่าย": { key: "NETWORK_CONNECTION", label: "ปัญหาการเชื่อมต่อเครือข่าย" },
-  LOGIN_ACCESS: { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
-  LOGIN_ISSUE: { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
-  LOGIN_FAILURE: { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
-  "ปัญหาการเข้าสู่ระบบ": { key: "LOGIN_ACCESS", label: "ปัญหาการเข้าสู่ระบบ" },
-  STATUS_UPDATE: { key: "STATUS_UPDATE", label: "ปัญหาการอัปเดตสถานะ" },
-  "ปัญหาการอัปเดตสถานะ": { key: "STATUS_UPDATE", label: "ปัญหาการอัปเดตสถานะ" },
-  HARDWARE_DEVICE: { key: "HARDWARE_DEVICE", label: "ปัญหาฮาร์ดแวร์" },
-  "ปัญหาฮาร์ดแวร์": { key: "HARDWARE_DEVICE", label: "ปัญหาฮาร์ดแวร์" },
-  SOFTWARE_APPLICATION: { key: "SOFTWARE_APPLICATION", label: "ปัญหาซอฟต์แวร์" },
-  "ปัญหาซอฟต์แวร์": { key: "SOFTWARE_APPLICATION", label: "ปัญหาซอฟต์แวร์" },
-  DATA_DISPLAY: { key: "DATA_DISPLAY", label: "ปัญหาการแสดงข้อมูล" },
-  "ปัญหาการแสดงข้อมูล": { key: "DATA_DISPLAY", label: "ปัญหาการแสดงข้อมูล" },
-  OTHER: { key: "OTHER", label: "อื่นๆ" },
-};
-
-function getCategoryMeta(category?: string | null) {
-  const value = category?.trim();
-  if (!value || value === "-" || value.toLowerCase() === "undefined" || value.toLowerCase() === "null") {
-    return categoryMeta.OTHER;
-  }
-  const known = categoryMeta[value.toUpperCase()] ?? categoryMeta[value];
-  if (known) return known;
-  if (value.startsWith("AI_")) {
-    try {
-      return { key: value, label: decodeURIComponent(value.slice(3)) };
-    } catch {
-      return categoryMeta.OTHER;
-    }
-  }
-  return { key: `AI_${encodeURIComponent(value)}`, label: value };
 }
 
 function wasDeliveredToCustomer(message: OffMlProjectCaseResponse["messages"][number]) {
@@ -301,8 +265,8 @@ export function mapCaseResponse(caseItem: OffMlProjectCaseResponse): SupportCase
   const slaHours = SLA_HOURS;
   const isSlaBreached = calculateSlaBreached(caseItem.status, latestCustomerMessage?.receivedAt ?? latestCustomerMessage?.createdAt ?? caseItem.updatedAt);
   const resolvedCategory = caseItem.aiStatus === "AI_FAILED"
-    ? { key: "OTHER", label: "AI วิเคราะห์ไม่สำเร็จ" }
-    : getCategoryMeta(customerAnalysis?.category ?? caseItem.category);
+    ? { key: "OTHER", label: "ยังไม่ระบุหมวดหมู่" }
+    : categoryMetaInThai(customerAnalysis?.category ?? caseItem.category);
 
   return {
     id: caseItem.id,
@@ -574,7 +538,8 @@ export async function refreshCaseExtractedSolution(caseId: string): Promise<Supp
 }
 
 export async function getConfidenceSuggestions(): Promise<ConfidenceSuggestion[]> {
-  return request<ConfidenceSuggestion[]>("/confidence/suggestions");
+  const suggestions = await request<ConfidenceSuggestion[]>("/confidence/suggestions");
+  return suggestions.map((item) => ({ ...item, category: categoryLabelInThai(item.category) }));
 }
 
 export async function reviewConfidenceSuggestion(input: {
@@ -621,7 +586,8 @@ export async function updateAutomationSettings(input: { emergencyDisable?: boole
 }
 
 export async function getAutoAnswerSolutions(): Promise<AutoAnswerSolution[]> {
-  return request<AutoAnswerSolution[]>("/automation/solutions");
+  const solutions = await request<AutoAnswerSolution[]>("/automation/solutions");
+  return solutions.map((item) => ({ ...item, category: categoryLabelInThai(item.category) }));
 }
 
 export async function getAutoAnswerLogs(query: AutoAnswerLogsQuery = {}): Promise<AutoAnswerLogsPage> {

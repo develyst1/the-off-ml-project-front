@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { OffMlProjectApiError, reviewConfidenceSuggestion, saveCaseAiFeedback } from "./offMlProject.service";
+import {
+  getAutoAnswerSolutions,
+  getConfidenceSuggestions,
+  OffMlProjectApiError,
+  reviewConfidenceSuggestion,
+  saveCaseAiFeedback,
+} from "./offMlProject.service";
 
 test("sends the complete Case Detail feedback identity, value, and note", async () => {
   const originalFetch = globalThis.fetch;
@@ -147,6 +153,28 @@ test("preserves HTTP 409 for stale Confidence Review handling", async () => {
       }),
       (error: unknown) => error instanceof OffMlProjectApiError && error.status === 409,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("normalizes category labels returned by Confidence Review and Automation", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input) => {
+    const data = String(input).includes("/confidence/suggestions")
+      ? [{ id: "suggestion-category", category: "SOFTWARE_APPLICATION" }]
+      : [{ id: "solution-category", category: "UNMAPPED_FUTURE_CATEGORY" }];
+    return new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const suggestions = await getConfidenceSuggestions();
+    const solutions = await getAutoAnswerSolutions();
+    assert.equal(suggestions[0]?.category, "ปัญหาซอฟต์แวร์");
+    assert.equal(solutions[0]?.category, "อื่นๆ");
   } finally {
     globalThis.fetch = originalFetch;
   }
