@@ -41,7 +41,7 @@ import {
 } from "@mantine/core";
 import { AppIcon } from "@/components/common";
 import type { IconName } from "@/components/common/AppIcon";
-import { mergeCaseDetail } from "./case-detail-state";
+import { canSaveCaseDetailFeedback, mergeCaseDetail } from "./case-detail-state";
 import {
   getAnalyticsSummary,
   getAutoAnswerLogs,
@@ -858,6 +858,7 @@ function CaseDetail({
   const teamsMeta = teamsDeliveryMeta(item);
   const isActionRunning = actionState !== "idle";
   const isClosed = item.status === "closed" || item.status === "resolved";
+  const canSaveAiFeedback = canSaveCaseDetailFeedback(item.status);
   const extractedSolution = item.supportSolution && item.supportSolution !== "NO_ACTIONABLE_SOLUTION"
     ? item.supportSolution
     : "กำลังตรวจสอบ / ยังไม่มีวิธีแก้ที่ยืนยันแล้ว";
@@ -937,6 +938,10 @@ function CaseDetail({
     analysis = item.currentAnalysis,
   ) => {
     if (feedbackSaving[field]) return;
+    if (!canSaveAiFeedback) {
+      setFeedbackError("กรุณาปิดเคสก่อนบันทึกผลการตรวจ AI");
+      return false;
+    }
     if (!analysis || !item.currentAnalysis
       || analysis.id !== item.currentAnalysis.id
       || analysis.analysisVersion !== item.currentAnalysis.analysisVersion) {
@@ -962,6 +967,10 @@ function CaseDetail({
     }
   };
   const openFeedbackNote = (field: "caseUnderstandingFeedback" | "solutionSelectionFeedback") => {
+    if (!canSaveAiFeedback) {
+      setFeedbackError("กรุณาปิดเคสก่อนบันทึกผลการตรวจ AI");
+      return;
+    }
     if (!item.currentAnalysis) {
       setFeedbackError("ยังไม่มีผลวิเคราะห์ที่สามารถประเมินได้");
       return;
@@ -1335,6 +1344,7 @@ function CaseDetail({
           </SimpleGrid>
           <Divider my="sm" />
           <Text fw={700} size="sm">ผลการตรวจของทีม Tech</Text>
+          {!canSaveAiFeedback ? <Text c="dimmed" mt={4} size="xs">ปิดเคสก่อน จึงจะกดประเมินผล AI ได้</Text> : null}
           <Text c="dimmed" fw={700} mt="sm" size="sm">
             สรุปผลวิเคราะห์
           </Text>
@@ -1354,12 +1364,12 @@ function CaseDetail({
               </Box>
               <Group gap={4}>
                 <Tooltip label="เข้าใจเคสถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เข้าใจเคสถูกต้อง" color={item.caseUnderstandingFeedback === "CORRECT" ? "green" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => void saveAiFeedback("caseUnderstandingFeedback", "CORRECT")} size="sm" variant={item.caseUnderstandingFeedback === "CORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เข้าใจเคสถูกต้อง" color={item.caseUnderstandingFeedback === "CORRECT" ? "green" : "gray"} disabled={!canSaveAiFeedback || !item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => void saveAiFeedback("caseUnderstandingFeedback", "CORRECT")} size="sm" variant={item.caseUnderstandingFeedback === "CORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-up" size={15} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="เข้าใจเคสไม่ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เข้าใจเคสไม่ถูกต้อง" color={item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => openFeedbackNote("caseUnderstandingFeedback")} size="sm" variant={item.caseUnderstandingFeedback === "INCORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เข้าใจเคสไม่ถูกต้อง" color={item.caseUnderstandingFeedback === "INCORRECT" ? "red" : "gray"} disabled={!canSaveAiFeedback || !item.currentAnalysis || Boolean(feedbackSaving.caseUnderstandingFeedback)} loading={Boolean(feedbackSaving.caseUnderstandingFeedback)} onClick={() => openFeedbackNote("caseUnderstandingFeedback")} size="sm" variant={item.caseUnderstandingFeedback === "INCORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-down" size={15} />
                   </ActionIcon>
                 </Tooltip>
@@ -1383,12 +1393,12 @@ function CaseDetail({
               </Box>
               <Group gap={4}>
                 <Tooltip label="เลือกวิธีแก้ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เลือกวิธีแก้ถูกต้อง" color={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "green" : "gray"} disabled={!item.currentAnalysis || !hasSuggestedSolution || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => void saveAiFeedback("solutionSelectionFeedback", "CORRECT")} size="sm" variant={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เลือกวิธีแก้ถูกต้อง" color={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "green" : "gray"} disabled={!canSaveAiFeedback || !item.currentAnalysis || !hasSuggestedSolution || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => void saveAiFeedback("solutionSelectionFeedback", "CORRECT")} size="sm" variant={hasSuggestedSolution && item.solutionSelectionFeedback === "CORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-up" size={15} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="เลือกวิธีแก้ไม่ถูกต้อง" withArrow>
-                  <ActionIcon aria-label="เลือกวิธีแก้ไม่ถูกต้อง" color={item.solutionSelectionFeedback === "INCORRECT" ? "red" : "gray"} disabled={!item.currentAnalysis || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => openFeedbackNote("solutionSelectionFeedback")} size="sm" variant={item.solutionSelectionFeedback === "INCORRECT" ? "filled" : "subtle"}>
+                  <ActionIcon aria-label="เลือกวิธีแก้ไม่ถูกต้อง" color={item.solutionSelectionFeedback === "INCORRECT" ? "red" : "gray"} disabled={!canSaveAiFeedback || !item.currentAnalysis || !hasSuggestedSolution || Boolean(feedbackSaving.solutionSelectionFeedback)} loading={Boolean(feedbackSaving.solutionSelectionFeedback)} onClick={() => openFeedbackNote("solutionSelectionFeedback")} size="sm" variant={item.solutionSelectionFeedback === "INCORRECT" ? "filled" : "subtle"}>
                     <AppIcon name="thumb-down" size={15} />
                   </ActionIcon>
                 </Tooltip>

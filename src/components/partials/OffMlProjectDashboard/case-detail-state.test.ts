@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SupportCase } from "@/types/app/offMlProject";
-import { mergeCaseDetail } from "./case-detail-state";
+import { canSaveCaseDetailFeedback, mergeCaseDetail } from "./case-detail-state";
 
 function makeCase(overrides: Partial<SupportCase> = {}) {
   return {
@@ -68,4 +68,12 @@ test("does not let a stale feedback snapshot overwrite the current analysis", ()
   assert.equal(merged.currentAnalysis?.id, "analysis-2");
   assert.equal(merged.caseUnderstandingFeedback, "CORRECT");
   assert.equal(merged.aiFeedback?.issueUnderstandingReason, undefined);
+});
+
+test("allows Case Detail feedback only after the case is closed", () => {
+  assert.equal(canSaveCaseDetailFeedback("assigned"), false);
+  assert.equal(canSaveCaseDetailFeedback("sent_to_customer"), false);
+  assert.equal(canSaveCaseDetailFeedback("reopened"), false);
+  assert.equal(canSaveCaseDetailFeedback("resolved"), true);
+  assert.equal(canSaveCaseDetailFeedback("closed"), true);
 });

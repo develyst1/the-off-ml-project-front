@@ -1,4 +1,8 @@
-import type { SupportCase } from "@/types/app/offMlProject";
+import type { CaseStatus, SupportCase } from "@/types/app/offMlProject";
+
+export function canSaveCaseDetailFeedback(status: CaseStatus): boolean {
+  return status === "closed" || status === "resolved";
+}
 
 export function mergeCaseDetail(previous: SupportCase | null, incoming: SupportCase): SupportCase {
   if (!previous || previous.id !== incoming.id) return incoming;
