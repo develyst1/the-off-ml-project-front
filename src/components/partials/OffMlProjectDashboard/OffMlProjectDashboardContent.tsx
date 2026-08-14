@@ -1876,8 +1876,10 @@ function ConfidenceReview({
               </Box>
             </Stack>
           </SimpleGrid>
-          <Text c={item.reviewStage === "AUTO_ANSWER" ? "green.7" : "dimmed"} mt="sm" size="sm">
-            {item.reviewHint}
+          <Text c={item.hasSuggestedSolution === false ? "orange.7" : item.reviewStage === "AUTO_ANSWER" ? "green.7" : "dimmed"} mt="sm" size="sm">
+            {item.hasSuggestedSolution === false
+              ? "หมายเหตุ: Solution ยังไม่ครบ จึงยังไม่สามารถตรวจและบันทึกผลได้"
+              : item.reviewHint}
           </Text>
           <Text c="dimmed" mt="xs" size="xs">
             การยืนยันของทีมจะถูกใช้คำนวณ Learned Reliability สำหรับการเข้าใจเคสและการเลือกวิธีแก้
@@ -1893,7 +1895,7 @@ function ConfidenceReview({
                 </Button>
               </>
             ) : (
-              <Button disabled={Boolean(savingSuggestionId)} loading={savingSuggestionId === item.id} onClick={() => openReviewModal(item)} size="sm">
+              <Button disabled={item.hasSuggestedSolution === false || Boolean(savingSuggestionId)} loading={savingSuggestionId === item.id} onClick={() => openReviewModal(item)} size="sm">
                 ตรวจและบันทึกผล
               </Button>
             )}
