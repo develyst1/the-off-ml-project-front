@@ -184,6 +184,7 @@ function formatEventClock(value?: string) {
 
 const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
   total: 0,
+  resolvedCasePct: 0,
   solvedFromExistingSolutionPct: 0,
   overSla: 0,
   readyForAutoAnswer: 0,
@@ -1985,67 +1986,24 @@ function ConfidenceReview({
 }
 
 function AnalyticsDashboard({
-  cases,
-  isLoadingCases,
   onDrillDown,
   onRangeChange,
   summary,
 }: {
-  cases: SupportCase[];
-  isLoadingCases: boolean;
   onDrillDown: (filter: { category?: string; confidence?: string }) => void;
   onRangeChange: (range: "today" | "7d" | "30d") => void;
   summary: AnalyticsSummary;
 }) {
   type AnalyticsRange = "today" | "7d" | "30d";
-  type CategoryRow = {
-    key: string;
-    label: string;
-    count: number;
-    value: number;
-    understanding?: number;
-    discrimination?: number;
-  };
   const [range, setRange] = useState<AnalyticsRange>("30d");
-  const [showAllCategories, setShowAllCategories] = useState(false);
-  const [analyticsNow] = useState(() => Date.now());
   const rangeLabels: Record<AnalyticsRange, string> = { today: "วันนี้", "7d": "7 วัน", "30d": "30 วัน" };
-  const periodCases = useMemo(() => {
-    if (isLoadingCases) return null;
-    const days = range === "today" ? 1 : range === "7d" ? 7 : 30;
-    const start = analyticsNow - days * 24 * 60 * 60 * 1000;
-    return cases.filter((item) => new Date(item.caseCreatedAt ?? item.lastActivityAt).getTime() >= start);
-  }, [analyticsNow, cases, isLoadingCases, range]);
-  const metrics = useMemo(() => {
-    if (periodCases === null) {
-      return {
-        total: summary.total,
-        solvedPct: summary.solvedFromExistingSolutionPct,
-        overSla: summary.overSla,
-        ready: summary.readyForAutoAnswer,
-      };
-    }
-    const total = periodCases.length;
-    const solved = periodCases.filter((item) => item.status === "resolved" || item.status === "sent_to_customer" || item.status === "closed").length;
-    const hasEligibilityData = periodCases.some((item) => item.learningStatus?.autoAnswerEligible !== undefined);
-    return {
-      total,
-      solvedPct: total ? Math.round((solved / total) * 100) : 0,
-      overSla: periodCases.filter((item) => item.isSlaBreached).length,
-      ready: hasEligibilityData ? periodCases.filter((item) => item.learningStatus?.autoAnswerEligible === true).length : summary.readyForAutoAnswer,
-    };
-  }, [periodCases, summary]);
-  const confidenceDistribution = useMemo(() => {
-    if (periodCases === null) return summary.confidenceDistribution;
-    const labels = ["0-59%", "60-89%", "90-97%", "98-100%"];
-    const counts = new Map(labels.map((label) => [label, 0]));
-    periodCases.forEach((item) => {
-      const value = item.aiConfidence;
-      const label = value < 60 ? "0-59%" : value < 90 ? "60-89%" : value < 98 ? "90-97%" : "98-100%";
-      counts.set(label, (counts.get(label) ?? 0) + 1);
-    });
-    return labels.map((label) => ({ label, value: metrics.total ? Math.round(((counts.get(label) ?? 0) / metrics.total) * 100) : 0 }));
-  }, [metrics.total, periodCases, summary.confidenceDistribution]);
+  const metrics = {
+    total: summary.total,
+    resolvedPct: summary.resolvedCasePct ?? summary.solvedFromExistingSolutionPct,
+    overSla: summary.overSla,
+    ready: summary.readyForAutoAnswer,
+  };
+  const confidenceDistribution = summary.confidenceDistribution;
   const categoryRows = useMemo(() => {
     const grouped = new Map<string, { key: string; label: string; count: number; understanding: number[]; discrimination: number[] }>();
     const add = (
@@ -2089,21 +2047,6 @@ function AnalyticsDashboard({
       }))
       .sort((left, right) => right.count - left.count);
   }, [metrics.total, summary.categories]);
-  const topCategories = categoryRows.filter((item) => item.key !== "OTHER").slice(0, 5);
-  const remainderCategories = categoryRows.filter((item) => item.key === "OTHER" || !topCategories.some((top) => top.key === item.key));
-  const otherCategory: CategoryRow | undefined = remainderCategories.length ? {
-    key: "OTHER",
-    label: "อื่นๆ",
-    count: remainderCategories.reduce((sum, item) => sum + item.count, 0),
-    value: metrics.total ? Math.round((remainderCategories.reduce((sum, item) => sum + item.count, 0) / metrics.total) * 100) : 0,
-    understanding: remainderCategories.some((item) => item.understanding !== undefined)
-      ? Math.round(remainderCategories.filter((item) => item.understanding !== undefined).reduce((sum, item) => sum + (item.understanding ?? 0), 0) / remainderCategories.filter((item) => item.understanding !== undefined).length)
-      : undefined,
-    discrimination: remainderCategories.some((item) => item.discrimination !== undefined)
-      ? Math.round(remainderCategories.filter((item) => item.discrimination !== undefined).reduce((sum, item) => sum + (item.discrimination ?? 0), 0) / remainderCategories.filter((item) => item.discrimination !== undefined).length)
-      : undefined,
-  } : undefined;
-  const displayCategories = showAllCategories ? categoryRows : [...topCategories, ...(otherCategory ? [otherCategory] : [])];
   const qualityColor = (value?: number) => value === undefined ? "gray" : value >= 90 ? "green" : value >= 60 ? "yellow" : "red";
 
   return (
@@ -2118,14 +2061,14 @@ function AnalyticsDashboard({
       </Group>
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
         <MetricCard color="blue" icon="inbox" label={`เคสทั้งหมด${range === "30d" ? " 30 วัน" : rangeLabels[range]}`} value={String(metrics.total)} />
-        <MetricCard color="green" icon="brain" label="แก้ได้จาก solution เดิม" value={`${metrics.solvedPct}%`} />
+        <MetricCard color="green" icon="brain" label="เคสที่แก้ไขแล้ว" value={`${metrics.resolvedPct}%`} />
         <MetricCard color="red" icon="alert" label="เกิน SLA" value={String(metrics.overSla)} />
         <MetricCard color="violet" icon="chart" label="พร้อม auto-answer" muted={metrics.ready === 0} value={String(metrics.ready)} />
       </SimpleGrid>
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card className="analyticsCategoriesCard" padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>หมวดหมู่เคสที่พบบ่อย</Title>
-          {metrics.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="blue" radius="xl" size={40} variant="light"><AppIcon name="chart" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลหมวดหมู่</Text><Text c="dimmed" size="sm">เมื่อมีเคสในช่วงเวลานี้ ระบบจะแสดงหมวดหมู่ที่พบบ่อยที่นี่</Text></Stack> : displayCategories.map((category) => (
+          {metrics.total === 0 ? <Stack align="center" gap="xs" py="xl" ta="center"><ThemeIcon color="blue" radius="xl" size={40} variant="light"><AppIcon name="chart" /></ThemeIcon><Text fw={600}>ยังไม่มีข้อมูลหมวดหมู่</Text><Text c="dimmed" size="sm">เมื่อมีเคสในช่วงเวลานี้ ระบบจะแสดงหมวดหมู่ที่พบบ่อยที่นี่</Text></Stack> : categoryRows.map((category) => (
             <Box
               aria-label={`ดูเคสหมวดหมู่ ${category.label}`}
               component="button"
@@ -2150,7 +2093,6 @@ function AnalyticsDashboard({
               <Progress color={qualityColor(category.discrimination)} size="xs" value={category.discrimination ?? 0} />
             </Box>
           ))}
-          {categoryRows.length > 5 ? <Button onClick={() => setShowAllCategories((current) => !current)} size="xs" variant="subtle">{showAllCategories ? "แสดงเฉพาะ Top 5" : "ดูหมวดหมู่ทั้งหมด"}</Button> : null}
         </Card>
         <Card className="analyticsConfidenceCard" padding="lg" radius="md" withBorder>
           <Title mb="md" order={3}>การกระจายระดับความมั่นใจ</Title>
@@ -3268,7 +3210,7 @@ export default function OffMlProjectDashboardContent({
               />
             </Tabs.Panel>
             <Tabs.Panel value="analytics">
-              <AnalyticsDashboard cases={cases} isLoadingCases={isLoadingCases} onDrillDown={handleAnalyticsDrillDown} onRangeChange={(range) => void loadAnalyticsSummary(range)} summary={analyticsSummary} />
+              <AnalyticsDashboard onDrillDown={handleAnalyticsDrillDown} onRangeChange={(range) => void loadAnalyticsSummary(range)} summary={analyticsSummary} />
             </Tabs.Panel>
             <Tabs.Panel value="automation">
               <AutomationSettings

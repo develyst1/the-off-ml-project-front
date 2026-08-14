@@ -319,6 +319,7 @@ export interface AutoAnswerLogsPage {
 
 export interface AnalyticsSummary {
   total: number;
+  resolvedCasePct?: number;
   solvedFromExistingSolutionPct: number;
   overSla: number;
   readyForAutoAnswer: number;
