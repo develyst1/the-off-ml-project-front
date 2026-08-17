@@ -2361,7 +2361,7 @@ function AutomationSettings({
   const learnedReliabilityReason = !learnedReliability
     ? "ไม่สามารถยืนยัน Reliability ได้ ระบบจะไม่ตอบอัตโนมัติ"
     : learnedReliabilityReady
-      ? "ผ่าน Reliability ทั้งสองด้าน และยังต้องผ่าน Guardrail เดิมของแต่ละเคส"
+      ? "ผ่าน Reliability ทั้งสองด้าน และยังต้องผ่าน Solution Guardrail ของแต่ละเคส"
       : settings?.learnedReliabilityDecision?.reason === "UNDERSTANDING_RELIABILITY_BELOW_THRESHOLD"
         ? "ความน่าเชื่อถือในการเข้าใจเคสต่ำกว่า 90%"
         : settings?.learnedReliabilityDecision?.reason === "SOLUTION_RELIABILITY_BELOW_THRESHOLD"
@@ -2390,7 +2390,7 @@ function AutomationSettings({
           <Box>
             <Title order={3}>การตอบอัตโนมัติแบบมีเงื่อนไข</Title>
             <Text c="dimmed" size="sm">
-              ระบบจะตอบอัตโนมัติได้เมื่อ AI มีความมั่นใจทั้งการเข้าใจเคสและการเลือกวิธีแก้ตามเกณฑ์ที่กำหนด
+              ระบบจะตอบอัตโนมัติเมื่อ Solution ผ่านเกณฑ์และ Reliability จากผลตรวจพร้อมใช้งาน โดย AI Confidence ของข้อความล่าสุดเป็นข้อมูลประกอบเท่านั้น
             </Text>
           </Box>
           <Button onClick={() => setThresholdModalOpen(true)} variant="light">
@@ -2399,11 +2399,11 @@ function AutomationSettings({
         </Group>
         <SimpleGrid cols={{ base: 1, md: 3 }} mt="lg">
           <Paper bg="gray.0" p="md" radius="md">
-            <Text c="dimmed" fw={700} size="sm">เกณฑ์ความมั่นใจด้านการเข้าใจเคส</Text>
+            <Text c="dimmed" fw={700} size="sm">เกณฑ์ตรวจความเข้าใจเคส (หลัง Feedback)</Text>
             <Title order={2}>{settings?.caseUnderstandingThreshold ?? 98}%</Title>
           </Paper>
           <Paper bg="gray.0" p="md" radius="md">
-            <Text c="dimmed" fw={700} size="sm">เกณฑ์ความมั่นใจด้านวิธีแก้</Text>
+            <Text c="dimmed" fw={700} size="sm">เกณฑ์ความมั่นใจด้านวิธีแก้ (Solution Guardrail)</Text>
             <Title order={2}>{settings?.caseDiscriminationThreshold ?? 98}%</Title>
           </Paper>
           <Paper bg="gray.0" p="md" radius="md">
@@ -2415,7 +2415,7 @@ function AutomationSettings({
         {([settings?.caseUnderstandingThreshold ?? 98, settings?.caseDiscriminationThreshold ?? 98, settings?.learnedReliabilityThreshold ?? 90]
           .some((value, index) => value < (index === 2 ? 90 : 98))) ? (
           <Alert color="orange" mt="md" variant="light">
-            ระบบอยู่ในโหมดทดสอบ เนื่องจากมีการตั้งค่า Threshold ต่ำกว่าค่า Default และ Auto-answer อาจตอบในเคสที่ความมั่นใจยังไม่สูงพอ
+            ระบบอยู่ในโหมดทดสอบ เนื่องจากมีการตั้งค่า Threshold ต่ำกว่าค่า Default และ Auto-answer อาจเปิดใช้งานกับ Solution ที่ผ่านเกณฑ์ที่ผ่อนลง
           </Alert>
         ) : null}
         {thresholdError ? <Box className="automationErrorToast" role="alert">{thresholdError}</Box> : null}
@@ -2499,7 +2499,7 @@ function AutomationSettings({
           <NumberInput
             clampBehavior="strict"
             description="Min 80% · Max 100% · Default 98%"
-            label="เกณฑ์ความมั่นใจด้านการเข้าใจเคส"
+            label="เกณฑ์ตรวจความเข้าใจเคส (หลัง Feedback)"
             max={100}
             min={80}
             onChange={(value) => setUnderstandingThreshold(typeof value === "number" ? value : "")}
@@ -2508,7 +2508,7 @@ function AutomationSettings({
           <NumberInput
             clampBehavior="strict"
             description="Min 80% · Max 100% · Default 98%"
-            label="เกณฑ์ความมั่นใจด้านวิธีแก้"
+            label="เกณฑ์ความมั่นใจด้านวิธีแก้ (Solution Guardrail)"
             max={100}
             min={80}
             onChange={(value) => setSolutionThreshold(typeof value === "number" ? value : "")}
