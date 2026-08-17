@@ -7,6 +7,7 @@ import {
   mapCaseResponse,
   reviewConfidenceSuggestion,
   saveCaseAiFeedback,
+  updateAutomationSettings,
   technicalTopicFromAnalysis,
 } from "./offMlProject.service";
 import type { OffMlProjectCaseResponse } from "@/types/app/offMlProject";
@@ -52,6 +53,42 @@ test("sends the complete Case Detail feedback identity, value, and note", async 
     feedbackType: "ISSUE_UNDERSTANDING",
     value: "INCORRECT",
     reason: "สรุปอาการไม่ครบ",
+  });
+});
+
+test("sends all automation thresholds and the updater identity", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestInit: RequestInit | undefined;
+  globalThis.fetch = (async (_input, init) => {
+    requestInit = init;
+    return new Response(JSON.stringify({ data: {
+      enabled: false,
+      caseUnderstandingThreshold: 90,
+      caseDiscriminationThreshold: 90,
+      learnedReliabilityThreshold: 80,
+      updatedAt: "2026-08-17T00:00:00.000Z",
+      updatedBy: "Tech Support Console",
+      learnedReliability: null,
+    } }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    await updateAutomationSettings({
+      caseUnderstandingThreshold: 90,
+      caseDiscriminationThreshold: 90,
+      learnedReliabilityThreshold: 80,
+      updatedBy: "Tech Support Console",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(requestInit?.method, "PATCH");
+  assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+    caseUnderstandingThreshold: 90,
+    caseDiscriminationThreshold: 90,
+    learnedReliabilityThreshold: 80,
+    updatedBy: "Tech Support Console",
   });
 });
 

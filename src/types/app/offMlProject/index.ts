@@ -342,8 +342,10 @@ export interface AutomationSettings {
   enabled: boolean;
   caseUnderstandingThreshold: number;
   caseDiscriminationThreshold: number;
+  learnedReliabilityThreshold: number;
   emergencyDisabledAt?: string;
   updatedAt: string;
+  updatedBy: string;
   learnedReliability: LearnedReliabilitySummary | null;
   learnedReliabilityDecision?: {
     allowed: boolean;

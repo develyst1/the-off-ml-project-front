@@ -20,6 +20,7 @@ import {
   Group,
   Modal,
   NavLink,
+  NumberInput,
   Pagination,
   Paper,
   Progress,
@@ -2164,7 +2165,14 @@ function AutomationSettings({
   logsPage: AutoAnswerLogsPage;
   isLoadingLogs: boolean;
   onLoadLogs: (query: AutoAnswerLogsQuery) => Promise<void>;
-  onUpdateSettings: (input: { emergencyDisable?: boolean; enabled?: boolean }) => Promise<void>;
+  onUpdateSettings: (input: {
+    emergencyDisable?: boolean;
+    enabled?: boolean;
+    caseUnderstandingThreshold?: number;
+    caseDiscriminationThreshold?: number;
+    learnedReliabilityThreshold?: number;
+    updatedBy?: string;
+  }) => Promise<void>;
   settings: AutomationSettings | null;
   solutions: AutoAnswerSolution[];
   onOpenCase: (caseId: string) => Promise<void>;
@@ -2175,6 +2183,13 @@ function AutomationSettings({
   const [automationError, setAutomationError] = useState<string>();
   const [automationSuccess, setAutomationSuccess] = useState<string>();
   const [isUpdatingAutomation, setIsUpdatingAutomation] = useState(false);
+  const [isSavingThresholds, setIsSavingThresholds] = useState(false);
+  const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
+  const [thresholdError, setThresholdError] = useState<string>();
+  const [thresholdSuccess, setThresholdSuccess] = useState<string>();
+  const [understandingThreshold, setUnderstandingThreshold] = useState<number | "">(98);
+  const [solutionThreshold, setSolutionThreshold] = useState<number | "">(98);
+  const [learnedThreshold, setLearnedThreshold] = useState<number | "">(90);
   const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
   const [selectedLogSolution, setSelectedLogSolution] = useState<AutoAnswerLog | null>(null);
   const [selectedLogMessage, setSelectedLogMessage] = useState<AutoAnswerLog | null>(null);
@@ -2187,6 +2202,16 @@ function AutomationSettings({
   const logSearchTimer = useRef<number | null>(null);
   const messageElements = useRef(new Map<string, HTMLParagraphElement>());
   const [truncatedMessageIds, setTruncatedMessageIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!settings) return;
+    const timer = window.setTimeout(() => {
+      setUnderstandingThreshold(settings.caseUnderstandingThreshold ?? 98);
+      setSolutionThreshold(settings.caseDiscriminationThreshold ?? 98);
+      setLearnedThreshold(settings.learnedReliabilityThreshold ?? 90);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [settings]);
 
   const loadLogs = (overrides: Partial<AutoAnswerLogsQuery> = {}) => {
     const query: AutoAnswerLogsQuery = {
@@ -2291,6 +2316,34 @@ function AutomationSettings({
     }
   };
 
+  const saveThresholds = async () => {
+    if (!settings || isSavingThresholds) return;
+    if (typeof understandingThreshold !== "number" || understandingThreshold < 80 || understandingThreshold > 100
+      || typeof solutionThreshold !== "number" || solutionThreshold < 80 || solutionThreshold > 100
+      || typeof learnedThreshold !== "number" || learnedThreshold < 70 || learnedThreshold > 100) {
+      setThresholdError("กรุณาตั้งค่าให้ถูกต้อง: ความเข้าใจและวิธีแก้ 80–100% และ Learned Reliability 70–100%");
+      setThresholdSuccess(undefined);
+      return;
+    }
+    setIsSavingThresholds(true);
+    setThresholdError(undefined);
+    setThresholdSuccess(undefined);
+    try {
+      await onUpdateSettings({
+        caseUnderstandingThreshold: understandingThreshold,
+        caseDiscriminationThreshold: solutionThreshold,
+        learnedReliabilityThreshold: learnedThreshold,
+        updatedBy: "Tech Support Console",
+      });
+      setThresholdSuccess("บันทึกค่า Threshold แล้ว ระบบจะใช้ค่าใหม่กับเคสถัดไปทันที");
+      setThresholdModalOpen(false);
+    } catch (error) {
+      setThresholdError(error instanceof Error ? error.message : "ไม่สามารถบันทึกค่า Threshold ได้ กรุณาลองใหม่");
+    } finally {
+      setIsSavingThresholds(false);
+    }
+  };
+
   const hasActiveLogFilter = Boolean(logSearch || logEventType || logStatus || logDateFrom || logDateTo);
   const hasLogData = logsPage.totalItems > 0;
   const showLogFilters = isLoadingLogs || hasLogData || hasActiveLogFilter;
@@ -2333,30 +2386,48 @@ function AutomationSettings({
       )}
 
       <Card className="automationSettingsCard" padding="lg" radius="md" withBorder>
-        <Box>
-          <Title order={3}>การตอบอัตโนมัติแบบมีเงื่อนไข</Title>
-          <Text c="dimmed" size="sm">
-            ระบบจะตอบอัตโนมัติได้เมื่อ AI มีความมั่นใจทั้งการเข้าใจเคสและการเลือกวิธีแก้ตามเกณฑ์ที่กำหนด
-          </Text>
-        </Box>
-        <SimpleGrid cols={{ base: 1, md: 2 }} mt="lg">
+        <Group align="flex-start" justify="space-between" wrap="nowrap">
+          <Box>
+            <Title order={3}>การตอบอัตโนมัติแบบมีเงื่อนไข</Title>
+            <Text c="dimmed" size="sm">
+              ระบบจะตอบอัตโนมัติได้เมื่อ AI มีความมั่นใจทั้งการเข้าใจเคสและการเลือกวิธีแก้ตามเกณฑ์ที่กำหนด
+            </Text>
+          </Box>
+          <Button onClick={() => setThresholdModalOpen(true)} variant="light">
+            ตั้งค่า Threshold
+          </Button>
+        </Group>
+        <SimpleGrid cols={{ base: 1, md: 3 }} mt="lg">
           <Paper bg="gray.0" p="md" radius="md">
-            <Text c="dimmed" fw={700} size="sm">เข้าใจเคสถูกต้อง</Text>
+            <Text c="dimmed" fw={700} size="sm">เกณฑ์ความมั่นใจด้านการเข้าใจเคส</Text>
             <Title order={2}>{settings?.caseUnderstandingThreshold ?? 98}%</Title>
           </Paper>
           <Paper bg="gray.0" p="md" radius="md">
-            <Text c="dimmed" fw={700} size="sm">เลือกวิธีแก้ถูกต้อง</Text>
+            <Text c="dimmed" fw={700} size="sm">เกณฑ์ความมั่นใจด้านวิธีแก้</Text>
             <Title order={2}>{settings?.caseDiscriminationThreshold ?? 98}%</Title>
           </Paper>
+          <Paper bg="gray.0" p="md" radius="md">
+            <Text c="dimmed" fw={700} size="sm">เกณฑ์ความน่าเชื่อถือจากผลตรวจ</Text>
+            <Title order={2}>{settings?.learnedReliabilityThreshold ?? 90}%</Title>
+          </Paper>
         </SimpleGrid>
+        <Text c="dimmed" mt="md" size="xs">ค่าที่ระบบใช้ตอนนี้: {settings?.caseUnderstandingThreshold ?? 98}% / {settings?.caseDiscriminationThreshold ?? 98}% / {settings?.learnedReliabilityThreshold ?? 90}%</Text>
+        {([settings?.caseUnderstandingThreshold ?? 98, settings?.caseDiscriminationThreshold ?? 98, settings?.learnedReliabilityThreshold ?? 90]
+          .some((value, index) => value < (index === 2 ? 90 : 98))) ? (
+          <Alert color="orange" mt="md" variant="light">
+            ระบบอยู่ในโหมดทดสอบ เนื่องจากมีการตั้งค่า Threshold ต่ำกว่าค่า Default และ Auto-answer อาจตอบในเคสที่ความมั่นใจยังไม่สูงพอ
+          </Alert>
+        ) : null}
+        {thresholdError ? <Box className="automationErrorToast" role="alert">{thresholdError}</Box> : null}
+        {thresholdSuccess ? <Box className="automationSuccessToast" role="status">{thresholdSuccess}</Box> : null}
         <Paper bg="gray.0" mt="md" p="md" radius="md">
           <Group justify="space-between" mb="sm">
             <Box>
-              <Text fw={700}>Learned Reliability</Text>
-              <Text c="dimmed" size="xs">Guardrail ชั้นที่ 2 · Threshold {learnedReliability?.threshold ? `${Math.round(learnedReliability.threshold * 100)}%` : "90%"} (อ่านอย่างเดียว)</Text>
+              <Text fw={700}>ความน่าเชื่อถือจากการเรียนรู้</Text>
+              <Text c="dimmed" size="xs">Guardrail ชั้นที่ 2 · Threshold {learnedReliability?.threshold ? `${Math.round(learnedReliability.threshold * 100)}%` : `${settings?.learnedReliabilityThreshold ?? 90}%`}</Text>
             </Box>
             <Badge color={learnedReliabilityReady ? "green" : "yellow"} variant="light">
-              {learnedReliabilityReady ? "ผ่าน Reliability" : "บล็อก Auto-answer"}
+              {learnedReliabilityReady ? "ผ่านเกณฑ์ความน่าเชื่อถือ" : "บล็อกการตอบอัตโนมัติ"}
             </Badge>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -2372,14 +2443,14 @@ function AutomationSettings({
                     <Text size="sm">{label}</Text>
                     <Text fw={700} size="sm">{learnedReliabilityText(key)}</Text>
                   </Group>
-                  <Progress color={dimension?.status === "READY" && percent >= 90 ? "green" : "yellow"} mt={4} value={percent} />
+                  <Progress color={dimension?.status === "READY" && percent >= (settings?.learnedReliabilityThreshold ?? 90) ? "green" : "yellow"} mt={4} value={percent} />
                   <Text c="dimmed" size="xs">{dimension?.status ?? "UNAVAILABLE"}</Text>
                 </Box>
               );
             })}
           </SimpleGrid>
           <Text c={learnedReliabilityReady ? "dimmed" : "orange.8"} mt="sm" size="sm">
-            Auto-answer: {learnedReliabilityReady ? "ผ่าน Reliability ทั้งสองด้าน" : "Blocked"} · {learnedReliabilityReason}
+            การตอบอัตโนมัติ: {learnedReliabilityReady ? "ผ่านเกณฑ์ทั้งสองด้าน" : "ถูกบล็อก"} · {learnedReliabilityReason}
           </Text>
         </Paper>
         <SimpleGrid className="automationSettingsMeta" cols={{ base: 1, sm: 2 }} mt="md">
@@ -2388,8 +2459,8 @@ function AutomationSettings({
             <Text fw={600} size="sm">{settings?.updatedAt ? formatEventTime(settings.updatedAt) : "ไม่พบข้อมูลอัปเดตล่าสุด"}</Text>
           </Box>
           <Box>
-            <Text c="dimmed" size="xs">เปิด/ปิดใช้งานล่าสุดโดย</Text>
-            <Text fw={600} size="sm">ไม่พบข้อมูลผู้ดำเนินการ</Text>
+            <Text c="dimmed" size="xs">แก้ไขล่าสุดโดย</Text>
+            <Text fw={600} size="sm">{settings?.updatedBy ?? "ไม่พบข้อมูลผู้ดำเนินการ"}</Text>
           </Box>
         </SimpleGrid>
         <Paper className={enabled ? "emergencyPanel" : "automationEnablePanel"} mt="md" p="md" radius="md">
@@ -2414,6 +2485,59 @@ function AutomationSettings({
         {automationError ? <Box className="automationErrorToast" role="alert">{automationError}</Box> : null}
         {automationSuccess ? <Box className="automationSuccessToast" role="status">{automationSuccess}</Box> : null}
       </Card>
+
+      <Modal
+        centered
+        onClose={() => setThresholdModalOpen(false)}
+        opened={thresholdModalOpen}
+        title="ตั้งค่า Threshold"
+      >
+        <Stack gap="md">
+          <Text c="dimmed" size="sm">
+            ค่า Threshold จะมีผลกับการประเมินเคสใหม่ทันทีหลังบันทึก
+          </Text>
+          <NumberInput
+            clampBehavior="strict"
+            description="Min 80% · Max 100% · Default 98%"
+            label="เกณฑ์ความมั่นใจด้านการเข้าใจเคส"
+            max={100}
+            min={80}
+            onChange={(value) => setUnderstandingThreshold(typeof value === "number" ? value : "")}
+            value={understandingThreshold}
+          />
+          <NumberInput
+            clampBehavior="strict"
+            description="Min 80% · Max 100% · Default 98%"
+            label="เกณฑ์ความมั่นใจด้านวิธีแก้"
+            max={100}
+            min={80}
+            onChange={(value) => setSolutionThreshold(typeof value === "number" ? value : "")}
+            value={solutionThreshold}
+          />
+          <NumberInput
+            clampBehavior="strict"
+            description="Min 70% · Max 100% · Default 90%"
+            label="เกณฑ์ความน่าเชื่อถือจากผลตรวจ"
+            max={100}
+            min={70}
+            onChange={(value) => setLearnedThreshold(typeof value === "number" ? value : "")}
+            value={learnedThreshold}
+          />
+          {([understandingThreshold, solutionThreshold, learnedThreshold]
+            .some((value, index) => typeof value === "number" && value < (index === 2 ? 90 : 98))) ? (
+            <Alert color="orange" variant="light">
+              โหมดทดสอบ: ค่า Threshold ต่ำกว่าค่า Default และ Auto-answer อาจตอบในเคสที่ความมั่นใจยังไม่สูงพอ
+            </Alert>
+          ) : null}
+          {thresholdError ? <Alert color="red" variant="light">{thresholdError}</Alert> : null}
+          <Group justify="flex-end">
+            <Button onClick={() => setThresholdModalOpen(false)} variant="default">ยกเลิก</Button>
+            <Button loading={isSavingThresholds} onClick={() => void saveThresholds()}>
+              {isSavingThresholds ? "กำลังบันทึก..." : "บันทึกค่า Threshold"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Card className="automationSectionCard" padding="lg" radius="md" withBorder>
         <Title mb="md" order={3}>Solution ที่ผ่าน guardrail</Title>
@@ -3124,7 +3248,14 @@ export default function OffMlProjectDashboardContent({
     setActiveTab("confidence");
   };
 
-  const handleUpdateAutomationSettings = async (input: { emergencyDisable?: boolean; enabled?: boolean }) => {
+  const handleUpdateAutomationSettings = async (input: {
+    emergencyDisable?: boolean;
+    enabled?: boolean;
+    caseUnderstandingThreshold?: number;
+    caseDiscriminationThreshold?: number;
+    learnedReliabilityThreshold?: number;
+    updatedBy?: string;
+  }) => {
     const updatedSettings = await updateAutomationSettings(input);
     setAutomationSettings(updatedSettings);
   };

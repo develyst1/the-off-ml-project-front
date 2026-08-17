@@ -618,7 +618,14 @@ export async function getAutomationSettings(): Promise<AutomationSettings> {
   return request<AutomationSettings>("/automation/settings");
 }
 
-export async function updateAutomationSettings(input: { emergencyDisable?: boolean; enabled?: boolean }): Promise<AutomationSettings> {
+export async function updateAutomationSettings(input: {
+  emergencyDisable?: boolean;
+  enabled?: boolean;
+  caseUnderstandingThreshold?: number;
+  caseDiscriminationThreshold?: number;
+  learnedReliabilityThreshold?: number;
+  updatedBy?: string;
+}): Promise<AutomationSettings> {
   return request<AutomationSettings>("/automation/settings", {
     method: "PATCH",
     body: JSON.stringify(input),
