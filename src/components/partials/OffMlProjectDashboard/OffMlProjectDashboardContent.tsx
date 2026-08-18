@@ -895,7 +895,11 @@ function CaseDetail({
   }));
   const analyzedMessageIds = item.currentAnalysis?.sourceMessageIds;
   const hasNewConversationMessage = Array.isArray(analyzedMessageIds)
-    ? eligibleConversationMessages.some((message) => !analyzedMessageIds.includes(getAnalysisMessageIdentity(message)))
+    ? latestConversationAt > analysisAt
+      && eligibleConversationMessages.some((message) => (
+        !analyzedMessageIds.includes(getAnalysisMessageIdentity(message))
+        && new Date(message.receivedAt ?? message.sentAt ?? message.deliveredAt ?? message.createdAt).getTime() > analysisAt
+      ))
     : Number.isFinite(analysisAt) && latestConversationAt > analysisAt;
   const hasUnanalyzedConversation = Boolean(item.currentAnalysis) && hasNewConversationMessage;
   const hasTeamsTechReply = item.conversation.some((message) => (
