@@ -181,7 +181,8 @@ export default function InboxWorkspace({ initialUserId }: { initialUserId?: stri
         moveUserToTop(updated);
         if (selectedCustomerIdRef.current !== event.userId) return;
         setSelected(updated);
-        if (event.direction !== "INBOUND") return;
+        const shouldScrollToLatest = event.direction === "INBOUND" || event.senderType === "BOT";
+        if (!shouldScrollToLatest) return;
         if (isConversationNearBottomRef.current) {
           window.requestAnimationFrame(scrollToLatestConversation);
         } else {
